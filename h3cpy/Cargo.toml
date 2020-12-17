@@ -9,7 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 h3cpy_int = { path = "../h3cpy_int" }
-geo-types = "^0.4"
 
 [dependencies.pyo3]
 version = "0.12.4"

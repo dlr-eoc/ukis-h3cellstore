@@ -8,13 +8,13 @@ description = "Internal code of h3cpy"
 [dependencies]
 regex = "^1.4"
 lazy_static = "1.4.0"
-geo-types = "^0.4"
-geo = "^0.4"
+geo-types = "^0.6"
+geo = "^0.16"
 
 [dependencies.h3]
 git = "https://github.com/nmandery/h3r"
 tag = "v0.3.3"
-features = ["with-geo-types-0_4"]
+features = ["with-geo-types-0_6"]
 default_features = false
 
 [dependencies.h3-sys]

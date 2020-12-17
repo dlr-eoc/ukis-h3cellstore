@@ -32,15 +32,22 @@ fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, windo
     window_h3_resolution
 }
 
-struct WindowInterator {
+
+pub trait WindowFilter {
+    /// return true when the window should be used, return false when not
+    fn filter(&self, window_index: &Index) -> bool;
+}
+
+pub struct WindowIterator<F: WindowFilter> {
     window_polygon: Polygon<f64>,
     target_h3_resolution: u8,
     window_indexes: Vec<H3Index>,
     iter_pos: usize,
+    window_filter: F,
 }
 
-impl WindowInterator {
-    pub fn new(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> Self {
+impl<F: WindowFilter> WindowIterator<F> {
+    pub fn new(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32, window_filter: F) -> Self {
         let window_res = window_index_resolution(table_set, target_h3_resolution, window_max_size);
 
         let mut window_index_set = HashSet::new();
@@ -60,37 +67,41 @@ impl WindowInterator {
             target_h3_resolution,
             window_indexes: Vec::from_iter(window_index_set.drain()),
             iter_pos: 0,
+            window_filter,
         }
     }
 }
 
-struct Window {
+pub struct Window {
     pub window_index: Index,
     pub indexes: Vec<Index>,
 }
 
-impl Iterator for WindowInterator {
+
+impl<F: WindowFilter> Iterator for WindowIterator<F> {
     type Item = Window;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(h3index) = self.window_indexes.get(self.pos) {
-                pos += 1;
-                let window_index = Index::from(h3index);
+            if let Some(h3index) = self.window_indexes.get(self.iter_pos) {
+                self.iter_pos += 1;
+                let window_index = Index::from(*h3index);
 
                 // window_h3index must really intersect with the window
                 if !self.window_polygon.intersects(&window_index.polygon()) {
                     continue;
                 }
 
-                // TODO: allow pre-check if there is any data in the window
+                // apply the filter after the intersects, as the filter may be more
+                // expensive to compute
+                if !self.window_filter.filter(&window_index) {
+                    continue;
+                }
 
-                return Some(
-                    Window {
-                        window_index,
-                        indexes: window_index.get_children(self.target_h3_resolution),
-                    }
-                );
+                return Some(Window {
+                    indexes: window_index.get_children(self.target_h3_resolution),
+                    window_index,
+                });
             } else {
                 break;
             }
@@ -104,12 +115,14 @@ mod tests {
     use std::collections::HashSet;
     use std::iter::FromIterator;
 
-    use crate::compacted_tables::TableSet;
-    use crate::window::window_index_resolution;
+    use geo_types::{LineString, Polygon};
+    use h3::index::Index;
 
-    #[test]
-    fn test_window_index_resolution() {
-        let ts = TableSet {
+    use crate::compacted_tables::TableSet;
+    use crate::window::{window_index_resolution, WindowFilter, WindowIterator};
+
+    fn some_tableset() -> TableSet {
+        TableSet {
             basename: "t1".to_string(),
             base_h3_resolutions: {
                 let mut hs = HashSet::new();
@@ -119,11 +132,41 @@ mod tests {
                 hs
             },
             compacted_h3_resolutions: Default::default(),
-        };
+        }
+    }
 
+    #[test]
+    fn test_window_index_resolution() {
+        let ts = some_tableset();
         assert_eq!(
             window_index_resolution(&ts, 6, 1000),
             3
         );
+    }
+
+    struct OddFilter {}
+
+    impl WindowFilter for OddFilter {
+        fn filter(&self, window_index: &Index) -> bool {
+            (window_index.h3index() % 2) == 1
+        }
+    }
+
+    #[test]
+    fn test_window_iterator_filter() {
+        let window = Polygon::new(
+            LineString::from(vec![(40., 40.), (10., 10.), (10., 40.), (40., 40.)]),
+            vec![],
+        );
+        let ts = some_tableset();
+
+        let w_iter = WindowIterator::new(window, &ts, 6, 1000, OddFilter {});
+        let mut n_windows = 0_usize;
+        for window in w_iter {
+            assert_eq!(window.window_index.h3index() % 2, 1);
+            assert!(window.indexes.len() < 1000);
+            n_windows += 1;
+        }
+        assert!(n_windows > 100);
     }
 }
