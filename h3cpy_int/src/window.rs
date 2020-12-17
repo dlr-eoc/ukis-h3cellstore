@@ -98,6 +98,9 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
                     continue;
                 }
 
+                // TODO?: remove children outside of the window_polygon, but it propably is not
+                // worth the effort.
+
                 return Some(Window {
                     indexes: window_index.get_children(self.target_h3_resolution),
                     window_index,
@@ -165,6 +168,7 @@ mod tests {
         for window in w_iter {
             assert_eq!(window.window_index.h3index() % 2, 1);
             assert!(window.indexes.len() < 1000);
+            assert!(window.indexes.len() > 0);
             n_windows += 1;
         }
         assert!(n_windows > 100);
