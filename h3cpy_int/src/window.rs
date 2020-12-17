@@ -19,8 +19,8 @@ fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, windo
     let mut resolutions = Vec::from_iter(table_set.base_h3_resolutions
         .iter()
         .filter(|r| **r < target_h3_resolution)
-        .map(|r| r.clone()));
-    resolutions.sort();
+        .cloned());
+    resolutions.sort_unstable();
 
     let mut window_h3_resolution = target_h3_resolution;
     for r in resolutions {
@@ -82,32 +82,27 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
     type Item = Window;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(h3index) = self.window_indexes.get(self.iter_pos) {
-                self.iter_pos += 1;
-                let window_index = Index::from(*h3index);
+        while let Some(h3index) = self.window_indexes.get(self.iter_pos) {
+            self.iter_pos += 1;
+            let window_index = Index::from(*h3index);
 
-                // window_h3index must really intersect with the window
-                if !self.window_polygon.intersects(&window_index.polygon()) {
-                    continue;
-                }
-
-                // apply the filter after the intersects, as the filter may be more
-                // expensive to compute
-                if !self.window_filter.filter(&window_index) {
-                    continue;
-                }
-
-                // TODO?: remove children outside of the window_polygon, but it propably is not
-                // worth the effort.
-
-                return Some(Window {
-                    indexes: window_index.get_children(self.target_h3_resolution),
-                    window_index,
-                });
-            } else {
-                break;
+            // window_h3index must really intersect with the window
+            if !self.window_polygon.intersects(&window_index.polygon()) {
+                continue;
             }
+
+            // apply the filter after the intersects, as the filter may be more
+            // expensive to compute
+            if !self.window_filter.filter(&window_index) {
+                continue;
+            }
+
+            // TODO?: remove children outside of the window_polygon, but it propably is not worth the effort.
+
+            return Some(Window {
+                indexes: window_index.get_children(self.target_h3_resolution),
+                window_index,
+            });
         }
         None
     }
