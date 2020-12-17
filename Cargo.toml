@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "h3cpy",
+    "h3cpy_int"
+]

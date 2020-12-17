@@ -1,0 +1,29 @@
+[package]
+name = "h3cpy_int"
+version = "0.1.0"
+authors = ["Nico Mandery <nico.mandery@dlr.de>"]
+edition = "2018"
+description = "Internal code of h3cpy"
+
+[dependencies]
+regex = "^1.4"
+lazy_static = "1.4.0"
+
+[dependencies.h3]
+git = "https://github.com/nmandery/h3r"
+tag = "v0.3.3"
+features = ["with-geo-types-0_4"]
+default_features = false
+
+[dependencies.h3-sys]
+git = "https://github.com/nmandery/h3r"
+tag = "v0.3.3"
+
+[dependencies.clickhouse-rs]
+git = "https://github.com/suharev7/clickhouse-rs.git"
+rev = "d288a4f8a" # to include https://github.com/suharev7/clickhouse-rs/pull/102
+
+#[dependencies.tokio]
+#version = "0.2.0"
+#default-features = false
+#features = ["io-util", "time", "net", "sync", "rt-threaded"]
