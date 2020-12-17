@@ -8,6 +8,8 @@ description = "Internal code of h3cpy"
 [dependencies]
 regex = "^1.4"
 lazy_static = "1.4.0"
+geo-types = "^0.4"
+geo = "^0.4"
 
 [dependencies.h3]
 git = "https://github.com/nmandery/h3r"
