@@ -2,6 +2,9 @@
 name = "h3cpy"
 version = "0.1.0"
 edition = "2018"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
 
 [lib]
 name = "h3cpy"
@@ -13,3 +16,6 @@ h3cpy_int = { path = "../h3cpy_int" }
 [dependencies.pyo3]
 version = "0.12.4"
 features = ["extension-module"]
+
+[package.metadata.maturin]
+requires-dist = ["numpy"]
