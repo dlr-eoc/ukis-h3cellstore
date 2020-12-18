@@ -6,6 +6,10 @@ use pyo3::{
 };
 use numpy::{PyArray, IntoPyArray, Ix1};
 use h3::index::Index;
+use h3cpy_int::{
+    window::WindowFilter,
+    compacted_tables::TableSet,
+};
 
 #[pyclass]
 #[derive(Clone)]
@@ -30,3 +34,25 @@ impl ClickhouseConnection {
     }
 }
 
+
+/// filters indexes to only return those containing any data
+/// in the clickhouse tableset
+struct TableSetContainsDataFilter<'a> {
+    tableset: &'a TableSet,
+    connection: &'a ClickhouseConnection,
+}
+
+impl <'a> TableSetContainsDataFilter<'a> {
+    pub fn new(connection: &'a ClickhouseConnection, tableset: &'a TableSet) -> Self {
+        TableSetContainsDataFilter {
+            tableset,
+            connection
+        }
+    }
+}
+
+impl <'a> WindowFilter for TableSetContainsDataFilter<'a> {
+    fn filter(&self, window_index: &Index) -> bool {
+        unimplemented!()
+    }
+}

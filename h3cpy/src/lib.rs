@@ -1,6 +1,7 @@
 mod window;
 mod inspect;
 mod connection;
+mod geometry;
 
 use pyo3::{
     prelude::*,
