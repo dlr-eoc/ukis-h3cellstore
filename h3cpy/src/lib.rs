@@ -33,7 +33,7 @@ fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m, "poc_some_h3indexes")]
     fn poc_some_h3indexes(py: Python) -> &PyArray<u64, Ix1> {
         let idx: Index = 0x89283080ddbffff_u64.into();
-        let v: Vec<_> = idx.k_ring(20).iter().map(|i| i.h3index()).collect();
+        let v: Vec<_> = idx.k_ring(80).iter().map(|i| i.h3index()).collect();
         v.into_pyarray(py)
     }
     Ok(())

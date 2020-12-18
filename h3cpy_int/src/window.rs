@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
 
+use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
 use h3::{
@@ -97,10 +98,23 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
                 continue;
             }
 
-            // TODO?: remove children outside of the window_polygon, but it propably is not worth the effort.
+            let child_indexes: Vec<_> = if let Some(window_rect) = self.window_polygon.bounding_rect() {
+                window_index.get_children(self.target_h3_resolution)
+                    .drain(..)
+                    // remove children located outside the window_polygon. It is probably is not worth the effort,
+                    // but it allows to relocate some load to the client.
+                    .filter(|ci| {
+                        let p = ci.polygon();
+                        window_rect.intersects(&p) && self.window_polygon.intersects(&p)
+                    })
+                    .collect()
+            } else {
+                continue // TODO: when is there no rect?
+            };
+
 
             return Some(Window {
-                indexes: window_index.get_children(self.target_h3_resolution),
+                indexes: child_indexes,
                 window_index,
             });
         }
