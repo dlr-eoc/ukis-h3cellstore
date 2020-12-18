@@ -16,7 +16,7 @@ use crate::compacted_tables::TableSet;
 /// than window_max_size indexes per batch.
 ///
 /// That resolution must be a base resolution
-fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> u8 {
+pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> u8 {
     let mut resolutions = Vec::from_iter(table_set.base_h3_resolutions
         .iter()
         .filter(|r| **r < target_h3_resolution)
