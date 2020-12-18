@@ -12,10 +12,24 @@ crate-type = ["cdylib"]
 
 [dependencies]
 h3cpy_int = { path = "../h3cpy_int" }
+numpy = "^0.12"
+
+[dependencies.h3]
+git = "https://github.com/nmandery/h3r"
+tag = "v0.3.3"
+features = ["with-geo-types-0_6"]
+default_features = false
+
+[dependencies.h3-sys]
+git = "https://github.com/nmandery/h3r"
+tag = "v0.3.3"
 
 [dependencies.pyo3]
 version = "0.12.4"
 features = ["extension-module"]
 
 [package.metadata.maturin]
-requires-dist = ["numpy"]
+requires-dist = [
+    "numpy",
+    "pandas>=1.1"
+]
