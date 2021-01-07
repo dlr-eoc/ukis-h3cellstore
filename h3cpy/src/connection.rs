@@ -1,29 +1,32 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use clickhouse_rs::{
     ClientHandle,
+    errors::Error as ChError,
+    errors::Result as ChResult,
     Pool,
 };
+use futures_util::StreamExt;
 use geo::algorithm::intersects::Intersects;
 use h3ron::index::Index;
+use log::warn;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
+    exceptions::PyRuntimeError,
     prelude::*,
     Py,
     PyResult,
     Python,
-    exceptions::PyRuntimeError,
 };
 use tokio::{
     runtime::Runtime,
     task,
 };
-use futures_util::StreamExt;
 
 use h3cpy_int::{
     compacted_tables::{
-        TableSet,
         find_tablesets,
+        TableSet,
     },
     window::WindowFilter,
 };
@@ -56,30 +59,72 @@ impl RuntimedPool {
 
     pub fn get_client(&mut self) -> PyResult<ClientHandle> {
         let p = &self.pool;
-        match self.rt.block_on(async { p.get_handle().await }) {
-            Ok(client) => Ok(client),
-            Err(e) => Err(PyRuntimeError::new_err(format!("could not create clickhouse client: {:?}", e)))
-        }
+        ch_to_pyresult(self.rt.block_on(async { p.get_handle().await }))
     }
 }
 
-async fn list_tablesets(mut ch: ClientHandle) -> PyResult<Vec<TableSetWrapper>> {
-    let mut stream = ch.query("select table
+async fn list_tablesets(mut ch: ClientHandle) -> ChResult<HashMap<String, TableSetWrapper>> {
+    let mut tablesets = {
+        let mut stream = ch.query("select table
                 from system.columns
                 where name = 'h3index' and database = currentDatabase()"
-    ).stream();
+        ).stream();
 
-    let mut tablenames = vec![];
-    while let Some(row_res) = stream.next().await {
-        let row = row_res.map_err(|e| PyRuntimeError::new_err("no row"))?;
-        let tablename: String = row.get("table").map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
-        tablenames.push(tablename);
+        let mut tablenames = vec![];
+        while let Some(row_res) = stream.next().await {
+            let row = row_res?;
+            let tablename: String = row.get("table")?;
+            tablenames.push(tablename);
+        }
+        find_tablesets(&tablenames)
+    };
 
+    // find the columns for the tablesets
+    for (ts_name, ts) in tablesets.iter_mut() {
+        let set_table_names = itertools::join(
+            ts.tables()
+                .iter()
+                .map(|t| format!("'{}'", t.to_table_name()))
+            , ", ");
+
+        let mut columns_stream = ch.query(format!("
+            select name, type, count(*) as c
+                from system.columns
+                where table in ({})
+                and database = currentDatabase()
+                and not startsWith(name, 'h3index')
+                group by name, type
+        ", set_table_names)).stream();
+        while let Some(c_row_res) = columns_stream.next().await {
+            let c_row = c_row_res?;
+            let c: u64 = c_row.get("c")?;
+            let col_name: String = c_row.get("name")?;
+
+            // column must be present in all tables of the set, or it is not usable
+            if c as usize == ts.num_tables() {
+                let col_type: String = c_row.get("type")?;
+                ts.columns.insert(col_name, col_type);
+            } else {
+                warn!("column {} is not present using the same type in all tables of set {}. ignoring the column", col_name, ts_name);
+            }
+        }
     }
-    Ok(find_tablesets(&tablenames)
+
+    Ok(tablesets
         .drain()
-        .map(|(k,v)| TableSetWrapper { inner: v})
+        .map(|(k, v)| (k, TableSetWrapper { inner: v }))
         .collect())
+}
+
+fn ch_to_pyerr(ch_err: ChError) -> PyErr {
+    PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
+}
+
+fn ch_to_pyresult<T>(res: ChResult<T>) -> PyResult<T> {
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Err(ch_to_pyerr(e))
+    }
 }
 
 #[pyclass]
@@ -114,15 +159,17 @@ impl ClickhouseConnection {
                 hs
             },
             compacted_h3_resolutions: Default::default(),
+            columns: Default::default(),
         };
         create_window(window_polygon, &ts, target_h3_resolution, window_max_size)
     }
 
-    fn list_tablesets(&mut self) -> PyResult<Vec<TableSetWrapper>> {
+
+    fn list_tablesets(&mut self) -> PyResult<HashMap<String, TableSetWrapper>> {
         let client = self.rp.get_client()?;
-        self.rp.rt.block_on(async {
+        ch_to_pyresult(self.rp.rt.block_on(async {
             list_tablesets(client).await
-        })
+        }))
     }
 
     fn fetch_tableset(&self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {

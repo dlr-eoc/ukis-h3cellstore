@@ -50,7 +50,8 @@ impl Table {
 pub struct TableSet {
     pub basename: String,
     pub compacted_h3_resolutions: HashSet<u8>,
-    pub base_h3_resolutions: HashSet<u8>
+    pub base_h3_resolutions: HashSet<u8>,
+    pub columns: HashMap<String, String>
 }
 
 impl TableSet {
@@ -59,9 +60,53 @@ impl TableSet {
             basename: basename.to_string(),
             compacted_h3_resolutions: Default::default(),
             base_h3_resolutions: Default::default(),
+            columns: Default::default(),
         }
     }
+
+    pub fn compacted_tables(&self) -> Vec<Table> {
+        let mut tables = Vec::new();
+        for cr in self.compacted_h3_resolutions.iter() {
+            let t = Table {
+                basename: self.basename.clone(),
+                spec: TableSpec {
+                    is_compacted: true,
+                    h3_resolution: *cr,
+                    is_intermediate: false
+                }
+            };
+            tables.push(t);
+        }
+        tables
+    }
+
+    pub fn base_tables(&self) -> Vec<Table> {
+        let mut tables = Vec::new();
+        for cr in self.base_h3_resolutions.iter() {
+            let t = Table {
+                basename: self.basename.clone(),
+                spec: TableSpec {
+                    is_compacted: false,
+                    h3_resolution: *cr,
+                    is_intermediate: false
+                }
+            };
+            tables.push(t);
+        }
+        tables
+    }
+
+    pub fn tables(&self) -> Vec<Table> {
+        let mut tables = self.base_tables();
+        tables.append(&mut self.compacted_tables());
+        tables
+    }
+
+    pub fn num_tables(&self) -> usize {
+        self.base_h3_resolutions.len() + self.compacted_h3_resolutions.len()
+    }
 }
+
 
 
 /// identify the tablesets from a slice of tablenames

@@ -15,6 +15,9 @@ h3cpy_int = { path = "../h3cpy_int" }
 numpy = "0.12"
 geo-types = "^0.6"
 geo = "^0.16"
+itertools = "0.10"
+log = "0.4"
+env_logger = "0.8"
 
 [dependencies.geojson]
 version = "^0.21"

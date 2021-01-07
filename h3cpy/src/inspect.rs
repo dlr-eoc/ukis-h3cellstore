@@ -5,6 +5,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use h3cpy_int::compacted_tables as ct;
+use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Clone)]
@@ -56,4 +57,36 @@ impl<'p> PyObjectProtocol<'p> for CompactedTable {
 #[derive(Clone)]
 pub struct TableSet {
     pub(crate) inner: ct::TableSet
+}
+
+#[pymethods]
+impl TableSet {
+    #[getter]
+    pub fn get_basename(&self) -> PyResult<String> {
+        Ok(self.inner.basename.clone())
+    }
+
+    pub fn tables(&self) -> PyResult<Vec<CompactedTable>> {
+        Ok(self.inner.tables().drain(..).map(|t| CompactedTable { table: t }).collect())
+    }
+
+    #[getter]
+    pub fn get_finest_resolution(&self) -> PyResult<Option<u8>> {
+        Ok(self.inner.base_h3_resolutions.iter().max().cloned())
+    }
+
+    #[getter]
+    pub fn get_compacted_resolutions(&self) -> PyResult<Vec<u8>> {
+        Ok( self.inner.compacted_h3_resolutions.iter().cloned().collect())
+    }
+
+    #[getter]
+    pub fn get_base_resolutions(&self) -> PyResult<Vec<u8>> {
+        Ok( self.inner.base_h3_resolutions.iter().cloned().collect())
+    }
+
+    #[getter]
+    pub fn get_columns(&self) -> PyResult<HashMap<String, String>> {
+        Ok(self.inner.columns.clone())
+    }
 }

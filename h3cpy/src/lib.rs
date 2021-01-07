@@ -35,6 +35,9 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
 /// A Python module implemented in Rust.
 #[pymodule]
 fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
+
+    env_logger::init();
+
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;
     m.add("TableSet", py.get_type::<TableSet>())?;
     m.add("ClickhouseConnection", py.get_type::<ClickhouseConnection>())?;
