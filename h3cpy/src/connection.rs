@@ -1,5 +1,9 @@
 use std::collections::HashSet;
 
+use clickhouse_rs::{
+    ClientHandle,
+    Pool,
+};
 use geo::algorithm::intersects::Intersects;
 use h3ron::index::Index;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
@@ -8,31 +12,83 @@ use pyo3::{
     Py,
     PyResult,
     Python,
+    exceptions::PyRuntimeError,
 };
+use tokio::{
+    runtime::Runtime,
+    task,
+};
+use futures_util::StreamExt;
 
 use h3cpy_int::{
-    compacted_tables::TableSet,
+    compacted_tables::{
+        TableSet,
+        find_tablesets,
+    },
     window::WindowFilter,
 };
 
 use crate::{
     geometry::polygon_from_python,
     inspect::TableSet as TableSetWrapper,
-    window::SlidingH3Window,
+    window::{
+        create_window,
+        SlidingH3Window,
+    },
 };
-use crate::window::create_window;
+
+pub(crate) struct RuntimedPool {
+    pub(crate) pool: Pool,
+    pub(crate) rt: Runtime,
+}
+
+impl RuntimedPool {
+    pub fn create(db_url: &str) -> PyResult<RuntimedPool> {
+        let rt = match Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => return Err(PyRuntimeError::new_err(format!("could not create tokio rt: {:?}", e)))
+        };
+        Ok(Self {
+            pool: Pool::new(db_url),
+            rt,
+        })
+    }
+
+    pub fn get_client(&mut self) -> PyResult<ClientHandle> {
+        let p = &self.pool;
+        match self.rt.block_on(async { p.get_handle().await }) {
+            Ok(client) => Ok(client),
+            Err(e) => Err(PyRuntimeError::new_err(format!("could not create clickhouse client: {:?}", e)))
+        }
+    }
+}
+
+async fn list_tablesets(mut ch: ClientHandle) -> PyResult<Vec<TableSetWrapper>> {
+    let mut stream = ch.query("select table
+                from system.columns
+                where name = 'h3index' and database = currentDatabase()"
+    ).stream();
+
+    let mut tablenames = vec![];
+    while let Some(row_res) = stream.next().await {
+        let row = row_res.map_err(|e| PyRuntimeError::new_err("no row"))?;
+        let tablename: String = row.get("table").map_err(|e| PyRuntimeError::new_err(format!("{:?}", e)))?;
+        tablenames.push(tablename);
+
+    }
+    Ok(find_tablesets(&tablenames)
+        .drain()
+        .map(|(k,v)| TableSetWrapper { inner: v})
+        .collect())
+}
 
 #[pyclass]
-#[derive(Clone)]
-pub struct ClickhouseConnection {}
+pub struct ClickhouseConnection {
+    pub(crate) rp: RuntimedPool,
+}
 
 #[pymethods]
 impl ClickhouseConnection {
-    #[new]
-    pub fn new() -> Self {
-        Self {}
-    }
-
     /// proof-of-concept for numpy integration. using u64 as this will be the type for h3 indexes
     /// TODO: remove later
     pub fn poc_some_h3indexes(&self) -> PyResult<Py<PyArray<u64, Ix1>>> {
@@ -62,6 +118,12 @@ impl ClickhouseConnection {
         create_window(window_polygon, &ts, target_h3_resolution, window_max_size)
     }
 
+    fn list_tablesets(&mut self) -> PyResult<Vec<TableSetWrapper>> {
+        let client = self.rp.get_client()?;
+        self.rp.rt.block_on(async {
+            list_tablesets(client).await
+        })
+    }
 
     fn fetch_tableset(&self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
         Ok(ResultSet { columns: Default::default() }) // TODO

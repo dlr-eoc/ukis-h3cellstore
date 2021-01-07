@@ -65,11 +65,11 @@ impl TableSet {
 
 
 /// identify the tablesets from a slice of tablenames
-pub fn find_tablesets(tablenames: &[&str]) -> HashMap<String, TableSet> {
+pub fn find_tablesets(tablenames: &[String]) -> HashMap<String, TableSet> {
     let mut tablesets = HashMap::default();
 
     for tablename in tablenames.iter() {
-        if let Some(table) = Table::parse(*tablename) {
+        if let Some(table) = Table::parse(tablename) {
             let tableset = tablesets.entry(table.basename.clone()).or_insert_with(|| {
                 TableSet::new(&table.basename)
             });

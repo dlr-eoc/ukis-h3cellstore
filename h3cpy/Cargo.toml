@@ -34,6 +34,19 @@ tag = "v0.4.1"
 version = "0.12.4"
 features = ["extension-module"]
 
+[dependencies.tokio]
+version = "0.2.21"
+default-features = false
+features = ["io-util", "time", "net", "sync", "rt-threaded"]
+
+[dependencies.futures-util]
+version = "0.3.5"
+features = ["sink"]
+
+[dependencies.clickhouse-rs]
+git = "https://github.com/suharev7/clickhouse-rs.git"
+rev = "d288a4f8a" # to include https://github.com/suharev7/clickhouse-rs/pull/102
+
 [package.metadata.maturin]
 requires-dist = [
     "numpy",
