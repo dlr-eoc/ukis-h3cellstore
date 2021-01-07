@@ -144,7 +144,7 @@ impl ClickhouseConnection {
         Ok(v.into_pyarray(py).to_owned())
     }
 
-    pub fn make_sliding_window(&self, window_poly_like: &PyAny, target_h3_resolution: u8, window_max_size: u32 /*, tableset, window_size, query*/) -> PyResult<SlidingH3Window> {
+    pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
         let window_polygon = polygon_from_python(window_poly_like)?;
 
         // iterators in pyo3: https://github.com/PyO3/pyo3/issues/1085#issuecomment-670835739
@@ -181,7 +181,7 @@ impl ClickhouseConnection {
     }
 
 
-    pub fn fetch_next_window(&self, py: Python<'_>, tableset: &TableSetWrapper, sliding_h3_window: &mut SlidingH3Window) -> PyResult<Option<ResultSet>> {
+    pub fn fetch_next_window(&self, py: Python<'_>, sliding_h3_window: &mut SlidingH3Window, tableset: &TableSetWrapper) -> PyResult<Option<ResultSet>> {
         while let Some(window_h3index) = sliding_h3_window.next_window() {
             // check if the window index contains any data on coarse resolution, when not,
             // then there is no need to load anything
