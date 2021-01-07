@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use clickhouse_rs::{
     ClientHandle,
@@ -18,6 +18,7 @@ use pyo3::{
     PyResult,
     Python,
 };
+use pyo3::exceptions::PyValueError;
 use tokio::{
     runtime::Runtime,
     task,
@@ -116,6 +117,18 @@ async fn list_tablesets(mut ch: ClientHandle) -> ChResult<HashMap<String, TableS
         .collect())
 }
 
+async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> ChResult<bool> {
+    let mut stream = ch.query(query_string).stream();
+    if let Some(first) = stream.next().await {
+        match first {
+            Ok(_) => Ok(true),
+            Err(e) => Err(e)
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
 }
@@ -124,6 +137,15 @@ fn ch_to_pyresult<T>(res: ChResult<T>) -> PyResult<T> {
     match res {
         Ok(v) => Ok(v),
         Err(e) => Err(ch_to_pyerr(e))
+    }
+}
+
+#[inline]
+fn check_index_valid(index: &Index) -> PyResult<()> {
+    if !index.is_valid() {
+        Err(PyValueError::new_err(format!("invalid h3index given: {}", index.h3index())))
+    } else {
+        Ok(())
     }
 }
 
@@ -146,22 +168,7 @@ impl ClickhouseConnection {
 
     pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
         let window_polygon = polygon_from_python(window_poly_like)?;
-
-        // iterators in pyo3: https://github.com/PyO3/pyo3/issues/1085#issuecomment-670835739
-        // TODO
-        let ts = TableSet {
-            basename: "t1".to_string(),
-            base_h3_resolutions: {
-                let mut hs = HashSet::new();
-                for r in 0..=6 {
-                    hs.insert(r);
-                }
-                hs
-            },
-            compacted_h3_resolutions: Default::default(),
-            columns: Default::default(),
-        };
-        create_window(window_polygon, &ts, target_h3_resolution, window_max_size)
+        create_window(window_polygon, &tableset.inner, target_h3_resolution, window_max_size)
     }
 
 
@@ -173,19 +180,44 @@ impl ClickhouseConnection {
     }
 
     fn fetch_tableset(&self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
-        Ok(ResultSet { columns: Default::default() }) // TODO
+        Ok(ResultSet {
+            num_h3indexes_queried: h3indexes.len(),
+            columns: Default::default(),
+        }) // TODO
     }
 
-    fn has_data(&self, tableset: &TableSetWrapper, h3index: u64) -> bool {
-        true // TOOO
+    /// check if the tableset contains the h3index or any of its parents
+    fn has_data(&mut self, tableset: &TableSetWrapper, h3index: u64) -> PyResult<bool> {
+        let index = Index::from(h3index);
+        check_index_valid(&index)?;
+
+        let mut queries = vec![];
+        tableset.inner.tables().iter().for_each(|t| {
+            if (t.spec.is_compacted == false && t.spec.h3_resolution == index.resolution()) || (t.spec.is_compacted && t.spec.h3_resolution <= index.resolution()) {
+                queries.push(format!(
+                    "select h3index from {} where h3index = {} limit 1",
+                    t.to_table_name(),
+                    index.get_parent(t.spec.h3_resolution).h3index()
+                ))
+            }
+        });
+        if queries.is_empty() {
+            return Ok(false);
+        }
+
+        let client = self.rp.get_client()?;
+        ch_to_pyresult(self.rp.rt.block_on(async {
+            query_returns_rows(client, itertools::join(queries, " union all ")).await
+        }))
     }
 
 
-    pub fn fetch_next_window(&self, py: Python<'_>, sliding_h3_window: &mut SlidingH3Window, tableset: &TableSetWrapper) -> PyResult<Option<ResultSet>> {
+    pub fn fetch_next_window(&mut self, py: Python<'_>, sliding_h3_window: &mut SlidingH3Window, tableset: &TableSetWrapper) -> PyResult<Option<ResultSet>> {
         while let Some(window_h3index) = sliding_h3_window.next_window() {
             // check if the window index contains any data on coarse resolution, when not,
             // then there is no need to load anything
-            if !self.has_data(tableset, window_h3index) {
+            if !self.has_data(tableset, window_h3index)? {
+                log::info!("window without any database contents skipped");
                 continue;
             }
 
@@ -196,10 +228,11 @@ impl ClickhouseConnection {
                 // but it allows to relocate some load to the client.
                 .filter(|ci| {
                     let p = ci.polygon();
-                    sliding_h3_window.window_rect.intersects(&p) && sliding_h3_window.window_polygon.intersects(&p)
+                    sliding_h3_window.window_polygon.intersects(&p)
                 })
                 .map(|i| i.h3index())
                 .collect();
+            // TODO: add window index to resultset
             return Ok(Some(self.fetch_tableset(tableset, child_indexes.into_pyarray(py).readonly())?));
         }
         Ok(None)
@@ -233,5 +266,14 @@ impl<'a> WindowFilter for TableSetContainsDataFilter<'a> {
 
 #[pyclass]
 pub struct ResultSet {
-    columns: HashSet<String, u8>
+    num_h3indexes_queried: usize,
+    columns: HashSet<String, u8>,
+}
+
+#[pymethods]
+impl ResultSet {
+    #[getter]
+    fn get_num_h3indexes_queried(&self) -> PyResult<usize> {
+        Ok(self.num_h3indexes_queried)
+    }
 }

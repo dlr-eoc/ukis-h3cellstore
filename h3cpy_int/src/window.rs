@@ -128,7 +128,7 @@ mod tests {
     use std::iter::FromIterator;
 
     use geo_types::{LineString, Polygon};
-    use h3::index::Index;
+    use h3ron::index::Index;
 
     use crate::compacted_tables::TableSet;
     use crate::window::{window_index_resolution, WindowFilter, WindowIterator};
@@ -144,6 +144,7 @@ mod tests {
                 hs
             },
             compacted_h3_resolutions: Default::default(),
+            columns: Default::default()
         }
     }
 
