@@ -4,11 +4,11 @@ use std::iter::FromIterator;
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
-use h3::{
+use h3ron::{
     index::Index,
     polyfill,
 };
-use h3_sys::H3Index;
+use h3ron_h3_sys::H3Index;
 
 use crate::compacted_tables::TableSet;
 

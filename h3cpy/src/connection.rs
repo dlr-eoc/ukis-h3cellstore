@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
-use h3::index::Index;
-use numpy::{IntoPyArray, Ix1, PyArray};
+use geo::algorithm::intersects::Intersects;
+use h3ron::index::Index;
+use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     prelude::*,
     Py,
@@ -13,11 +14,13 @@ use h3cpy_int::{
     compacted_tables::TableSet,
     window::WindowFilter,
 };
-use h3cpy_int::window::WindowIterator;
 
-use crate::geometry::polygon_from_python;
-use crate::window::SlidingH3Window;
-use geo::algorithm::intersects::Intersects;
+use crate::{
+    geometry::polygon_from_python,
+    inspect::TableSet as TableSetWrapper,
+    window::SlidingH3Window,
+};
+use crate::window::create_window;
 
 #[pyclass]
 #[derive(Clone)]
@@ -56,39 +59,41 @@ impl ClickhouseConnection {
             },
             compacted_h3_resolutions: Default::default(),
         };
-        SlidingH3Window::new(window_polygon, &ts, target_h3_resolution, window_max_size)
+        create_window(window_polygon, &ts, target_h3_resolution, window_max_size)
     }
 
-    fn fetch_tableset(&self, tableset: &TableSet, h3indexes: &[u64]) {
-        // TODO
+
+    fn fetch_tableset(&self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
+        Ok(ResultSet { columns: Default::default() }) // TODO
     }
 
-    fn has_data(&self, tableset: &TableSet, h3index: u64) -> bool {
+    fn has_data(&self, tableset: &TableSetWrapper, h3index: u64) -> bool {
         true // TOOO
     }
 
 
-    pub fn fetch_next_window(&self, tableset: &TableSet, sliding_h3_window: &mut SlidingH3Window) {
-
-        while let Some(window_index) = sliding_h3_window.next_window() {
+    pub fn fetch_next_window(&self, py: Python<'_>, tableset: &TableSetWrapper, sliding_h3_window: &mut SlidingH3Window) -> PyResult<Option<ResultSet>> {
+        while let Some(window_h3index) = sliding_h3_window.next_window() {
             // check if the window index contains any data on coarse resolution, when not,
             // then there is no need to load anything
-            if ! self.has_data(tableset, window_index.h3index()) {
-                continue
+            if !self.has_data(tableset, window_h3index) {
+                continue;
             }
 
-            let child_indexes: Vec<_> = window_index.get_children(sliding_h3_window.target_h3_resolution)
-                    .drain(..)
-                    // remove children located outside the window_polygon. It is probably is not worth the effort,
-                    // but it allows to relocate some load to the client.
-                    .filter(|ci| {
-                        let p = ci.polygon();
-                        sliding_h3_window.window_rect.intersects(&p) && sliding_h3_window.window_polygon.intersects(&p)
-                    })
-                    .map(|i| i.h3index())
-                    .collect();
-            return self.fetch_tableset(tableset, &child_indexes);
+            let child_indexes: Vec<_> = Index::from(window_h3index)
+                .get_children(sliding_h3_window.target_h3_resolution)
+                .drain(..)
+                // remove children located outside the window_polygon. It is probably is not worth the effort,
+                // but it allows to relocate some load to the client.
+                .filter(|ci| {
+                    let p = ci.polygon();
+                    sliding_h3_window.window_rect.intersects(&p) && sliding_h3_window.window_polygon.intersects(&p)
+                })
+                .map(|i| i.h3index())
+                .collect();
+            return Ok(Some(self.fetch_tableset(tableset, child_indexes.into_pyarray(py).readonly())?));
         }
+        Ok(None)
     }
 }
 
@@ -114,4 +119,10 @@ impl<'a> WindowFilter for TableSetContainsDataFilter<'a> {
         //unimplemented!()
         true
     }
+}
+
+
+#[pyclass]
+pub struct ResultSet {
+    columns: HashSet<String, u8>
 }

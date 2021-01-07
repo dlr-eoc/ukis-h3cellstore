@@ -4,12 +4,12 @@ use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use h3cpy_int::compacted_tables::Table;
+use h3cpy_int::compacted_tables as ct;
 
 #[pyclass]
 #[derive(Clone)]
 pub struct CompactedTable {
-    pub table: Table
+    pub table: ct::Table
 }
 
 #[pymethods]
@@ -31,7 +31,7 @@ impl CompactedTable {
 
     #[staticmethod]
     pub fn parse(instr: &str) -> PyResult<CompactedTable> {
-        if let Some(table) = Table::parse(instr) {
+        if let Some(table) = ct::Table::parse(instr) {
             Ok(CompactedTable { table })
         } else {
             Err(PyValueError::new_err("could not parse table name"))
@@ -51,3 +51,9 @@ impl<'p> PyObjectProtocol<'p> for CompactedTable {
     }
 }
 
+
+#[pyclass]
+#[derive(Clone)]
+pub struct TableSet {
+    pub(crate) inner: ct::TableSet
+}
