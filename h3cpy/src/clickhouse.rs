@@ -161,6 +161,7 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> ChResult<H
     let mut out_rows = HashMap::new();
     for column in block.columns() {
         // TODO: how to handle nullable columns?
+        // TODO: move column data without cloning
         let values = match column.sql_type() {
             SqlType::UInt8 => ColVec::U8(column.iter::<u8>()?.cloned().collect()),
             SqlType::UInt16 => ColVec::U16(column.iter::<u16>()?.cloned().collect()),
