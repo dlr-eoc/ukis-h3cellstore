@@ -25,7 +25,8 @@ pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, w
 
     let mut window_h3_resolution = target_h3_resolution;
     for r in resolutions {
-        if 7_u32.pow((target_h3_resolution - r) as u32) <= window_max_size {
+        let r_diff = (target_h3_resolution - r) as u32;
+        if 7_u64.pow(r_diff) <= (window_max_size as u64) {
             window_h3_resolution = r;
             break;
         }
