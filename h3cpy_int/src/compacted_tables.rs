@@ -198,9 +198,14 @@ impl TableSet {
                 }
             }
 
-            itertools::join(query_string_parts.iter(), " union all ")
+            // wrap with an outer select to remove indexes from formerly compacted parent resolutions
+            // located outside the given h3indexes
+            format!(
+                "select * from ({}) f_wrap where h3index in [{}]",
+                itertools::join(query_string_parts.iter(), " union all "),
+                itertools::join(h3indexes_view.iter().map(|hi| hi.to_string()), ", ")
+            )
         };
-
         Ok(query_string)
     }
 }
