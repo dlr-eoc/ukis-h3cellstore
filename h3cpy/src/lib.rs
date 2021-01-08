@@ -5,10 +5,12 @@ use pyo3::{
 };
 
 use crate::{
+    clickhouse::{
+        RuntimedPool,
+    },
     connection::{
         ClickhouseConnection,
         ResultSet,
-        RuntimedPool,
     },
     inspect::{
         CompactedTable,
@@ -20,6 +22,7 @@ mod window;
 mod inspect;
 mod connection;
 mod geometry;
+mod clickhouse;
 
 /// version of the module
 #[pyfunction]
