@@ -1,24 +1,25 @@
+use pyo3::{
+    prelude::*,
+    Python,
+    wrap_pyfunction,
+};
+
+use crate::{
+    connection::{
+        ClickhouseConnection,
+        ResultSet,
+        RuntimedPool,
+    },
+    inspect::{
+        CompactedTable,
+        TableSet,
+    },
+};
+
 mod window;
 mod inspect;
 mod connection;
 mod geometry;
-
-use pyo3::{
-    prelude::*,
-    wrap_pyfunction,
-    Python
-};
-use crate::{
-    inspect::{
-        CompactedTable,
-        TableSet
-    },
-    connection::{
-        ClickhouseConnection,
-        RuntimedPool,
-        ResultSet,
-    },
-};
 
 /// version of the module
 #[pyfunction]
@@ -35,7 +36,6 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
 /// A Python module implemented in Rust.
 #[pymodule]
 fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
-
     env_logger::init();
 
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;

@@ -1,25 +1,23 @@
 use std::collections::HashSet;
 
-use geo_types::{Polygon, Rect};
 use geo::algorithm::{
     bounding_rect::BoundingRect,
-    intersects::Intersects
+    intersects::Intersects,
 };
+use geo_types::{Polygon, Rect};
 use h3ron::{
     index::Index,
     polyfill,
 };
 use h3ron_h3_sys::H3Index;
-
-use h3cpy_int::window::window_index_resolution;
-use h3cpy_int::compacted_tables::TableSet;
-
 use pyo3::{
+    exceptions::PyValueError,
     prelude::*,
     PyResult,
-    exceptions::PyValueError
 };
 
+use h3cpy_int::compacted_tables::TableSet;
+use h3cpy_int::window::window_index_resolution;
 
 #[pyclass]
 pub struct SlidingH3Window {
@@ -27,7 +25,7 @@ pub struct SlidingH3Window {
     pub window_rect: Rect<f64>,
     pub target_h3_resolution: u8,
     window_indexes: Vec<Index>,
-    iter_pos: usize
+    iter_pos: usize,
 }
 
 #[pymethods]
@@ -41,8 +39,9 @@ impl SlidingH3Window {
         }
     }
 }
+
 pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
-    let window_rect = match window_polygon.bounding_rect(){
+    let window_rect = match window_polygon.bounding_rect() {
         Some(w) => w,
         None => return Err(PyValueError::new_err("empty polygon given"))
     };
@@ -73,7 +72,7 @@ pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_
         window_rect,
         target_h3_resolution,
         window_indexes,
-        iter_pos: 0
+        iter_pos: 0,
     })
 }
 

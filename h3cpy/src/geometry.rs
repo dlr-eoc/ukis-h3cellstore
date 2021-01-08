@@ -4,9 +4,9 @@ use std::str::FromStr;
 use geo_types::Polygon;
 use geojson::GeoJson;
 use pyo3::{
+    exceptions::{PyTypeError, PyValueError},
     PyAny,
     PyResult,
-    exceptions::{PyTypeError, PyValueError},
     types::PyString,
 };
 

@@ -109,7 +109,7 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
                     })
                     .collect()
             } else {
-                continue // TODO: when is there no rect?
+                continue; // TODO: when is there no rect?
             };
 
 
@@ -144,7 +144,7 @@ mod tests {
                 hs
             },
             compacted_h3_resolutions: Default::default(),
-            columns: Default::default()
+            columns: Default::default(),
         }
     }
 

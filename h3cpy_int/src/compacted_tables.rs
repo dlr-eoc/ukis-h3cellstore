@@ -1,5 +1,6 @@
+use std::collections::{HashMap, HashSet};
+
 use regex::Regex;
-use std::collections::{HashSet, HashMap};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct TableSpec {
@@ -51,7 +52,7 @@ pub struct TableSet {
     pub basename: String,
     pub compacted_h3_resolutions: HashSet<u8>,
     pub base_h3_resolutions: HashSet<u8>,
-    pub columns: HashMap<String, String>
+    pub columns: HashMap<String, String>,
 }
 
 impl TableSet {
@@ -72,8 +73,8 @@ impl TableSet {
                 spec: TableSpec {
                     is_compacted: true,
                     h3_resolution: *cr,
-                    is_intermediate: false
-                }
+                    is_intermediate: false,
+                },
             };
             tables.push(t);
         }
@@ -88,8 +89,8 @@ impl TableSet {
                 spec: TableSpec {
                     is_compacted: false,
                     h3_resolution: *cr,
-                    is_intermediate: false
-                }
+                    is_intermediate: false,
+                },
             };
             tables.push(t);
         }
@@ -106,7 +107,6 @@ impl TableSet {
         self.base_h3_resolutions.len() + self.compacted_h3_resolutions.len()
     }
 }
-
 
 
 /// identify the tablesets from a slice of tablenames
@@ -129,10 +129,9 @@ pub fn find_tablesets(tablenames: &[String]) -> HashMap<String, TableSet> {
 }
 
 
-
 #[cfg(test)]
 mod tests {
-    use crate::compacted_tables::{Table, TableSpec, find_tablesets};
+    use crate::compacted_tables::{find_tablesets, Table, TableSpec};
 
     #[test]
     fn test_table_to_name() {

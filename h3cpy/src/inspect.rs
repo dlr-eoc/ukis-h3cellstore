@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pyo3::class::basic::CompareOp;
 use pyo3::class::basic::PyObjectProtocol;
 use pyo3::exceptions::PyNotImplementedError;
@@ -5,7 +7,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use h3cpy_int::compacted_tables as ct;
-use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Clone)]
@@ -77,12 +78,12 @@ impl TableSet {
 
     #[getter]
     pub fn get_compacted_resolutions(&self) -> PyResult<Vec<u8>> {
-        Ok( self.inner.compacted_h3_resolutions.iter().cloned().collect())
+        Ok(self.inner.compacted_h3_resolutions.iter().cloned().collect())
     }
 
     #[getter]
     pub fn get_base_resolutions(&self) -> PyResult<Vec<u8>> {
-        Ok( self.inner.base_h3_resolutions.iter().cloned().collect())
+        Ok(self.inner.base_h3_resolutions.iter().cloned().collect())
     }
 
     #[getter]

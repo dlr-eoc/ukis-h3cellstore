@@ -1,5 +1,5 @@
-
 import geojson
+
 
 def to_geojson_string(input):
     if type(input) == str:

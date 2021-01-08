@@ -1,4 +1,3 @@
-
 # import from rust library
 from .h3cpy import CompactedTable, \
     ClickhouseConnection as _ClickhouseConnection, \
@@ -14,6 +13,7 @@ __all__ = [
 ]
 
 __version__ = version()
+
 
 class ClickhouseConnection:
     inner = None
@@ -43,13 +43,13 @@ class ClickhouseConnection:
                 break
             yield window_data
 
-
     def poc_some_h3indexes(self):
         return self.inner.poc_some_h3indexes()
 
     def list_tablesets(self):
         """list all tablesets in the database"""
         return self.inner.list_tablesets()
+
 
 # proof of concepts - to be removed later
 def poc_some_dataframe():
