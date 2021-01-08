@@ -1,15 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use geo::algorithm::intersects::Intersects;
-use h3ron::index::Index;
-use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
+use h3ron::{
+    H3_MIN_RESOLUTION,
+    index::Index,
+};
+use numpy::{IntoPyArray, PyReadonlyArray1};
 use pyo3::{
     prelude::*,
-    Py,
     PyResult,
     Python,
 };
 use pyo3::exceptions::PyValueError;
+
+use h3cpy_int::compacted_tables::{Table, TableSpec};
 
 use crate::{
     clickhouse::{
@@ -27,8 +31,6 @@ use crate::{
         SlidingH3Window,
     },
 };
-use h3ron::H3_MIN_RESOLUTION;
-use h3cpy_int::compacted_tables::{Table, TableSpec};
 
 #[inline]
 fn check_index_valid(index: &Index) -> PyResult<()> {
@@ -46,15 +48,6 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-    /// proof-of-concept for numpy integration. using u64 as this will be the type for h3 indexes
-    /// TODO: remove later
-    pub fn poc_some_h3indexes(&self) -> PyResult<Py<PyArray<u64, Ix1>>> {
-        let idx: Index = 0x89283080ddbffff_u64.into();
-        let v: Vec<_> = idx.k_ring(80).iter().map(|i| i.h3index()).collect();
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        Ok(v.into_pyarray(py).to_owned())
-    }
 
     pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
         let window_polygon = polygon_from_python(window_poly_like)?;
@@ -69,8 +62,7 @@ impl ClickhouseConnection {
         }))
     }
 
-    fn fetch_query(&mut self, query: String) -> PyResult<ResultSet> {
-        let query_string = query.to_string();
+    fn fetch_query(&mut self, query_string: String) -> PyResult<ResultSet> {
         let client = self.rp.get_client()?;
         let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
             query_all(client, query_string).await
@@ -94,7 +86,7 @@ impl ClickhouseConnection {
         let mut queryable_h3indexes: HashMap<_, HashSet<_>> = tableset.inner.base_h3_resolutions.iter()
             .chain(tableset.inner.compacted_h3_resolutions.iter())
             .filter(|r| **r <= h3_resolution)
-            .map(|r| (r.clone(), HashSet::new()))
+            .map(|r| (*r, HashSet::new()))
             .collect();
         for h3index in h3indexes_view {
             let index = Index::from(*h3index);
@@ -160,7 +152,6 @@ impl ClickhouseConnection {
                             tablename,
                             query_h3indexes_string
                         ))
-
                     }
                 }
             }
@@ -180,7 +171,7 @@ impl ClickhouseConnection {
 
         let mut queries = vec![];
         tableset.inner.tables().iter().for_each(|t| {
-            if (t.spec.is_compacted == false && t.spec.h3_resolution == index.resolution()) || (t.spec.is_compacted && t.spec.h3_resolution <= index.resolution()) {
+            if (!t.spec.is_compacted && t.spec.h3_resolution == index.resolution()) || (t.spec.is_compacted && t.spec.h3_resolution <= index.resolution()) {
                 queries.push(format!(
                     "select h3index from {} where h3index = {} limit 1",
                     t.to_table_name(),

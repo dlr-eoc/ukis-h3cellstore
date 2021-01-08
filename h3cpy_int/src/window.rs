@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::iter::FromIterator;
 
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
@@ -17,10 +16,11 @@ use crate::compacted_tables::TableSet;
 ///
 /// That resolution must be a base resolution
 pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> u8 {
-    let mut resolutions = Vec::from_iter(table_set.base_h3_resolutions
+    let mut resolutions : Vec<_> = table_set.base_h3_resolutions
         .iter()
         .filter(|r| **r < target_h3_resolution)
-        .cloned());
+        .cloned()
+        .collect();
     resolutions.sort_unstable();
 
     let mut window_h3_resolution = target_h3_resolution;
@@ -66,7 +66,7 @@ impl<F: WindowFilter> WindowIterator<F> {
         Self {
             window_polygon,
             target_h3_resolution,
-            window_indexes: Vec::from_iter(window_index_set.drain()),
+            window_indexes: window_index_set.drain().collect(),
             iter_pos: 0,
             window_filter,
         }
