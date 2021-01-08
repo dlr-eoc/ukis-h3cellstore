@@ -1,6 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use h3ron::{
+    H3_MIN_RESOLUTION,
+    index::Index,
+};
+use ndarray::ArrayView1;
 use regex::Regex;
+
+use crate::error::{check_index_valid, Error};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct TableSpec {
@@ -105,6 +112,96 @@ impl TableSet {
 
     pub fn num_tables(&self) -> usize {
         self.base_h3_resolutions.len() + self.compacted_h3_resolutions.len()
+    }
+
+    pub fn build_select_query(&self, h3indexes_view: &ArrayView1<u64>) -> Result<String, Error> {
+        // use the h3 resolution of the first index as the target resolution
+        let h3_resolution = if let Some(h3index) = h3indexes_view.first() {
+            let index = Index::from(*h3index);
+            check_index_valid(&index)?;
+            index.resolution()
+        } else {
+            return Err(Error::EmptyIndexes);
+        };
+
+        // collect the indexes and the parents (where the tables exist)
+        let mut queryable_h3indexes: HashMap<_, HashSet<_>> = self.base_h3_resolutions.iter()
+            .chain(self.compacted_h3_resolutions.iter())
+            .filter(|r| **r <= h3_resolution)
+            .map(|r| (*r, HashSet::new()))
+            .collect();
+        for h3index in h3indexes_view {
+            let index = Index::from(*h3index);
+            check_index_valid(&index)?;
+            if index.resolution() != h3_resolution {
+                return Err(Error::MixedResolutions);
+            }
+            queryable_h3indexes.iter_mut().for_each(|(r, r_indexes)| {
+                r_indexes.insert(index.get_parent(*r).h3index());
+            })
+        }
+        if queryable_h3indexes.is_empty() {
+            return Err(Error::NoQueryableTables);
+        }
+
+        let query_string = {
+            let selectable_columns = itertools::join(
+                self.columns.iter()
+                    .map(|(col_name, _)| col_name)
+                    .filter(|col_name| !col_name.starts_with("h3index")),
+                ", ",
+            );
+
+
+            let mut query_string_parts = Vec::new();
+            for r in H3_MIN_RESOLUTION..=h3_resolution {
+                if let Some(query_h3indexes) = queryable_h3indexes.get(&r) {
+                    let query_h3indexes_string = itertools::join(
+                        query_h3indexes.iter().map(|hi| hi.to_string()),
+                        ",",
+                    );
+
+                    if r == h3_resolution {
+                        let tablename = Table {
+                            basename: self.basename.clone(),
+                            spec: TableSpec {
+                                h3_resolution: r,
+                                is_compacted: false,
+                                is_intermediate: false,
+                            },
+                        }.to_table_name();
+
+                        query_string_parts.push(format!(
+                            "select h3index, {} from {} where h3index in [{}]",
+                            selectable_columns,
+                            tablename,
+                            query_h3indexes_string
+                        ))
+                    } else if r <= h3_resolution {
+                        let tablename = Table {
+                            basename: self.basename.clone(),
+                            spec: TableSpec {
+                                h3_resolution: r,
+                                is_compacted: true,
+                                is_intermediate: false,
+                            },
+                        }.to_table_name();
+
+                        query_string_parts.push(format!(
+                            "select h3ToParent(h3index, {}) as h3index, {} from {} where h3index in [{}]",
+                            h3_resolution,
+                            selectable_columns,
+                            tablename,
+                            query_h3indexes_string
+                        ))
+                    }
+                }
+            }
+
+            itertools::join(query_string_parts.iter(), " union all ")
+        };
+
+        Ok(query_string)
     }
 }
 

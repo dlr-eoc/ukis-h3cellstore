@@ -10,6 +10,8 @@ regex = "^1.4"
 lazy_static = "1.4.0"
 geo-types = "^0.6"
 geo = "^0.16"
+ndarray = ">=0.13"
+itertools = "0.10"
 
 [dependencies.h3ron]
 git = "https://github.com/nmandery/h3ron.git"

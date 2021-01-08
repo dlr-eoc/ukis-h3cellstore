@@ -30,6 +30,14 @@ mod connection;
 mod geometry;
 mod clickhouse;
 
+
+pub fn intresult_to_pyresult<T>(res: std::result::Result<T, h3cpy_int::error::Error>) -> PyResult<T> {
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Err(PyValueError::new_err(e.to_string()))
+    }
+}
+
 /// version of the module
 #[pyfunction]
 fn version() -> PyResult<String> { Ok(env!("CARGO_PKG_VERSION").to_string()) }
