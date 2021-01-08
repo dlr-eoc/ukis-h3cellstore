@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use geo::algorithm::intersects::Intersects;
 use h3ron::index::Index;
@@ -13,10 +13,12 @@ use pyo3::exceptions::PyValueError;
 
 use crate::{
     clickhouse::{
+        ch_to_pyresult,
+        ColVec,
         list_tablesets,
+        query_all,
         query_returns_rows,
         RuntimedPool,
-        ch_to_pyresult,
     },
     geometry::polygon_from_python,
     inspect::TableSet as TableSetWrapper,
@@ -65,11 +67,19 @@ impl ClickhouseConnection {
         }))
     }
 
-    fn fetch_tableset(&self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
-        Ok(ResultSet {
-            num_h3indexes_queried: h3indexes.len(),
-            columns: Default::default(),
-        }) // TODO
+    fn fetch_query(&mut self, query: &str) -> PyResult<ResultSet> {
+        let query_string = query.to_string();
+        let client = self.rp.get_client()?;
+        let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
+            query_all(client, query_string).await
+        }))?;
+        Ok(create_resultset(column_data))
+    }
+
+    fn fetch_tableset(&mut self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
+        let mut resultset = self.fetch_query("select 2 as a, 5 as b, now() as c")?;
+        resultset.num_h3indexes_queried = Some(h3indexes.len());
+        Ok(resultset)
     }
 
     /// check if the tableset contains the h3index or any of its parents
@@ -128,14 +138,30 @@ impl ClickhouseConnection {
 
 #[pyclass]
 pub struct ResultSet {
-    num_h3indexes_queried: usize,
-    columns: HashSet<String, u8>,
+    num_h3indexes_queried: Option<usize>,
+    pub(crate) column_data: HashMap<String, ColVec>,
 }
+
+fn create_resultset(column_data: HashMap<String, ColVec>) -> ResultSet {
+    ResultSet {
+        num_h3indexes_queried: None,
+        column_data,
+    }
+}
+
 
 #[pymethods]
 impl ResultSet {
     #[getter]
-    fn get_num_h3indexes_queried(&self) -> PyResult<usize> {
+    fn get_num_h3indexes_queried(&self) -> PyResult<Option<usize>> {
         Ok(self.num_h3indexes_queried)
+    }
+
+    #[getter]
+    fn get_column_types(&self) -> PyResult<HashMap<String, String>> {
+        Ok(self.column_data.iter()
+            .map(|(name, data)| (name.clone(), data.type_name().to_string()))
+            .collect()
+        )
     }
 }

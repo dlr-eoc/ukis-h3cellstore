@@ -18,6 +18,8 @@ geo = "^0.16"
 itertools = "0.10"
 log = "0.4"
 env_logger = "0.8"
+chrono = "0.4"
+chrono-tz = "0.5"
 
 [dependencies.geojson]
 version = "^0.21"

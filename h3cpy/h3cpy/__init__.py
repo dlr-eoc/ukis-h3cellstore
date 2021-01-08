@@ -1,19 +1,73 @@
 # import from rust library
 from .h3cpy import CompactedTable, \
-    ClickhouseConnection as _ClickhouseConnection, \
     create_connection, \
     version
+from . import h3cpy as lib
 from .geometry import to_geojson_string
 import pandas as pd
+import numpy as np
 
 __all__ = [
     "CompactedTable",
     "ClickhouseConnection",
+    "ClickhouseResultSet",
     "poc_some_dataframe"
 ]
 
 __version__ = version()
 
+class ClickhouseResultSet:
+    resultset = None
+
+    def __init__(self, rs):
+        self.resultset = rs
+
+    @property
+    def column_types(self):
+        return self.resultset.column_types
+
+    @property
+    def num_h3indexes_queried(self):
+        return self.resultset.num_h3indexes_queried
+
+    def to_dataframe(self):
+        """
+        drains the resultset into a pandas dataframe.
+
+        draining meeans that the data gets moved to avoid duplication and increased
+        memory requirements. The resultset will be empty afterwards
+        """
+        data = {}
+        for column_name, column_type in self.column_types.items():
+            array = None
+            if column_type == 'u8':
+                array = lib.resultset_drain_column_u8(self.resultset, column_name)
+            elif column_type == 'i8':
+                array = lib.resultset_drain_column_i8(self.resultset, column_name)
+            elif column_type == 'u16':
+                array = lib.resultset_drain_column_u16(self.resultset, column_name)
+            elif column_type == 'i16':
+                array = lib.resultset_drain_column_i16(self.resultset, column_name)
+            elif column_type == 'u32':
+                array = lib.resultset_drain_column_u32(self.resultset, column_name)
+            elif column_type == 'i32':
+                array = lib.resultset_drain_column_i32(self.resultset, column_name)
+            elif column_type == 'u64':
+                array = lib.resultset_drain_column_u64(self.resultset, column_name)
+            elif column_type == 'i64':
+                array = lib.resultset_drain_column_i64(self.resultset, column_name)
+            elif column_type == 'f32':
+                array = lib.resultset_drain_column_f32(self.resultset, column_name)
+            elif column_type == 'f64':
+                array = lib.resultset_drain_column_f64(self.resultset, column_name)
+            elif column_type == 'date':
+                array = np.asarray(lib.resultset_drain_column_date(self.resultset, column_name), dtype='datetime64[s]')
+            elif column_type == 'datetime':
+                array = np.asarray(lib.resultset_drain_column_datetime(self.resultset, column_name), dtype='datetime64[s]')
+            else:
+                raise NotImplementedError(f"unsupported column type: {column_type}")
+            data[column_name] = array
+        return pd.DataFrame(data)
 
 class ClickhouseConnection:
     inner = None
@@ -41,7 +95,7 @@ class ClickhouseConnection:
             window_data = self.inner.fetch_next_window(sliding_window, tableset)
             if window_data is None:
                 break
-            yield window_data
+            yield ClickhouseResultSet(window_data)
 
     def poc_some_h3indexes(self):
         return self.inner.poc_some_h3indexes()

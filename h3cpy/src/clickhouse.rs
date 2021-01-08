@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use clickhouse_rs::{
@@ -6,17 +7,18 @@ use clickhouse_rs::{
     errors::Result as ChResult,
     Pool,
 };
+use clickhouse_rs::types::SqlType;
 use futures_util::StreamExt;
+use log::{error, warn};
+use pyo3::{PyErr, PyResult};
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::{PyResult, PyErr};
 use tokio::runtime::Runtime;
-use log::warn;
+use chrono::prelude::*;
+use chrono_tz::Tz;
 
 use h3cpy_int::compacted_tables::find_tablesets;
-use crate::{
-    inspect::TableSet as TableSetWrapper,
-};
 
+use crate::inspect::TableSet as TableSetWrapper;
 
 pub fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
@@ -117,14 +119,78 @@ pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> C
     }
 }
 
+pub enum ColVec {
+    U8(Vec<u8>),
+    I8(Vec<i8>),
+    U16(Vec<u16>),
+    I16(Vec<i16>),
+    U32(Vec<u32>),
+    I32(Vec<i32>),
+    U64(Vec<u64>),
+    I64(Vec<i64>),
+    F32(Vec<f32>),
+    F64(Vec<f64>),
+    /// unix timestamp, as numpy has no native date type
+    Date(Vec<i64>),
+    /// unix timestamp, as numpy has no native datetime type
+    DateTime(Vec<i64>),
+}
 
-pub async fn query_all(mut ch: ClientHandle, query_string: String) -> ChResult<bool> {
+impl ColVec {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            ColVec::U8(_) => "u8",
+            ColVec::I8(_) => "i8",
+            ColVec::U16(_) => "u16",
+            ColVec::I16(_) => "i16",
+            ColVec::U32(_) => "u32",
+            ColVec::I32(_) => "i32",
+            ColVec::U64(_) => "u64",
+            ColVec::I64(_) => "i64",
+            ColVec::F32(_) => "f32",
+            ColVec::F64(_) => "f64",
+            ColVec::Date(_) => "date",
+            ColVec::DateTime(_) => "datetime",
+        }
+    }
+}
+
+pub async fn query_all(mut ch: ClientHandle, query_string: String) -> ChResult<HashMap<String, ColVec>> {
     let block = ch.query(query_string).fetch_all().await?;
 
+    let mut out_rows = HashMap::new();
     for column in block.columns() {
-        //column.name()
+        // TODO: how to handle nullable columns?
+        let values = match column.sql_type() {
+            SqlType::UInt8 => ColVec::U8(column.iter::<u8>()?.cloned().collect()),
+            SqlType::UInt16 => ColVec::U16(column.iter::<u16>()?.cloned().collect()),
+            SqlType::UInt32 => ColVec::U32(column.iter::<u32>()?.cloned().collect()),
+            SqlType::UInt64 => ColVec::U64(column.iter::<u64>()?.cloned().collect()),
+            SqlType::Int8 => ColVec::I8(column.iter::<i8>()?.cloned().collect()),
+            SqlType::Int16 => ColVec::I16(column.iter::<i16>()?.cloned().collect()),
+            SqlType::Int32 => ColVec::I32(column.iter::<i32>()?.cloned().collect()),
+            SqlType::Int64 => ColVec::I64(column.iter::<i64>()?.cloned().collect()),
+            SqlType::Float32 => ColVec::F32(column.iter::<f32>()?.cloned().collect()),
+            SqlType::Float64 => ColVec::F64(column.iter::<f64>()?.cloned().collect()),
+            SqlType::Date => {
+                let u = column.iter::<Date<Tz>>()?
+                    .map(|d| d.and_hms(12, 0, 0).timestamp())
+                    .collect();
+                ColVec::Date(u)
+            },
+            SqlType::DateTime(_) => {
+                let u = column.iter::<DateTime<Tz>>()?
+                    .map(|d| d.timestamp())
+                    .collect();
+                ColVec::DateTime(u)
+            },
+            _ => {
+                error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
+                return Err(ChError::Other(Cow::from("unsupported column type")));
+            }
+        };
+        out_rows.insert(column.name().to_string(), values);
     }
-
-    Ok(true)
+    Ok(out_rows)
 }
 
