@@ -14,12 +14,14 @@ ndarray = ">=0.13"
 itertools = "0.10"
 
 [dependencies.h3ron]
-git = "https://github.com/nmandery/h3ron.git"
-tag = "v0.4.1"
+#git = "https://github.com/nmandery/h3ron.git"
+#tag = "v0.4.1"
+version = "0.6.0"
 
 [dependencies.h3ron-h3-sys]
-git = "https://github.com/nmandery/h3ron.git"
-tag = "v0.4.1"
+#git = "https://github.com/nmandery/h3ron.git"
+#tag = "v0.4.1"
+version = "0.6.0"
 
 [dependencies.clickhouse-rs]
 git = "https://github.com/suharev7/clickhouse-rs.git"
