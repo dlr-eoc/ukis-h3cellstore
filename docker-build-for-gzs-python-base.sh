@@ -22,7 +22,6 @@ cd /build/h3cpy
 
 python3 -m pip install -r requirements.dev.txt
 maturin build --release
-
 EOF
 
 sudo chown -R "$USER" target
