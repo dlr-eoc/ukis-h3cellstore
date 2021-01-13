@@ -13,3 +13,8 @@ controlled via environment variables. Set `RUST_LOG` to `debug`, `error`, `info`
 log output. 
 
 For more fine-grained logging settings, see the documentation of `env_logger`.
+
+# other relevant libraries
+
+* [offical h3 bindings](https://github.com/uber/h3-py)
+* [h3ronpy](https://github.com/nmandery/h3ron/tree/master/h3ronpy)
