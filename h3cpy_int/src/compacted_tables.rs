@@ -114,7 +114,15 @@ impl TableSet {
         self.base_h3_resolutions.len() + self.compacted_h3_resolutions.len()
     }
 
-    pub fn build_select_query(&self, h3indexes_view: &ArrayView1<u64>) -> Result<String, Error> {
+    /// build a select query for the given h3indexes.
+    ///
+    /// Will also fetch the parent, compacted indexes.
+    ///
+    /// if `do_uncompact` is set the query will auto-uncompacts
+    /// indexes from parent resolutions on the db server. in that case
+    /// the resultset of the query is guaranteed to only contain
+    /// the requested h3indexes.
+    pub fn build_select_query(&self, h3indexes_view: &ArrayView1<u64>, do_uncompact: bool) -> Result<String, Error> {
         // use the h3 resolution of the first index as the target resolution
         let h3_resolution = if let Some(h3index) = h3indexes_view.first() {
             let index = Index::from(*h3index);
@@ -187,24 +195,38 @@ impl TableSet {
                             },
                         }.to_table_name();
 
-                        query_string_parts.push(format!(
-                            "select h3ToParent(h3index, {}) as h3index, {} from {} where h3index in [{}]",
-                            h3_resolution,
-                            selectable_columns,
-                            tablename,
-                            query_h3indexes_string
-                        ))
+                        if do_uncompact {
+                            query_string_parts.push(format!(
+                                "select h3ToParent(h3index, {}) as h3index, {} from {} where h3index in [{}]",
+                                h3_resolution,
+                                selectable_columns,
+                                tablename,
+                                query_h3indexes_string
+                            ))
+                        } else {
+                            query_string_parts.push(format!(
+                                "select h3index, {} from {} where h3index in [{}]",
+                                selectable_columns,
+                                tablename,
+                                query_h3indexes_string
+                            ))
+                        }
                     }
                 }
             }
 
-            // wrap with an outer select to remove indexes from formerly compacted parent resolutions
-            // located outside the given h3indexes
-            format!(
-                "select * from ({}) f_wrap where h3index in [{}]",
-                itertools::join(query_string_parts.iter(), " union all "),
-                itertools::join(h3indexes_view.iter().map(|hi| hi.to_string()), ", ")
-            )
+            let combined_selects = itertools::join(query_string_parts.iter(), " union all ");
+            if do_uncompact {
+                // wrap with an outer select to remove indexes from formerly compacted parent resolutions
+                // located outside the given h3indexes
+                format!(
+                    "select * from ({}) f_wrap where h3index in [{}]",
+                    combined_selects,
+                    itertools::join(h3indexes_view.iter().map(|hi| hi.to_string()), ", ")
+                )
+            } else {
+                combined_selects
+            }
         };
         Ok(query_string)
     }

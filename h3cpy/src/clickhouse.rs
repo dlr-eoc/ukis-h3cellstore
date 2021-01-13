@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use clickhouse_rs::{
     ClientHandle,
@@ -19,6 +19,7 @@ use chrono_tz::Tz;
 use h3cpy_int::compacted_tables::find_tablesets;
 
 use crate::inspect::TableSet as TableSetWrapper;
+use h3ron::Index;
 
 pub fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
@@ -195,3 +196,95 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> ChResult<H
     Ok(out_rows)
 }
 
+/// return all rows from the query and uncompact the h3index in the h3index column, all other columns get duplicated accordingly
+pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: String, h3index_set: HashSet<u64>) -> ChResult<HashMap<String, ColVec>> {
+    let h3_res = if let Some(first) = h3index_set.iter().next() {
+        Index::from(*first).resolution()
+    } else {
+        return Err(ChError::Other(Cow::from("no h3indexes given")));
+    };
+    let block = ch.query(query_string).fetch_all().await?;
+
+    let h3index_column = if let Some(c) = block.columns().iter()
+        .find(|c| c.name() == "h3index") {
+        c
+    } else {
+        return Err(ChError::Other(Cow::from("no h3index column found")));
+    };
+
+    // the number denoting how often a row must be duplicated
+    // to match the number of uncompacted h3indexes
+    let mut row_multiplicators = Vec::new();
+
+    let h3_vec = {
+        let mut h3_vec = Vec::new();
+        for h3index in h3index_column.iter::<u64>()? {
+            let idx = Index::from(*h3index);
+            let m = if idx.resolution() < h3_res {
+                let mut valid_children = idx.get_children(h3_res).drain(..)
+                    .map(|i| i.h3index())
+                    .filter(|hi| h3index_set.contains(hi))
+                    .collect::<Vec<_>>();
+                let m = valid_children.len();
+                h3_vec.append(&mut valid_children);
+                m
+            } else if idx.resolution() == h3_res {
+                h3_vec.push(idx.h3index());
+                1
+            } else {
+                return Err(ChError::Other(Cow::from("too small resolution during uncompacting")));
+            };
+            row_multiplicators.push(m);
+        }
+        ColVec::U64(h3_vec)
+    };
+
+    let mut out_rows = HashMap::new();
+    for column in block.columns() {
+        if column.name() == "h3index" {
+            continue
+        }
+
+        macro_rules! multiply_column {
+            ($cvtype:ident, $itertype:ty, $conv:expr) => {
+            {
+                let mut values = Vec::new();
+                let mut pos = 0_usize;
+                for v in column.iter::<$itertype>()?.map($conv) {
+                    for _i in 0..row_multiplicators[pos] {
+                        values.push(v.clone())
+                    }
+                    pos += 1;
+                };
+                ColVec::$cvtype(values)
+            }
+            };
+            ($cvtype:ident, $itertype:ty) => {
+                 multiply_column!($cvtype, $itertype, |v| v)
+            };
+        }
+        // TODO: how to handle nullable columns?
+        // TODO: move column data without cloning
+        let values = match column.sql_type() {
+            SqlType::UInt8 => multiply_column!(U8, u8),
+            SqlType::UInt16 => multiply_column!(U16, u16),
+            SqlType::UInt32 => multiply_column!(U32, u32),
+            SqlType::UInt64 => multiply_column!(U64, u64),
+            SqlType::Int8 => multiply_column!(I8, i8),
+            SqlType::Int16 => multiply_column!(I16, i16),
+            SqlType::Int32 => multiply_column!(I32, i32),
+            SqlType::Int64 => multiply_column!(I64, i64),
+            SqlType::Float32 => multiply_column!(F32, f32),
+            SqlType::Float64 => multiply_column!(F64, f64),
+            SqlType::Date => multiply_column!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
+            SqlType::DateTime(_) => multiply_column!(DateTime, DateTime<Tz>, |d| d.timestamp()),
+            _ => {
+                error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
+                return Err(ChError::Other(Cow::from("unsupported column type")));
+            }
+        };
+        out_rows.insert(column.name().to_string(), values);
+    }
+    out_rows.insert("h3index".to_string(), h3_vec);
+    Ok(out_rows)
+}

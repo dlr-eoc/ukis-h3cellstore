@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use geo::algorithm::intersects::Intersects;
 use h3ron::{
@@ -17,12 +17,14 @@ use crate::{clickhouse::{
     ColVec,
     list_tablesets,
     query_all,
+    query_all_with_uncompacting,
     query_returns_rows,
     RuntimedPool,
-}, geometry::polygon_from_python, inspect::TableSet as TableSetWrapper, window::{
+}, geometry::polygon_from_python, inspect::TableSet as TableSetWrapper, intresult_to_pyresult, window::{
     create_window,
     SlidingH3Window,
-}, intresult_to_pyresult};
+},
+};
 
 #[inline]
 fn check_index_valid(index: &Index) -> PyResult<()> {
@@ -40,7 +42,6 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-
     pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
         let window_polygon = polygon_from_python(window_poly_like)?;
         create_window(window_polygon, &tableset.inner, target_h3_resolution, window_max_size)
@@ -64,10 +65,15 @@ impl ClickhouseConnection {
 
     fn fetch_tableset(&mut self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
         let h3indexes_view = h3indexes.as_array();
-        let query_string = intresult_to_pyresult(tableset.inner.build_select_query(&h3indexes_view))?;
+        let query_string = intresult_to_pyresult(tableset.inner.build_select_query(&h3indexes_view, false))?;
 
-        let mut resultset = self.fetch_query(query_string)?;
-        resultset.num_h3indexes_queried = Some(h3indexes.len());
+        let client = self.rp.get_client()?;
+        let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
+            let h3index_set: HashSet<_> = h3indexes_view.iter().cloned().collect();
+            query_all_with_uncompacting(client, query_string, h3index_set).await
+        }))?;
+        let mut resultset = create_resultset(column_data);
+        resultset.num_h3indexes_queried = Some(h3indexes_view.len());
         Ok(resultset)
     }
 
