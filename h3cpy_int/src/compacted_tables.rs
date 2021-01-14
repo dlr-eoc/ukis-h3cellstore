@@ -234,12 +234,12 @@ impl TableSet {
 
 
 /// identify the tablesets from a slice of tablenames
-pub fn find_tablesets(tablenames: &[String]) -> HashMap<String, TableSet> {
+pub fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableSet> {
     let mut tablesets = HashMap::default();
 
     for tablename in tablenames.iter() {
-        if let Some(table) = Table::parse(tablename) {
-            let tableset = tablesets.entry(table.basename.clone()).or_insert_with(|| {
+        if let Some(table) = Table::parse(tablename.as_ref()) {
+            let tableset = tablesets.entry(table.basename.to_string()).or_insert_with(|| {
                 TableSet::new(&table.basename)
             });
             if table.spec.is_compacted {

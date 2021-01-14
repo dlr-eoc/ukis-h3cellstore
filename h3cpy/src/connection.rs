@@ -9,16 +9,21 @@ use pyo3::{
     prelude::*,
     PyResult,
     Python,
+    exceptions::PyValueError,
 };
-use pyo3::exceptions::PyValueError;
+
+use h3cpy_int::clickhouse::{
+    ColVec,
+    query::{
+        list_tablesets,
+        query_all,
+        query_all_with_uncompacting,
+        query_returns_rows
+    },
+};
 
 use crate::{clickhouse::{
     ch_to_pyresult,
-    ColVec,
-    list_tablesets,
-    query_all,
-    query_all_with_uncompacting,
-    query_returns_rows,
     RuntimedPool,
 }, geometry::polygon_from_python, inspect::TableSet as TableSetWrapper, intresult_to_pyresult, window::{
     create_window,
@@ -47,12 +52,15 @@ impl ClickhouseConnection {
         create_window(window_polygon, &tableset.inner, target_h3_resolution, window_max_size)
     }
 
-
     fn list_tablesets(&mut self) -> PyResult<HashMap<String, TableSetWrapper>> {
         let client = self.rp.get_client()?;
-        ch_to_pyresult(self.rp.rt.block_on(async {
+        let mut ts = ch_to_pyresult(self.rp.rt.block_on(async {
             list_tablesets(client).await
-        }))
+        }))?;
+        Ok(ts.drain()
+            .map(|(k, v)| (k, TableSetWrapper { inner: v }))
+            .collect()
+        )
     }
 
     fn fetch_query(&mut self, query_string: String) -> PyResult<ResultSet> {

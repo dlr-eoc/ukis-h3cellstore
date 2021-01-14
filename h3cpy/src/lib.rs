@@ -1,19 +1,20 @@
+use numpy::{IntoPyArray, Ix1, PyArray};
 use pyo3::{
+    exceptions::{
+        PyIndexError,
+        PyValueError,
+    },
     prelude::*,
     Python,
     wrap_pyfunction,
-    exceptions::{
-        PyValueError,
-        PyIndexError,
-    }
 };
-use numpy::{IntoPyArray, Ix1, PyArray};
+
+use h3cpy_int::{
+    clickhouse::ColVec
+};
 
 use crate::{
-    clickhouse::{
-        RuntimedPool,
-        ColVec,
-    },
+    clickhouse::RuntimedPool,
     connection::{
         ClickhouseConnection,
         ResultSet,

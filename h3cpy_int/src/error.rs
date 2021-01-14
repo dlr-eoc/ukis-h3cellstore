@@ -1,4 +1,5 @@
 use std::fmt;
+
 use h3ron::index::Index;
 
 #[derive(Debug)]
@@ -6,7 +7,7 @@ pub enum Error {
     EmptyIndexes,
     InvalidH3Index(Index),
     MixedResolutions,
-    NoQueryableTables
+    NoQueryableTables,
 }
 
 impl fmt::Display for Error {
@@ -20,9 +21,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
-
-}
+impl std::error::Error for Error {}
 
 #[inline]
 pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error> {

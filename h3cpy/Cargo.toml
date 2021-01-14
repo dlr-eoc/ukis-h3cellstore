@@ -18,8 +18,6 @@ geo = "^0.16"
 itertools = "0.10"
 log = "0.4"
 env_logger = "0.8"
-chrono = "0.4"
-chrono-tz = "0.5"
 
 [dependencies.geojson]
 version = "^0.21"
@@ -45,14 +43,6 @@ features = ["extension-module"]
 version = "0.2.21"
 default-features = false
 features = ["io-util", "time", "net", "sync", "rt-threaded"]
-
-[dependencies.futures-util]
-version = "0.3.5"
-features = ["sink"]
-
-[dependencies.clickhouse-rs]
-git = "https://github.com/suharev7/clickhouse-rs.git"
-rev = "d288a4f8a" # to include https://github.com/suharev7/clickhouse-rs/pull/102
 
 [package.metadata.maturin]
 requires-dist = [
