@@ -148,7 +148,8 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
         for h3index in h3index_column.iter::<u64>()? {
             let idx = Index::from(*h3index);
             let m = if idx.resolution() < h3_res {
-                let mut valid_children = idx.get_children(h3_res).drain(..)
+                let mut valid_children = idx.get_children(h3_res)
+                    .drain(..)
                     .map(|i| i.h3index())
                     .filter(|hi| h3index_set.contains(hi))
                     .collect::<Vec<_>>();

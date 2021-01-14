@@ -68,7 +68,7 @@ impl ClickhouseConnection {
         let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
             query_all(client, query_string).await
         }))?;
-        Ok(create_resultset(column_data))
+        Ok(column_data.into())
     }
 
     fn fetch_tableset(&mut self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
@@ -80,7 +80,7 @@ impl ClickhouseConnection {
             let h3index_set: HashSet<_> = h3indexes_view.iter().cloned().collect();
             query_all_with_uncompacting(client, query_string, h3index_set).await
         }))?;
-        let mut resultset = create_resultset(column_data);
+        let mut resultset: ResultSet = column_data.into();
         resultset.num_h3indexes_queried = Some(h3indexes_view.len());
         Ok(resultset)
     }
@@ -131,8 +131,11 @@ impl ClickhouseConnection {
                 })
                 .map(|i| i.h3index())
                 .collect();
-            // TODO: add window index to resultset
-            return Ok(Some(self.fetch_tableset(tableset, child_indexes.into_pyarray(py).readonly())?));
+
+            let mut resultset: ResultSet = self.fetch_tableset(tableset, child_indexes.into_pyarray(py).readonly())?;
+            resultset.window_h3index = Some(window_h3index);
+
+            return Ok(Some(resultset));
         }
         Ok(None)
     }
@@ -142,22 +145,33 @@ impl ClickhouseConnection {
 #[pyclass]
 pub struct ResultSet {
     num_h3indexes_queried: Option<usize>,
+    window_h3index: Option<u64>,
     pub(crate) column_data: HashMap<String, ColVec>,
 }
 
-fn create_resultset(column_data: HashMap<String, ColVec>) -> ResultSet {
-    ResultSet {
-        num_h3indexes_queried: None,
-        column_data,
+impl From<HashMap<String, ColVec>> for ResultSet {
+    fn from(column_data: HashMap<String, ColVec>) -> Self {
+        Self {
+            num_h3indexes_queried: None,
+            window_h3index: None,
+            column_data,
+        }
     }
 }
 
-
 #[pymethods]
 impl ResultSet {
+    /// get the number of h3indexes which where used in the query
     #[getter]
     fn get_num_h3indexes_queried(&self) -> PyResult<Option<usize>> {
         Ok(self.num_h3indexes_queried)
+    }
+
+    /// get the h3index of the window in case this resultset was fetched in a
+    /// sliding window
+    #[getter]
+    fn get_window_index(&self) -> PyResult<Option<u64>> {
+        Ok(self.window_h3index)
     }
 
     #[getter]

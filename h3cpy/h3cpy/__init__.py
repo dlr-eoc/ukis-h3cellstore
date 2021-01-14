@@ -28,7 +28,13 @@ class ClickhouseResultSet:
 
     @property
     def num_h3indexes_queried(self):
+        """get the number of h3indexes which where used in the query"""
         return self.resultset.num_h3indexes_queried
+
+    @property
+    def window_index(self):
+        """get the h3index of the window in case this resultset was fetched in a sliding window"""
+        return self.resultset.window_index
 
     def to_dataframe(self):
         """
@@ -96,9 +102,6 @@ class ClickhouseConnection:
             if window_data is None:
                 break
             yield ClickhouseResultSet(window_data)
-
-    def poc_some_h3indexes(self):
-        return self.inner.poc_some_h3indexes()
 
     def list_tablesets(self):
         """list all tablesets in the database"""
