@@ -6,8 +6,8 @@ use chrono_tz::Tz;
 use clickhouse_rs::{
     ClientHandle,
     errors::{Error, Result},
+    types::SqlType,
 };
-use clickhouse_rs::types::SqlType;
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
@@ -138,11 +138,12 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
         return Err(Error::Other(Cow::from("no h3index column found")));
     };
 
-    // the number denoting how often a row must be duplicated
+    // the number denoting how often a value of the other columns must be repeated
     // to match the number of uncompacted h3indexes
-    let mut row_multiplicators = Vec::new();
+    let mut row_repetitions = Vec::with_capacity(block.row_count());
 
-    let h3_vec = {
+    // uncompact the h3index columns contents
+    let (h3_vec, num_uncompacted_rows) = {
         let mut h3_vec = Vec::new();
         for h3index in h3index_column.iter::<u64>()? {
             let idx = Index::from(*h3index);
@@ -160,9 +161,10 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
             } else {
                 return Err(Error::Other(Cow::from("too small resolution during uncompacting")));
             };
-            row_multiplicators.push(m);
+            row_repetitions.push(m);
         }
-        ColVec::U64(h3_vec)
+        let num_uncompacted_rows = h3_vec.len();
+        (ColVec::U64(h3_vec), num_uncompacted_rows)
     };
 
     let mut out_rows = HashMap::new();
@@ -171,13 +173,15 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
             continue;
         }
 
-        macro_rules! multiply_column {
-            ($cvtype:ident, $itertype:ty, $conv:expr) => {
+        /// repeat column values according to the counts of the row_repetitions vec
+        macro_rules! repeat_column_values {
+            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {
             {
-                let mut values = Vec::new();
+                let mut values = Vec::with_capacity(num_uncompacted_rows);
                 let mut pos = 0_usize;
-                for v in column.iter::<$itertype>()?.map($conv) {
-                    for _i in 0..row_multiplicators[pos] {
+                for v in column.iter::<$itertype>()?.map($conv_closure) {
+                    for _i in 0..row_repetitions[pos] {
+                        // TODO: move column data without cloning?
                         values.push(v.clone())
                     }
                     pos += 1;
@@ -186,24 +190,23 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
             }
             };
             ($cvtype:ident, $itertype:ty) => {
-                 multiply_column!($cvtype, $itertype, |v| v)
+                 repeat_column_values!($cvtype, $itertype, |v| v)
             };
         }
         // TODO: how to handle nullable columns?
-        // TODO: move column data without cloning
         let values = match column.sql_type() {
-            SqlType::UInt8 => multiply_column!(U8, u8),
-            SqlType::UInt16 => multiply_column!(U16, u16),
-            SqlType::UInt32 => multiply_column!(U32, u32),
-            SqlType::UInt64 => multiply_column!(U64, u64),
-            SqlType::Int8 => multiply_column!(I8, i8),
-            SqlType::Int16 => multiply_column!(I16, i16),
-            SqlType::Int32 => multiply_column!(I32, i32),
-            SqlType::Int64 => multiply_column!(I64, i64),
-            SqlType::Float32 => multiply_column!(F32, f32),
-            SqlType::Float64 => multiply_column!(F64, f64),
-            SqlType::Date => multiply_column!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
-            SqlType::DateTime(_) => multiply_column!(DateTime, DateTime<Tz>, |d| d.timestamp()),
+            SqlType::UInt8 => repeat_column_values!(U8, u8),
+            SqlType::UInt16 => repeat_column_values!(U16, u16),
+            SqlType::UInt32 => repeat_column_values!(U32, u32),
+            SqlType::UInt64 => repeat_column_values!(U64, u64),
+            SqlType::Int8 => repeat_column_values!(I8, i8),
+            SqlType::Int16 => repeat_column_values!(I16, i16),
+            SqlType::Int32 => repeat_column_values!(I32, i32),
+            SqlType::Int64 => repeat_column_values!(I64, i64),
+            SqlType::Float32 => repeat_column_values!(F32, f32),
+            SqlType::Float64 => repeat_column_values!(F64, f64),
+            SqlType::Date => repeat_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
+            SqlType::DateTime(_) => repeat_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp()),
             _ => {
                 error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
                 return Err(Error::Other(Cow::from("unsupported column type")));
