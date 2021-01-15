@@ -1,19 +1,33 @@
 # import from rust library
-from .h3cpy import CompactedTable, \
-    create_connection, \
-    version
-from . import h3cpy as lib
-from .geometry import to_geojson_string
-import pandas as pd
+import geojson
 import numpy as np
+import pandas as pd
+
+from . import h3cpy as lib
+from .h3cpy import create_connection, \
+    Polygon, \
+    h3indexes_convex_hull, \
+    version
 
 __all__ = [
     "CompactedTable",
     "ClickhouseConnection",
     "ClickhouseResultSet",
+    "Polygon",
+    "h3indexes_convex_hull",
 ]
 
 __version__ = version()
+
+
+def to_polygon(input):
+    if type(input) == Polygon:
+        return input
+    if type(input) == str:
+        return Polygon.from_geojson(input)
+    # geojson should also take care of objects implementing __geo_interface__
+    # geo interface specification: https://gist.github.com/sgillies/2217756
+    return Polygon.from_geojson(geojson.dumps(input))
 
 
 class ClickhouseResultSet:
@@ -94,7 +108,7 @@ class ClickhouseConnection:
         :return: generator
         """
         sliding_window = self.inner.make_sliding_window(
-            to_geojson_string(window_polygon),
+            to_polygon(window_polygon),
             tableset,
             h3_resolution,
             window_max_size

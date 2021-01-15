@@ -33,13 +33,16 @@ use h3cpy_int::{
 
 use crate::{
     inspect::TableSet as TableSetWrapper,
-    pywrap::polygon_from_python,
     window::{
         create_window,
         SlidingH3Window,
     },
+    pywrap::{
+        check_index_valid,
+        intresult_to_pyresult,
+        Polygon
+    }
 };
-use crate::pywrap::{check_index_valid, intresult_to_pyresult};
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
@@ -82,9 +85,13 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-    pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
-        let window_polygon = polygon_from_python(window_poly_like)?;
-        create_window(window_polygon, &tableset.inner, target_h3_resolution, window_max_size)
+    pub fn make_sliding_window(&self, window_polygon: &Polygon, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
+        create_window(
+            window_polygon.inner.clone(),
+            &tableset.inner,
+            target_h3_resolution,
+            window_max_size
+        )
     }
 
     fn list_tablesets(&mut self) -> PyResult<HashMap<String, TableSetWrapper>> {
