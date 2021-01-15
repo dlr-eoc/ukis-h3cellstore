@@ -12,7 +12,7 @@ set -eux
 
 # dependencies
 apt-get update
-apt-get install --no-install-recommends -y curl cmake build-essential git
+apt-get install --no-install-recommends -y curl cmake clang build-essential git
 curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs
 chmod +x rustup.sh
 ./rustup.sh -y --profile minimal
