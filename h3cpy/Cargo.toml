@@ -1,6 +1,6 @@
 [package]
 name = "h3cpy"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
@@ -54,7 +54,7 @@ features = [
 [package.metadata.maturin]
 requires-dist = [
     "numpy",
-    "pandas>=1.1",
+    "pandas>=1.2",
     "geojson>=2.5",
     "h3>=3.7",
     "psycopg2>=2.8"
