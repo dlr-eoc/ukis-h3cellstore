@@ -50,5 +50,6 @@ requires-dist = [
     "numpy",
     "pandas>=1.1",
     "geojson>=2.5",
-    "h3>=3.7"
+    "h3>=3.7",
+    "psycopg2>=2.8"
 ]

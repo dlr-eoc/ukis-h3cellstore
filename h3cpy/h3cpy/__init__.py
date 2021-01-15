@@ -46,6 +46,11 @@ class ClickhouseResultSet:
         return self.resultset.num_h3indexes_queried
 
     @property
+    def h3indexes_queried(self):
+        """get the h3indexes which where used in the query"""
+        return self.resultset.h3indexes_queried
+
+    @property
     def window_index(self):
         """get the h3index of the window in case this resultset was fetched in a sliding window"""
         return self.resultset.window_index

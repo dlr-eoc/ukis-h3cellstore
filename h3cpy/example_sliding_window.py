@@ -44,7 +44,14 @@ geom = """
 
 # iteratively visit all indexes using a h3-based sliding window
 for resultset in conn.window_iter(geom, tablesets["water"], 10, window_max_size=6000):
+
+    # the h3 index of the window itself. will have a lower resolution then the h3_resolution
+    # requested for the window
     print(resultset.window_index)
+
+    # the h3indexes as used for the query
+    print(resultset.h3indexes_queried)
+
     # get as a pandas dataframe. This will move the data, so the resultset will be empty afterwards
     df = resultset.to_dataframe()
     print(df)

@@ -1,7 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use geo::algorithm::intersects::Intersects;
-use numpy::{IntoPyArray, PyReadonlyArray1};
+use numpy::{
+    IntoPyArray,
+    PyReadonlyArray1,
+    PyArray1
+};
 use pyo3::{
     exceptions::{
         PyRuntimeError,
@@ -123,7 +127,7 @@ impl ClickhouseConnection {
             query_all_with_uncompacting(client, query_string, h3index_set).await
         }))?;
         let mut resultset: ResultSet = column_data.into();
-        resultset.num_h3indexes_queried = Some(h3indexes_view.len());
+        resultset.h3indexes_queried = Some(h3indexes_view.to_vec());
         Ok(resultset)
     }
 
@@ -186,7 +190,7 @@ impl ClickhouseConnection {
 
 #[pyclass]
 pub struct ResultSet {
-    num_h3indexes_queried: Option<usize>,
+    h3indexes_queried: Option<Vec<u64>>,
     window_h3index: Option<u64>,
     pub(crate) column_data: HashMap<String, ColVec>,
 }
@@ -194,7 +198,7 @@ pub struct ResultSet {
 impl From<HashMap<String, ColVec>> for ResultSet {
     fn from(column_data: HashMap<String, ColVec>) -> Self {
         Self {
-            num_h3indexes_queried: None,
+            h3indexes_queried: None,
             window_h3index: None,
             column_data,
         }
@@ -205,8 +209,21 @@ impl From<HashMap<String, ColVec>> for ResultSet {
 impl ResultSet {
     /// get the number of h3indexes which where used in the query
     #[getter]
-    fn get_num_h3indexes_queried(&self) -> PyResult<Option<usize>> {
-        Ok(self.num_h3indexes_queried)
+    fn get_num_h3indexes_queried(&self) -> Option<usize> {
+        match &self.h3indexes_queried {
+            Some(a) => Some(a.len()),
+            None => None
+        }
+    }
+
+    /// get the h3indexes which where used in the query as a numpy array
+    #[getter]
+    fn get_h3indexes_queried(&self, py: Python) -> Py<PyArray1<u64>> {
+        let h3vec = match &self.h3indexes_queried {
+            Some(a) => a.clone(),
+            None => vec![]
+        };
+        h3vec.into_pyarray(py).to_owned()
     }
 
     /// get the h3index of the window in case this resultset was fetched in a
