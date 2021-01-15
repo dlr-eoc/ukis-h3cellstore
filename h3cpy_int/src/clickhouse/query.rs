@@ -12,7 +12,7 @@ use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
-use crate::clickhouse::ColVec;
+use crate::ColVec;
 use crate::compacted_tables::{
     find_tablesets,
     TableSet,

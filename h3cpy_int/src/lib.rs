@@ -8,4 +8,6 @@ pub mod compacted_tables;
 pub mod window;
 pub mod error;
 pub mod clickhouse;
+mod colvec;
 
+pub use crate::colvec::ColVec;

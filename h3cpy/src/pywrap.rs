@@ -3,12 +3,29 @@ use std::str::FromStr;
 
 use geo_types::Polygon;
 use geojson::GeoJson;
+use h3ron::Index;
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     PyAny,
     PyResult,
     types::PyString,
 };
+
+pub fn check_index_valid(index: &Index) -> PyResult<()> {
+    if !index.is_valid() {
+        Err(PyValueError::new_err(format!("invalid h3index given: {}", index.h3index())))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn intresult_to_pyresult<T>(res: std::result::Result<T, h3cpy_int::error::Error>) -> PyResult<T> {
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Err(PyValueError::new_err(e.to_string()))
+    }
+}
+
 
 /// convert a python object to a polygon
 ///

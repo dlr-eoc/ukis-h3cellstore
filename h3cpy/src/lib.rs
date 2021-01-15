@@ -10,12 +10,12 @@ use pyo3::{
 };
 
 use h3cpy_int::{
-    clickhouse::ColVec
+    ColVec
 };
 
 use crate::{
-    clickhouse::RuntimedPool,
-    connection::{
+    clickhouse::{
+        RuntimedPool,
         ClickhouseConnection,
         ResultSet,
     },
@@ -27,17 +27,8 @@ use crate::{
 
 mod window;
 mod inspect;
-mod connection;
-mod geometry;
 mod clickhouse;
-
-
-pub fn intresult_to_pyresult<T>(res: std::result::Result<T, h3cpy_int::error::Error>) -> PyResult<T> {
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(PyValueError::new_err(e.to_string()))
-    }
-}
+mod pywrap;
 
 /// version of the module
 #[pyfunction]

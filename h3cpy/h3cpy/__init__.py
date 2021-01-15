@@ -11,10 +11,10 @@ __all__ = [
     "CompactedTable",
     "ClickhouseConnection",
     "ClickhouseResultSet",
-    "poc_some_dataframe"
 ]
 
 __version__ = version()
+
 
 class ClickhouseResultSet:
     resultset = None
@@ -69,11 +69,13 @@ class ClickhouseResultSet:
             elif column_type == 'date':
                 array = np.asarray(lib.resultset_drain_column_date(self.resultset, column_name), dtype='datetime64[s]')
             elif column_type == 'datetime':
-                array = np.asarray(lib.resultset_drain_column_datetime(self.resultset, column_name), dtype='datetime64[s]')
+                array = np.asarray(lib.resultset_drain_column_datetime(self.resultset, column_name),
+                                   dtype='datetime64[s]')
             else:
                 raise NotImplementedError(f"unsupported column type: {column_type}")
             data[column_name] = array
         return pd.DataFrame(data)
+
 
 class ClickhouseConnection:
     inner = None
@@ -106,10 +108,3 @@ class ClickhouseConnection:
     def list_tablesets(self):
         """list all tablesets in the database"""
         return self.inner.list_tablesets()
-
-
-# proof of concepts - to be removed later
-def poc_some_dataframe():
-    return pd.DataFrame({
-        "h3index": ClickhouseConnection().poc_some_h3indexes()
-    })
