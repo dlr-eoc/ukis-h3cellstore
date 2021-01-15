@@ -1,7 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use geo::algorithm::intersects::Intersects;
-use numpy::{IntoPyArray, PyReadonlyArray1};
+use numpy::{
+    IntoPyArray,
+    PyReadonlyArray1,
+    PyArray1
+};
 use pyo3::{
     exceptions::{
         PyRuntimeError,
@@ -33,13 +37,16 @@ use h3cpy_int::{
 
 use crate::{
     inspect::TableSet as TableSetWrapper,
-    pywrap::polygon_from_python,
     window::{
         create_window,
         SlidingH3Window,
     },
+    pywrap::{
+        check_index_valid,
+        intresult_to_pyresult,
+        Polygon
+    }
 };
-use crate::pywrap::{check_index_valid, intresult_to_pyresult};
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
@@ -82,9 +89,13 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-    pub fn make_sliding_window(&self, window_poly_like: &PyAny, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
-        let window_polygon = polygon_from_python(window_poly_like)?;
-        create_window(window_polygon, &tableset.inner, target_h3_resolution, window_max_size)
+    pub fn make_sliding_window(&self, window_polygon: &Polygon, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
+        create_window(
+            window_polygon.inner.clone(),
+            &tableset.inner,
+            target_h3_resolution,
+            window_max_size
+        )
     }
 
     fn list_tablesets(&mut self) -> PyResult<HashMap<String, TableSetWrapper>> {
@@ -116,7 +127,7 @@ impl ClickhouseConnection {
             query_all_with_uncompacting(client, query_string, h3index_set).await
         }))?;
         let mut resultset: ResultSet = column_data.into();
-        resultset.num_h3indexes_queried = Some(h3indexes_view.len());
+        resultset.h3indexes_queried = Some(h3indexes_view.to_vec());
         Ok(resultset)
     }
 
@@ -179,7 +190,7 @@ impl ClickhouseConnection {
 
 #[pyclass]
 pub struct ResultSet {
-    num_h3indexes_queried: Option<usize>,
+    h3indexes_queried: Option<Vec<u64>>,
     window_h3index: Option<u64>,
     pub(crate) column_data: HashMap<String, ColVec>,
 }
@@ -187,7 +198,7 @@ pub struct ResultSet {
 impl From<HashMap<String, ColVec>> for ResultSet {
     fn from(column_data: HashMap<String, ColVec>) -> Self {
         Self {
-            num_h3indexes_queried: None,
+            h3indexes_queried: None,
             window_h3index: None,
             column_data,
         }
@@ -198,8 +209,21 @@ impl From<HashMap<String, ColVec>> for ResultSet {
 impl ResultSet {
     /// get the number of h3indexes which where used in the query
     #[getter]
-    fn get_num_h3indexes_queried(&self) -> PyResult<Option<usize>> {
-        Ok(self.num_h3indexes_queried)
+    fn get_num_h3indexes_queried(&self) -> Option<usize> {
+        match &self.h3indexes_queried {
+            Some(a) => Some(a.len()),
+            None => None
+        }
+    }
+
+    /// get the h3indexes which where used in the query as a numpy array
+    #[getter]
+    fn get_h3indexes_queried(&self, py: Python) -> Py<PyArray1<u64>> {
+        let h3vec = match &self.h3indexes_queried {
+            Some(a) => a.clone(),
+            None => vec![]
+        };
+        h3vec.into_pyarray(py).to_owned()
     }
 
     /// get the h3index of the window in case this resultset was fetched in a

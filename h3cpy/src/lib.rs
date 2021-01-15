@@ -1,4 +1,4 @@
-use numpy::{IntoPyArray, Ix1, PyArray};
+use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::{
         PyIndexError,
@@ -76,6 +76,15 @@ resultset_drain_column_fn!(resultset_drain_column_date, i64, Date);
 resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
 
 
+/// calculate the convex hull of an array og h3 indexes
+#[pyfunction]
+fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::pywrap::Polygon> {
+    let view = np_array.as_array();
+    Ok(crate::pywrap::Polygon {
+        inner: h3cpy_int::algorithm::h3indexes_convex_hull(&view)
+    })
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
@@ -85,6 +94,8 @@ fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("TableSet", py.get_type::<TableSet>())?;
     m.add("ClickhouseConnection", py.get_type::<ClickhouseConnection>())?;
     m.add("ResultSet", py.get_type::<ResultSet>())?;
+    m.add("Polygon", py.get_type::<crate::pywrap::Polygon>())?;
+
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
 
@@ -100,6 +111,8 @@ fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(resultset_drain_column_f64, m)?)?;
     m.add_function(wrap_pyfunction!(resultset_drain_column_date, m)?)?;
     m.add_function(wrap_pyfunction!(resultset_drain_column_datetime, m)?)?;
+
+    m.add_function(wrap_pyfunction!(h3indexes_convex_hull, m)?)?;
 
     Ok(())
 }
