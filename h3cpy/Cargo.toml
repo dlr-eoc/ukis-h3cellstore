@@ -43,7 +43,13 @@ features = ["extension-module"]
 [dependencies.tokio]
 version = "0.2.21"
 default-features = false
-features = ["io-util", "time", "net", "sync", "rt-threaded"]
+features = [
+    "io-util",
+    "time",
+    "net",
+    "sync",
+    #"rt-threaded"
+]
 
 [package.metadata.maturin]
 requires-dist = [

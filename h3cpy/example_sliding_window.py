@@ -1,7 +1,14 @@
 import h3cpy
+import psycopg2
+from h3cpy.postgres import fetch_using_intersecting_h3indexes
 
-conn = h3cpy.ClickhouseConnection("tcp://localhost:9010/water2?compression=lz4")
-tablesets = conn.list_tablesets()
+# connect to postgres for metadata
+postgres_conn = psycopg2.connect("dbname=water2 host=127.0.0.1 port=5433") # credentials see password db
+postgres_cur = postgres_conn.cursor()
+
+# connect to clickhouse
+clickhouse_conn = h3cpy.ClickhouseConnection("tcp://localhost:9010/water2?compression=lz4")
+tablesets = clickhouse_conn.list_tablesets()
 
 # print all tablesets found
 for tsname, ts in tablesets.items():
@@ -43,7 +50,7 @@ geom = """
 """
 
 # iteratively visit all indexes using a h3-based sliding window
-for resultset in conn.window_iter(geom, tablesets["water"], 10, window_max_size=6000):
+for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 10, window_max_size=6000):
 
     # the h3 index of the window itself. will have a lower resolution then the h3_resolution
     # requested for the window
@@ -55,3 +62,27 @@ for resultset in conn.window_iter(geom, tablesets["water"], 10, window_max_size=
     # get as a pandas dataframe. This will move the data, so the resultset will be empty afterwards
     df = resultset.to_dataframe()
     print(df)
+
+    # in case the no-data values are needed, we must generate them as they are not stored anywhere. We
+    # just use the scene footprints to generate our subset of h3indexes for each scene covering an h3index
+    query_polygon = h3cpy.h3indexes_convex_hull(resultset.h3indexes_queried)
+    print(query_polygon.to_geojson_str())
+    scene_h3indexes_df =  fetch_using_intersecting_h3indexes(
+        postgres_cur,
+        resultset.h3indexes_queried,
+        "wkb_geom",
+        """
+        select s.id as scene_id, 
+            s.sensor_id,
+            s.processor_id,
+            s.recorded_at,
+            s.processed_at,
+            st_asbinary(st_force2d(s.footprint)) wkb_geom 
+        from scene s 
+        where st_intersects(s.footprint, st_geomfromwkb(%s, 4326))
+        """,
+        (query_polygon.to_wkb(), )
+    )
+    print(scene_h3indexes_df)
+
+
