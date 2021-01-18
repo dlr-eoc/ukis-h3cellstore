@@ -1,19 +1,22 @@
+use std::collections::HashMap;
 use std::convert::TryInto;
+use std::io::Cursor;
+use std::iter::once;
 use std::str::FromStr;
 
-use geo_types as gt;
 use geo::algorithm::contains::Contains;
+use geo_types as gt;
 use geojson::GeoJson;
 use h3ron::Index;
 use pyo3::{
-    prelude::*,
     exceptions::PyValueError,
+    prelude::*,
     PyResult,
     types::{
-        PyBytes
+        PyBytes,
+        PyTuple,
     },
 };
-use std::io::Cursor;
 use wkb::WKBReadExt;
 
 pub fn check_index_valid(index: &Index) -> PyResult<()> {
@@ -41,9 +44,6 @@ pub struct Polygon {
 #[pymethods]
 impl Polygon {
 
-    /// TODO: would be nice to support pythons __geo_interface__ or at least geojson-like dicts,
-    ///       but only with little effort.
-
     #[staticmethod]
     fn from_geojson(instr: &str) -> PyResult<Self> {
         let gj = GeoJson::from_str(instr)
@@ -62,7 +62,7 @@ impl Polygon {
         let mut cursor = Cursor::new(wkb_data);
         match cursor.read_wkb() {
             Ok(geom) => match geom {
-                gt::Geometry::Polygon(poly) => Ok(Self { inner: poly}),
+                gt::Geometry::Polygon(poly) => Ok(Self { inner: poly }),
                 _ => Err(PyValueError::new_err("unsupported geometry type")),
             }
             Err(e) => Err(PyValueError::new_err(format!("could not deserialize from wkb: {:?}", e))),
@@ -86,5 +86,29 @@ impl Polygon {
     /// check if the polygon contains the given point
     fn contains_point(&self, x: f64, y: f64) -> bool {
         self.inner.contains(&gt::Coordinate { x, y })
+    }
+
+    // taken from https://github.com/nmandery/h3ron/blob/master/h3ronpy/src/polygon.rs
+    /// python __geo_interface__ spec: https://gist.github.com/sgillies/2217756
+    #[getter]
+    fn __geo_interface__(&self, py: Python) -> PyObject {
+        let mut main = HashMap::new();
+        main.insert("type".to_string(), "Polygon".to_string().into_py(py));
+        main.insert("coordinates".to_string(), {
+            let rings: Vec<_> = once(self.inner.exterior())
+                .chain(self.inner.interiors().iter())
+                .map(|ring| {
+                    let r: Vec<_> = ring.0.iter()
+                        .map(|c| {
+                            PyTuple::new(py, &[c.x, c.y]).to_object(py)
+                        })
+                        .collect();
+                    PyTuple::new(py, &r).to_object(py)
+                })
+                .collect();
+            PyTuple::new(py, &rings).to_object(py)
+        });
+
+        main.to_object(py)
     }
 }
