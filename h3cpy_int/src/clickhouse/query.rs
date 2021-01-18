@@ -186,14 +186,14 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
         }
 
         /// repeat column values according to the counts of the row_repetitions vec
+        /// to create a "flat" table.
         macro_rules! repeat_column_values {
             ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {
             {
                 let mut values = Vec::with_capacity(num_uncompacted_rows);
                 let mut pos = 0_usize;
                 for v in column.iter::<$itertype>()?.map($conv_closure) {
-                    for _i in 0..row_repetitions[pos] {
-                        // TODO: move column data without cloning?
+                    for _ in 0..row_repetitions[pos] {
                         values.push(v.clone())
                     }
                     pos += 1;
