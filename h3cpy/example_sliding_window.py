@@ -52,8 +52,19 @@ geom = """
       }
 """
 
+querystring_template="""
+select h3index, recorded_at, area_percent_water_class_090_100, area_percent_water_class_080_090, sensor, processor
+from <[table]> 
+where recorded_at >= '2020-10-01 00:00:00' 
+    and recorded_at < '2021-01-01 00:00:00'
+    and (
+        area_percent_water_class_090_100 > 0
+        or area_percent_water_class_080_090 > 0
+    )
+    and h3index in <[h3indexes]>
+"""
 # iteratively visit all indexes using a h3-based sliding window
-for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 12, window_max_size=6000):
+for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 13, window_max_size=6000, querystring_template=querystring_template):
 
     # the h3 index of the window itself. will have a lower resolution then the h3_resolution
     # requested for the window

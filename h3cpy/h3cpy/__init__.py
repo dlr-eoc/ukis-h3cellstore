@@ -102,7 +102,7 @@ class ClickhouseConnection:
     def __init__(self, url: str):
         self.inner = create_connection(url)
 
-    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000):
+    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None):
         """
         iterate in a sliding window over a tableset
 
@@ -110,18 +110,22 @@ class ClickhouseConnection:
         :param tableset: reference to the tableset to fetch
         :param h3_resolution: H3 resolution to fetch the data at
         :param window_max_size: data for how many h3indexes should be fetched at once
+        :param querystring_template: Template for the query string. .... TODO: write docs
         :return: generator
         """
         sliding_window = self.inner.make_sliding_window(
             to_polygon(window_polygon),
             tableset,
             h3_resolution,
-            window_max_size
+            window_max_size,
+            querystring_template=querystring_template
         )
         while True:
             window_data = self.inner.fetch_next_window(sliding_window, tableset)
             if window_data is None:
                 break
+            if window_data.is_empty():
+                continue
             yield ClickhouseResultSet(window_data)
 
     def list_tablesets(self):

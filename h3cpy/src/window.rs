@@ -17,8 +17,13 @@ use pyo3::{
     PyResult,
 };
 
-use h3cpy_int::compacted_tables::TableSet;
-use h3cpy_int::window::window_index_resolution;
+use h3cpy_int::{
+    compacted_tables::{
+        TableSet,
+        TableSetQuery,
+    },
+    window::window_index_resolution,
+};
 
 #[pyclass]
 pub struct SlidingH3Window {
@@ -27,6 +32,7 @@ pub struct SlidingH3Window {
     pub target_h3_resolution: u8,
     window_indexes: Vec<Index>,
     iter_pos: usize,
+    pub(crate) query: TableSetQuery,
 }
 
 #[pymethods]
@@ -41,7 +47,7 @@ impl SlidingH3Window {
     }
 }
 
-pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
+pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32, query: TableSetQuery) -> PyResult<SlidingH3Window> {
     let window_rect = match window_polygon.bounding_rect() {
         Some(w) => w,
         None => return Err(PyValueError::new_err("empty polygon given"))
@@ -74,6 +80,7 @@ pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_
         target_h3_resolution,
         window_indexes,
         iter_pos: 0,
+        query,
     })
 }
 

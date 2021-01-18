@@ -8,6 +8,7 @@ pub enum Error {
     InvalidH3Index(Index),
     MixedResolutions,
     NoQueryableTables,
+    MissingQueryPlaceholder(String),
 }
 
 impl fmt::Display for Error {
@@ -16,7 +17,8 @@ impl fmt::Display for Error {
             Error::EmptyIndexes => write!(f, "empty h3indexes"),
             Error::InvalidH3Index(index) => write!(f, "invalid h3indexes: {}", index.h3index()),
             Error::MixedResolutions => write!(f, "h3indexes with mixed resolutions"),
-            Error::NoQueryableTables => write!(f, "no queryable tables found")
+            Error::NoQueryableTables => write!(f, "no queryable tables found"),
+            Error::MissingQueryPlaceholder(placeholder) => write!(f, "missing query placeholder: {}", placeholder)
         }
     }
 }

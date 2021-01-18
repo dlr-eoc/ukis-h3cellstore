@@ -1,21 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use geo::algorithm::intersects::Intersects;
+use h3ron::{Index, ToPolygon};
 use numpy::{
     IntoPyArray,
+    PyArray1,
     PyReadonlyArray1,
-    PyArray1
 };
 use pyo3::{
-    exceptions::{
-        PyRuntimeError,
-    },
+    exceptions::PyRuntimeError,
     prelude::*,
     PyResult,
     Python,
 };
 use tokio::runtime::Runtime;
-use h3ron::{Index, ToPolygon};
 
 use h3cpy_int::{
     clickhouse::{
@@ -34,18 +32,19 @@ use h3cpy_int::{
     },
     ColVec,
 };
+use h3cpy_int::compacted_tables::TableSetQuery;
 
 use crate::{
     inspect::TableSet as TableSetWrapper,
+    pywrap::{
+        check_index_valid,
+        intresult_to_pyresult,
+        Polygon,
+    },
     window::{
         create_window,
         SlidingH3Window,
     },
-    pywrap::{
-        check_index_valid,
-        intresult_to_pyresult,
-        Polygon
-    }
 };
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
@@ -89,12 +88,14 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-    pub fn make_sliding_window(&self, window_polygon: &Polygon, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32) -> PyResult<SlidingH3Window> {
+    #[args(querystring_template = "None")]
+    pub fn make_sliding_window(&self, window_polygon: &Polygon, tableset: &TableSetWrapper, target_h3_resolution: u8, window_max_size: u32, querystring_template: Option<String>) -> PyResult<SlidingH3Window> {
         create_window(
             window_polygon.inner.clone(),
             &tableset.inner,
             target_h3_resolution,
-            window_max_size
+            window_max_size,
+            querystring_template.into(),
         )
     }
 
@@ -117,51 +118,51 @@ impl ClickhouseConnection {
         Ok(column_data.into())
     }
 
-    fn fetch_tableset(&mut self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ResultSet> {
-        let h3indexes_view = h3indexes.as_array();
-        let query_string = intresult_to_pyresult(tableset.inner.build_select_query(&h3indexes_view, false))?;
+    #[args(querystring_template = "None")]
+    fn fetch_tableset(&mut self, tableset: &TableSetWrapper, h3indexes: PyReadonlyArray1<u64>, querystring_template: Option<String>) -> PyResult<ResultSet> {
+        let h3indexes_vec = h3indexes.as_array().to_vec();
+        let query_string = intresult_to_pyresult(tableset.inner.build_select_query(&h3indexes_vec, &querystring_template.into()))?;
 
         let client = self.rp.get_client()?;
         let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
-            let h3index_set: HashSet<_> = h3indexes_view.iter().cloned().collect();
+            let h3index_set: HashSet<_> = h3indexes_vec.iter().cloned().collect();
             query_all_with_uncompacting(client, query_string, h3index_set).await
         }))?;
         let mut resultset: ResultSet = column_data.into();
-        resultset.h3indexes_queried = Some(h3indexes_view.to_vec());
+        resultset.h3indexes_queried = Some(h3indexes_vec);
         Ok(resultset)
     }
 
     /// check if the tableset contains the h3index or any of its parents
-    fn has_data(&mut self, tableset: &TableSetWrapper, h3index: u64) -> PyResult<bool> {
+    #[args(querystring_template = "None")]
+    fn has_data(&mut self, tableset: &TableSetWrapper, h3index: u64, querystring_template: Option<String>) -> PyResult<bool> {
         let index = Index::from(h3index);
         check_index_valid(&index)?;
 
-        let mut queries = vec![];
-        tableset.inner.tables().iter().for_each(|t| {
-            if (!t.spec.is_compacted && t.spec.h3_resolution == index.resolution()) || (t.spec.is_compacted && t.spec.h3_resolution <= index.resolution()) {
-                queries.push(format!(
-                    "select h3index from {} where h3index = {} limit 1",
-                    t.to_table_name(),
-                    index.get_parent(t.spec.h3_resolution).h3index()
-                ))
-            }
-        });
-        if queries.is_empty() {
-            return Ok(false);
-        }
+        let tablesetquery = match querystring_template {
+            Some(qs) => TableSetQuery::TemplatedSelect(
+                format!("{} limit 1", qs)
+            ),
+            None => TableSetQuery::TemplatedSelect(
+                "select h3index from <[table]> where h3index in <[h3indexes]> limit 1".to_string()
+            )
+        };
+        let query_string = intresult_to_pyresult(
+            tableset.inner.build_select_query(&[index.h3index()], &tablesetquery)
+        )?;
 
         let client = self.rp.get_client()?;
         ch_to_pyresult(self.rp.rt.block_on(async {
-            query_returns_rows(client, itertools::join(queries, " union all ")).await
+            query_returns_rows(client, query_string).await
         }))
     }
 
 
-    pub fn fetch_next_window(&mut self, py: Python<'_>, sliding_h3_window: &mut SlidingH3Window, tableset: &TableSetWrapper) -> PyResult<Option<ResultSet>> {
+    pub fn fetch_next_window(&mut self, sliding_h3_window: &mut SlidingH3Window, tableset: &TableSetWrapper) -> PyResult<Option<ResultSet>> {
         while let Some(window_h3index) = sliding_h3_window.next_window() {
             // check if the window index contains any data on coarse resolution, when not,
             // then there is no need to load anything
-            if !self.has_data(tableset, window_h3index)? {
+            if !self.has_data(tableset, window_h3index, sliding_h3_window.query.clone().into())? {
                 log::info!("window without any database contents skipped");
                 continue;
             }
@@ -178,7 +179,16 @@ impl ClickhouseConnection {
                 .map(|i| i.h3index())
                 .collect();
 
-            let mut resultset: ResultSet = self.fetch_tableset(tableset, child_indexes.into_pyarray(py).readonly())?;
+
+            let query_string = intresult_to_pyresult(
+                tableset.inner.build_select_query(&child_indexes, &sliding_h3_window.query)
+            )?;
+            let client = self.rp.get_client()?;
+            let mut resultset: ResultSet = ch_to_pyresult(self.rp.rt.block_on(async {
+                let h3index_set: HashSet<_> = child_indexes.iter().cloned().collect();
+                query_all_with_uncompacting(client, query_string, h3index_set).await
+            }))?.into();
+            resultset.h3indexes_queried = Some(child_indexes);
             resultset.window_h3index = Some(window_h3index);
 
             return Ok(Some(resultset));
@@ -193,6 +203,21 @@ pub struct ResultSet {
     h3indexes_queried: Option<Vec<u64>>,
     window_h3index: Option<u64>,
     pub(crate) column_data: HashMap<String, ColVec>,
+}
+
+#[pymethods]
+impl ResultSet {
+    pub fn is_empty(&self) -> bool {
+        if self.column_data.is_empty() {
+            return true;
+        }
+        for (_, v) in self.column_data.iter() {
+            if !v.is_empty() {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl From<HashMap<String, ColVec>> for ResultSet {

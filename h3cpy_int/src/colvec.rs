@@ -32,4 +32,21 @@ impl ColVec {
             ColVec::DateTime(_) => "datetime",
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ColVec::U8(v) => v.is_empty(),
+            ColVec::I8(v) => v.is_empty(),
+            ColVec::U16(v) => v.is_empty(),
+            ColVec::I16(v) => v.is_empty(),
+            ColVec::U32(v) => v.is_empty(),
+            ColVec::I32(v) => v.is_empty(),
+            ColVec::U64(v) => v.is_empty(),
+            ColVec::I64(v) => v.is_empty(),
+            ColVec::F32(v) => v.is_empty(),
+            ColVec::F64(v) => v.is_empty(),
+            ColVec::Date(v) => v.is_empty(),
+            ColVec::DateTime(v) => v.is_empty(),
+        }
+    }
 }
