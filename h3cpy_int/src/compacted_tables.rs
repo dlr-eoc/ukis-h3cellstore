@@ -239,7 +239,8 @@ impl TableSet {
                             )
                         }
                         TableSetQuery::TemplatedSelect(query_string) => {
-                            query_string.replace("<[table]>", &tablename)
+                            query_string
+                                .replace("<[table]>", &tablename)
                                 .replace("<[h3indexes]>", &query_h3indexesarray_string)
                         }
                     });

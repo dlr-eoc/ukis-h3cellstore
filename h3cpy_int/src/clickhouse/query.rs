@@ -87,31 +87,42 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<Has
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
-        // TODO: how to handle nullable columns?
+        macro_rules! collect_column_values {
+            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {
+            {
+                let values = column.iter::<$itertype>()?
+                    .map($conv_closure)
+                    .collect();
+                ColVec::$cvtype(values)
+            }
+            };
+            ($cvtype:ident, $itertype:ty) => {
+            {
+                let values = column.iter::<$itertype>()?
+                    .cloned()
+                    .collect();
+
+                ColVec::$cvtype(values)
+            }
+            };
+        }
+        // TODO: how to handle nullable columns? seems the numpy
+        //    `Element` trait is not implemented for Option<T>
+        //    https://docs.rs/numpy/0.13.0/numpy/trait.Element.html
         // TODO: move column data without cloning
         let values = match column.sql_type() {
-            SqlType::UInt8 => ColVec::U8(column.iter::<u8>()?.cloned().collect()),
-            SqlType::UInt16 => ColVec::U16(column.iter::<u16>()?.cloned().collect()),
-            SqlType::UInt32 => ColVec::U32(column.iter::<u32>()?.cloned().collect()),
-            SqlType::UInt64 => ColVec::U64(column.iter::<u64>()?.cloned().collect()),
-            SqlType::Int8 => ColVec::I8(column.iter::<i8>()?.cloned().collect()),
-            SqlType::Int16 => ColVec::I16(column.iter::<i16>()?.cloned().collect()),
-            SqlType::Int32 => ColVec::I32(column.iter::<i32>()?.cloned().collect()),
-            SqlType::Int64 => ColVec::I64(column.iter::<i64>()?.cloned().collect()),
-            SqlType::Float32 => ColVec::F32(column.iter::<f32>()?.cloned().collect()),
-            SqlType::Float64 => ColVec::F64(column.iter::<f64>()?.cloned().collect()),
-            SqlType::Date => {
-                let u = column.iter::<Date<Tz>>()?
-                    .map(|d| d.and_hms(12, 0, 0).timestamp())
-                    .collect();
-                ColVec::Date(u)
-            }
-            SqlType::DateTime(_) => {
-                let u = column.iter::<DateTime<Tz>>()?
-                    .map(|d| d.timestamp())
-                    .collect();
-                ColVec::DateTime(u)
-            }
+            SqlType::UInt8 => collect_column_values!(U8, u8),
+            SqlType::UInt16 => collect_column_values!(U16, u16),
+            SqlType::UInt32 => collect_column_values!(U32, u32),
+            SqlType::UInt64 => collect_column_values!(U64, u64),
+            SqlType::Int8 => collect_column_values!(I8, i8),
+            SqlType::Int16 => collect_column_values!(I16, i16),
+            SqlType::Int32 => collect_column_values!(I32, i32),
+            SqlType::Int64 => collect_column_values!(I64, i64),
+            SqlType::Float32 => collect_column_values!(F32, f32),
+            SqlType::Float64 => collect_column_values!(F64, f64),
+            SqlType::Date => collect_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
+            SqlType::DateTime(_) => collect_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp()),
             _ => {
                 error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
                 return Err(Error::Other(Cow::from("unsupported column type")));
@@ -194,7 +205,9 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
                  repeat_column_values!($cvtype, $itertype, |v| v)
             };
         }
-        // TODO: how to handle nullable columns?
+        // TODO: how to handle nullable columns? seems the numpy
+        //    `Element` trait is not implemented for Option<T>
+        //    https://docs.rs/numpy/0.13.0/numpy/trait.Element.html
         let values = match column.sql_type() {
             SqlType::UInt8 => repeat_column_values!(U8, u8),
             SqlType::UInt16 => repeat_column_values!(U16, u16),
