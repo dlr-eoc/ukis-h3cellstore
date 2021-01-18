@@ -2,6 +2,8 @@ import pandas as pd
 import psycopg2
 from datetime import datetime
 
+import h3.api.numpy_int as h3 # api: https://github.com/uber/h3-py/blob/master/src/h3/api/_api_template.py
+
 import h3cpy
 from h3cpy.postgres import fetch_using_intersecting_h3indexes
 
@@ -72,12 +74,12 @@ where recorded_at >= '2020-10-01 00:00:00'
     and h3index in <[h3indexes]>
 """
 # iteratively visit all indexes using a h3-based sliding window
-for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 13, window_max_size=6000,
+for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 13, window_max_size=200000,
                                              querystring_template=querystring_template):
 
     # the h3 index of the window itself. will have a lower resolution then the h3_resolution
     # requested for the window
-    # print(resultset.window_index)
+    # print(resultset.window_index, h3.h3_get_resolution(resultset.window_index))
 
     # the h3indexes as used for the query
     # print(resultset.h3indexes_queried)
@@ -92,13 +94,14 @@ for resultset in clickhouse_conn.window_iter(geom, tablesets["water"], 13, windo
     # to get missing values when there have been no detections, we must generate all timestamps when a index
     # has been covered by a scene - they are not stored. We just use the scene footprints to generate our subset of
     # h3indexes for each scene covering a h3index
-    query_polygon = h3cpy.h3indexes_convex_hull(resultset.h3indexes_queried)
+    indexes_found = detections_df.h3index.unique()
+    query_polygon = h3cpy.h3indexes_convex_hull(indexes_found)
 
-    # print(query_polygon.to_geojson_str())
+    #print(query_polygon.to_geojson_str())
 
     scene_h3indexes_df = fetch_using_intersecting_h3indexes(
         postgres_cur,
-        detections_df.h3index.unique(),
+        indexes_found,
         # just query for the h3index where we got data from clickhouse for. thats all we need to find holes in the timeseries
         "wkb_geom",
         """
