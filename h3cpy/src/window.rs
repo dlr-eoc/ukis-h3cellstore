@@ -6,8 +6,9 @@ use geo::algorithm::{
 };
 use geo_types::{Polygon, Rect};
 use h3ron::{
-    index::Index,
+    Index,
     polyfill,
+    ToPolygon,
 };
 use h3ron_h3_sys::H3Index;
 use pyo3::{
@@ -64,7 +65,7 @@ pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_
     // window_h3index must really intersect with the window
     let window_indexes: Vec<_> = window_index_set
         .drain()
-        .filter(|wi| window_polygon.intersects(&wi.polygon()))
+        .filter(|wi| window_polygon.intersects(&wi.to_polygon()))
         .collect();
 
     Ok(SlidingH3Window {

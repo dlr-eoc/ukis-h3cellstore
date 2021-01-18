@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use h3ron::{
     H3_MIN_RESOLUTION,
-    index::Index,
+    Index,
 };
 use ndarray::ArrayView1;
 use regex::Regex;

@@ -4,8 +4,9 @@ use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
 use h3ron::{
-    index::Index,
+    Index,
     polyfill,
+    ToPolygon
 };
 use h3ron_h3_sys::H3Index;
 
@@ -89,7 +90,7 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
             let window_index = Index::from(*h3index);
 
             // window_h3index must really intersect with the window
-            if !self.window_polygon.intersects(&window_index.polygon()) {
+            if !self.window_polygon.intersects(&window_index.to_polygon()) {
                 continue;
             }
 
@@ -105,7 +106,7 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
                     // remove children located outside the window_polygon. It is probably is not worth the effort,
                     // but it allows to relocate some load to the client.
                     .filter(|ci| {
-                        let p = ci.polygon();
+                        let p = ci.to_polygon();
                         window_rect.intersects(&p) && self.window_polygon.intersects(&p)
                     })
                     .collect()

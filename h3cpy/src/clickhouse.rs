@@ -15,7 +15,7 @@ use pyo3::{
     Python,
 };
 use tokio::runtime::Runtime;
-use h3ron::Index;
+use h3ron::{Index, ToPolygon};
 
 use h3cpy_int::{
     clickhouse::{
@@ -172,7 +172,7 @@ impl ClickhouseConnection {
                 // remove children located outside the window_polygon. It is probably is not worth the effort,
                 // but it allows to relocate some load to the client.
                 .filter(|ci| {
-                    let p = ci.polygon();
+                    let p = ci.to_polygon();
                     sliding_h3_window.window_polygon.intersects(&p)
                 })
                 .map(|i| i.h3index())

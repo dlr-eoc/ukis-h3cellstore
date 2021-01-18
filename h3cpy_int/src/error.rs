@@ -1,6 +1,6 @@
 use std::fmt;
 
-use h3ron::index::Index;
+use h3ron::Index;
 
 #[derive(Debug)]
 pub enum Error {

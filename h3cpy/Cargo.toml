@@ -29,12 +29,12 @@ features = [
 [dependencies.h3ron]
 #git = "https://github.com/nmandery/h3ron.git"
 #tag = "v0.4.1"
-version = "0.6.0"
+version = "0.7.0"
 
 [dependencies.h3ron-h3-sys]
 #git = "https://github.com/nmandery/h3ron.git"
 #tag = "v0.4.1"
-version = "0.6.0"
+version = "0.7.0"
 
 [dependencies.pyo3]
 version = "0.12.4"
