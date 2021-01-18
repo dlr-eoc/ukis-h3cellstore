@@ -65,7 +65,7 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
         # collect the h3indexes contained in the geometry of the row
         h3index_column = np.fromiter([h3index for (h3index, x, y) in h3indexes_coords if poly.contains_point(x, y)], np.uint64)
 
-        if len(h3index_column) > 0:
+        if h3index_column.size > 0:
             resultdict = {}
             for (column_idx, value) in enumerate(row):
                 if column_idx == wkb_column_idx:
@@ -78,4 +78,4 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
             dataframes.append(df)
     if dataframes:
         return pd.concat(dataframes)
-    return None
+    return pd.DataFrame({})
