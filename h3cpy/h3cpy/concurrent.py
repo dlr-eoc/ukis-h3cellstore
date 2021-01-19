@@ -2,6 +2,7 @@
 helpers for multiprocessing
 """
 import math
+import random
 from shapely.geometry import box, Polygon
 
 
@@ -15,8 +16,7 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
     width = xmax - xmin
     height = ymax - ymin
 
-    cell_size = max(height, width) / min(height, width) / math.sqrt(num_chunks_approx)
-
+    cell_size = min(height, width) / max(height, width) / float(num_chunks_approx)
     chunks = []
     for i in range(math.ceil(width / cell_size)):
         for j in range(math.ceil(height / cell_size)):
@@ -37,6 +37,11 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
                         chunks.append(gg)
             else:
                 raise ValueError(f"unsupported geometry type: {g.type}")
+
+    # evenly distribute chunks to distribute load by distributing chunks with a
+    # high data density across the whole list
+    random.shuffle(chunks)
+
     return chunks
 
 
