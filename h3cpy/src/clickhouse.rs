@@ -179,6 +179,9 @@ impl ClickhouseConnection {
                 .map(|i| i.h3index())
                 .collect();
 
+            if child_indexes.is_empty() {
+                continue;
+            }
 
             let query_string = intresult_to_pyresult(
                 tableset.inner.build_select_query(&child_indexes, &sliding_h3_window.query)
