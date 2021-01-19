@@ -2,14 +2,9 @@ use std::collections::HashSet;
 
 use geo::algorithm::{
     bounding_rect::BoundingRect,
-    intersects::Intersects,
 };
 use geo_types::{Polygon, Rect};
-use h3ron::{
-    Index,
-    polyfill,
-    ToPolygon,
-};
+use h3ron::{Index, polyfill};
 use h3ron_h3_sys::H3Index;
 use pyo3::{
     exceptions::PyValueError,
@@ -68,17 +63,13 @@ pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_
         }
     }
 
-    // window_h3index must really intersect with the window
-    let window_indexes: Vec<_> = window_index_set
-        .drain()
-        .filter(|wi| window_polygon.intersects(&wi.to_polygon()))
-        .collect();
-
     Ok(SlidingH3Window {
         window_polygon,
         window_rect,
         target_h3_resolution,
-        window_indexes,
+        window_indexes: window_index_set
+            .drain()
+            .collect(),
         iter_pos: 0,
         query,
     })

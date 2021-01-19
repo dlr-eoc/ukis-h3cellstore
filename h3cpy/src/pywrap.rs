@@ -59,14 +59,8 @@ impl Polygon {
 
     #[staticmethod]
     fn from_wkb(wkb_data: &[u8]) -> PyResult<Self> {
-        let mut cursor = Cursor::new(wkb_data);
-        match cursor.read_wkb() {
-            Ok(geom) => match geom {
-                gt::Geometry::Polygon(poly) => Ok(Self { inner: poly }),
-                _ => Err(PyValueError::new_err("unsupported geometry type")),
-            }
-            Err(e) => Err(PyValueError::new_err(format!("could not deserialize from wkb: {:?}", e))),
-        }
+        geotypes_polygon_from_wkb(wkb_data)
+            .map(|poly| Ok(Self { inner: poly }))?
     }
 
     /// convert the object to a geojson string
@@ -75,12 +69,8 @@ impl Polygon {
     }
 
     /// convert to WKB bytes
-    fn to_wkb<'py>(&self, py: Python<'py>) -> PyResult<&'py PyBytes> {
-        let geom = gt::Geometry::Polygon(self.inner.clone());
-        match wkb::geom_to_wkb(&geom) {
-            Ok(d) => Ok(PyBytes::new(py, &d)),
-            Err(e) => Err(PyValueError::new_err(format!("could not serialize to wkb: {:?}", e))),
-        }
+    fn to_wkb(&self, py: Python) -> PyResult<PyObject> {
+        geotypes_polygon_to_pyobject(&self.inner, py)
     }
 
     /// check if the polygon contains the given point
@@ -110,5 +100,24 @@ impl Polygon {
         });
 
         main.to_object(py)
+    }
+}
+
+fn geotypes_polygon_from_wkb(wkb_data: &[u8]) -> PyResult<gt::Polygon<f64>> {
+    let mut cursor = Cursor::new(wkb_data);
+    match cursor.read_wkb() {
+        Ok(geom) => match geom {
+            gt::Geometry::Polygon(poly) => Ok(poly),
+            _ => Err(PyValueError::new_err("unsupported geometry type")),
+        }
+        Err(e) => Err(PyValueError::new_err(format!("could not deserialize from wkb: {:?}", e))),
+    }
+}
+
+fn geotypes_polygon_to_pyobject(poly: &gt::Polygon<f64>, py: Python) -> PyResult<PyObject> {
+    let geom = gt::Geometry::Polygon(poly.clone());
+    match wkb::geom_to_wkb(&geom) {
+        Ok(d) => Ok(PyBytes::new(py, &d).to_object(py)),
+        Err(e) => Err(PyValueError::new_err(format!("could not serialize to wkb: {:?}", e))),
     }
 }

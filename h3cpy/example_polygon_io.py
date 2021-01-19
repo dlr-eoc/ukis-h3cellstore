@@ -13,3 +13,6 @@ print(hull.to_wkb())
 # create a polygon from WKB
 hull2 = h3cpy.Polygon.from_wkb(hull.to_wkb())
 print(hull2.to_wkb())
+
+# geointerface
+print(hull2.__geo_interface__)

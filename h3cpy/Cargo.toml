@@ -57,5 +57,6 @@ requires-dist = [
     "pandas>=1.2",
     "geojson>=2.5",
     "h3>=3.7",
-    "psycopg2>=2.8"
+    "psycopg2>=2.8",
+    "shapely>=1.7",
 ]
