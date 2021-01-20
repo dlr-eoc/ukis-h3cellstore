@@ -1,11 +1,18 @@
 """
 This example is a possible blueprint for a simple processor crawling through the data
 using multiple sliding windows in multiple processes
+
+This processor requires a few additional packages
+
+* `psycopg2` to connect to postgres. the `psycopg2` package requires compilation, use
+   the `pyscopg2-binary` package  for precompiled bindings.
+* `h3ronpy` for polygon smoothing.
+   install via `pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy`
 """
 
 import concurrent.futures
 import h3.api.numpy_int as h3
-import h3ronpy # pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy
+import h3ronpy
 import json
 import pandas as pd
 import psycopg2
@@ -16,6 +23,7 @@ from shapely.geometry import shape, Polygon
 import h3cpy
 from h3cpy.concurrent import chunk_polygon
 from h3cpy.postgres import fetch_using_intersecting_h3indexes
+
 
 # number of worker processes to use, set to 1 to skip parallelization and
 # gain better debuggability
@@ -184,7 +192,8 @@ def process_window(window_geom: Polygon):
 
         # nan for area percent means that there was no detection -> setting to 0.0
         for c in (
-        "area_percent_water_class_070_080", "area_percent_water_class_080_090", "area_percent_water_class_090_100"):
+                "area_percent_water_class_070_080", "area_percent_water_class_080_090",
+                "area_percent_water_class_090_100"):
             joined_df[c] = joined_df[c].fillna(0.0)
 
         joined_df["water_certainty"] = (1.5 * joined_df["area_percent_water_class_090_100"]) \
