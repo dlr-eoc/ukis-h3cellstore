@@ -2,6 +2,14 @@
 
 Python bindings to integrate clickhouse H3 databases with the python data-science world.
 
+## Goals
+
+1. Provide an integration with the widely known Python libraries.
+2. Abstraction of most storage details of H3 data.
+3. Enable and encourage parallelization.
+4. Handling of compute-intensive tasks on the client instead of the DB servers as the 
+   clients are far easier to scale.
+5. Handle compute-intensive tasks in native code instead of Python.
 
 # Usage
 
