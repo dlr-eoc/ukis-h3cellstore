@@ -180,6 +180,7 @@ impl ClickhouseConnection {
                 .collect();
 
             if child_indexes.is_empty() {
+                log::info!("window without intersecting h3indexes skipped");
                 continue;
             }
 
