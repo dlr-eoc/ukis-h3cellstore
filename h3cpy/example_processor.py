@@ -2,12 +2,27 @@
 This example is a possible blueprint for a simple processor crawling through the data
 using multiple sliding windows in multiple processes
 
-This processor requires a few additional packages
+This processor requires a few additional packages:
 
 * `psycopg2` to connect to postgres. the `psycopg2` package requires compilation, use
    the `pyscopg2-binary` package  for precompiled bindings.
 * `h3ronpy` for polygon smoothing.
    install via `pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy`
+
+
+Additionally, this processor requires three db connections:
+
+* One for the results, this may be any local, PostGIS-enabled Postgres DB
+* One to clickhouse containing the water data
+* One to a postgres installation containing the metadata for the water data
+
+The last two require an SSH tunnel to the machine hosting these two DBs:
+
+```
+ssh your-user-name@torvalds.eoc.dlr.de -L 9010:localhost:9010 -L 5433:localhost:5432
+```
+
+Credentials for the Postgres metadata db are in the password database.
 """
 
 import concurrent.futures
