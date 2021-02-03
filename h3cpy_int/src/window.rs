@@ -129,7 +129,7 @@ mod tests {
     use std::collections::HashSet;
 
     use geo_types::{LineString, Polygon};
-    use h3ron::index::Index;
+    use h3ron::Index;
 
     use crate::compacted_tables::TableSet;
     use crate::window::{window_index_resolution, WindowFilter, WindowIterator};

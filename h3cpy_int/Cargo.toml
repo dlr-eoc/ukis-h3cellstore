@@ -10,21 +10,13 @@ regex = "^1.4"
 lazy_static = "1.4.0"
 geo-types = "^0.6"
 geo = "^0.16"
-ndarray = ">=0.13"
+ndarray = "0.13"
 itertools = "0.10"
 log = "0.4"
 chrono = "0.4"
 chrono-tz = "0.5"
-
-[dependencies.h3ron]
-#git = "https://github.com/nmandery/h3ron.git"
-#tag = "v0.4.1"
-version = "0.7.0"
-
-[dependencies.h3ron-h3-sys]
-#git = "https://github.com/nmandery/h3ron.git"
-#tag = "v0.4.1"
-version = "0.7.0"
+h3ron = "0.7.0"
+h3ron-h3-sys = "0.7.0"
 
 [dependencies.clickhouse-rs]
 git = "https://github.com/suharev7/clickhouse-rs.git"
@@ -33,8 +25,3 @@ rev = "d288a4f8a" # to include https://github.com/suharev7/clickhouse-rs/pull/10
 [dependencies.futures-util]
 version = "0.3.5"
 features = ["sink"]
-
-#[dependencies.tokio]
-#version = "0.2.0"
-#default-features = false
-#features = ["io-util", "time", "net", "sync", "rt-threaded"]
