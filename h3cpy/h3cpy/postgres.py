@@ -73,7 +73,7 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
                 resultdict[column_names[column_idx]] = [value, ]
             df = pd.DataFrame(resultdict).merge(
                 pd.DataFrame({"h3index": h3index_column}),
-                how='cross'
+                how='cross' # pandas >=1.2
             )
             dataframes.append(df)
     if dataframes:
