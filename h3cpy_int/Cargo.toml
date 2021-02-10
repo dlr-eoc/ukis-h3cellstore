@@ -1,6 +1,6 @@
 [package]
 name = "h3cpy_int"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Nico Mandery <nico.mandery@dlr.de>"]
 edition = "2018"
 description = "Internal code of h3cpy"
@@ -10,13 +10,13 @@ regex = "^1.4"
 lazy_static = "1.4.0"
 geo-types = "^0.6"
 geo = "^0.16"
-ndarray = "0.13"
+ndarray = "0.14"
 itertools = "0.10"
 log = "0.4"
 chrono = "0.4"
 chrono-tz = "0.5"
-h3ron = "0.7.0"
-h3ron-h3-sys = "0.7.0"
+h3ron = "0.7.1"
+h3ron-h3-sys = "0.7.1"
 
 [dependencies.clickhouse-rs]
 git = "https://github.com/suharev7/clickhouse-rs.git"

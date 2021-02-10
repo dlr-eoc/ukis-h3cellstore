@@ -4,10 +4,11 @@ using multiple sliding windows in multiple processes
 
 This processor requires a few additional packages:
 
+* `pip install --upgrade pip`
 * `psycopg2` to connect to postgres. the `psycopg2` package requires compilation, use
    the `pyscopg2-binary` package  for precompiled bindings.
-* `h3ronpy` for polygon smoothing.
-   install via `pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy`
+* `h3ronpy` for polygon smoothing. (at least v0.7.1)
+   install via `pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy>=0.7.1`
 
 
 Additionally, this processor requires three db connections:
@@ -42,13 +43,13 @@ from h3cpy.postgres import fetch_using_intersecting_h3indexes
 
 # number of worker processes to use, set to 1 to skip parallelization and
 # gain better debuggability
-MAX_WORKERS = 8
+MAX_WORKERS = 1
 
 # postgres credentials see password db, here they are passed via PGUSER
 # and PGPASSWORD environment variables (in libpq)
 DSN_POSTGRES = "dbname=water2 host=127.0.0.1 port=5433"
 DSN_CLICKHOUSE = "tcp://localhost:9010/water2?compression=lz4"
-DSN_POSTGRES_OUTPUT = "user=nico dbname=water_out"
+DSN_POSTGRES_OUTPUT = "user=mand_nc host=127.0.0.1 password=xxxx dbname=water_out"
 
 # polygon geometry to visit
 AOI = """
@@ -221,7 +222,7 @@ def process_window(window_geom: Polygon):
         window_index_str = h3.h3_to_string(resultset.window_index)
         if water_h3indexes.size != 0:
             window_index_str = h3.h3_to_string(resultset.window_index)
-            polygons = h3ronpy.Polygon.from_h3indexes(water_h3indexes, smoothen=True)
+            polygons = h3ronpy.Polygon.from_h3indexes_aligned(water_h3indexes, h3.h3_get_resolution(resultset.window_index), smoothen=True)
 
             print(f"Found {len(polygons)} polygons in {window_index_str}")
             for poly in polygons:
