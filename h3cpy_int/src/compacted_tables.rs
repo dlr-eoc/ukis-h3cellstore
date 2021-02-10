@@ -7,6 +7,7 @@ use h3ron::{
 use regex::Regex;
 
 use crate::error::{check_index_valid, Error};
+use itertools::Itertools;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct TableSpec {
@@ -16,6 +17,9 @@ pub struct TableSpec {
     /// intermediate tables are just used during ingestion of new data
     /// into the clickhouse db
     pub is_intermediate: bool,
+
+    /// describes if the tables use the _base suffix
+    pub has_suffix: bool
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -26,7 +30,7 @@ pub struct Table {
 
 lazy_static! {
   static ref RE_TABLE: Regex = {
-      Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})_(base|compacted)$").unwrap()
+      Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?$").unwrap()
   };
 }
 
@@ -34,12 +38,18 @@ lazy_static! {
 impl Table {
     pub fn parse(full_table_name: &str) -> Option<Table> {
         if let Some(captures) = RE_TABLE.captures(full_table_name) {
+            dbg!(&captures);
             Some(Table {
                 basename: captures[1].to_string(),
                 spec: TableSpec {
                     h3_resolution: captures[2].parse().unwrap(),
-                    is_compacted: captures[3] == *"compacted",
+                    is_compacted: if let Some(suffix) = captures.get(4) {
+                        suffix.as_str() == "compacted"
+                    } else {
+                        false
+                    },
                     is_intermediate: false,
+                    has_suffix: captures.get(4).is_some(),
                 },
             })
         } else {
@@ -48,8 +58,12 @@ impl Table {
     }
 
     pub fn to_table_name(&self) -> String {
-        format!("{}_{:02}_{}", self.basename, self.spec.h3_resolution,
-                if self.spec.is_compacted { "compacted" } else { "base" })
+        format!("{}_{:02}{}", self.basename, self.spec.h3_resolution,
+                if self.spec.has_suffix {
+                    if self.spec.is_compacted { "_compacted" } else { "_base" }
+                } else {
+                    ""
+                })
     }
 }
 
@@ -109,31 +123,35 @@ impl Into<Option<String>> for TableSetQuery {
 #[derive(Clone)]
 pub struct TableSet {
     pub basename: String,
-    pub compacted_h3_resolutions: HashSet<u8>,
-    pub base_h3_resolutions: HashSet<u8>,
     pub columns: HashMap<String, String>,
+    pub base_tables: HashMap<u8, TableSpec>,
+    pub compacted_tables: HashMap<u8, TableSpec>,
 }
 
 impl TableSet {
     fn new(basename: &str) -> TableSet {
         TableSet {
             basename: basename.to_string(),
-            compacted_h3_resolutions: Default::default(),
-            base_h3_resolutions: Default::default(),
+            compacted_tables: Default::default(),
+            base_tables: Default::default(),
             columns: Default::default(),
         }
     }
 
+    pub fn base_resolutions(&self) -> Vec<u8> {
+        self.base_tables.keys().sorted_unstable().cloned().collect()
+    }
+
+    pub fn compacted_resolutions(&self) -> Vec<u8> {
+        self.compacted_tables.keys().sorted_unstable().cloned().collect()
+    }
+
     pub fn compacted_tables(&self) -> Vec<Table> {
         let mut tables = Vec::new();
-        for cr in self.compacted_h3_resolutions.iter() {
+        for (_, table_spec) in self.compacted_tables.iter() {
             let t = Table {
                 basename: self.basename.clone(),
-                spec: TableSpec {
-                    is_compacted: true,
-                    h3_resolution: *cr,
-                    is_intermediate: false,
-                },
+                spec: table_spec.clone(),
             };
             tables.push(t);
         }
@@ -142,14 +160,10 @@ impl TableSet {
 
     pub fn base_tables(&self) -> Vec<Table> {
         let mut tables = Vec::new();
-        for cr in self.base_h3_resolutions.iter() {
+        for (_, table_spec) in self.base_tables.iter() {
             let t = Table {
                 basename: self.basename.clone(),
-                spec: TableSpec {
-                    is_compacted: false,
-                    h3_resolution: *cr,
-                    is_intermediate: false,
-                },
+                spec: table_spec.clone(),
             };
             tables.push(t);
         }
@@ -163,7 +177,7 @@ impl TableSet {
     }
 
     pub fn num_tables(&self) -> usize {
-        self.base_h3_resolutions.len() + self.compacted_h3_resolutions.len()
+        self.base_tables.len() + self.compacted_tables.len()
     }
 
     /// build a select query for the given h3indexes.
@@ -182,10 +196,10 @@ impl TableSet {
         };
 
         // collect the indexes and the parents (where the tables exist)
-        let mut queryable_h3indexes: HashMap<_, HashSet<_>> = self.base_h3_resolutions.iter()
-            .chain(self.compacted_h3_resolutions.iter())
-            .filter(|r| **r <= h3_resolution)
-            .map(|r| (*r, HashSet::new()))
+        let mut queryable_h3indexes: HashMap<_, HashSet<_>> = self.base_tables.iter()
+            .chain(self.compacted_tables.iter())
+            .filter(|(r, _)| **r <= h3_resolution)
+            .map(|(r, _)| (*r, HashSet::new()))
             .collect();
         for h3index in h3indexes {
             let index = Index::from(*h3index);
@@ -226,6 +240,11 @@ impl TableSet {
                             h3_resolution: r,
                             is_compacted: r != h3_resolution,
                             is_intermediate: false,
+                            has_suffix: if r != h3_resolution {
+                                &self.compacted_tables
+                            } else {
+                                &self.base_tables
+                            }.get(&r).map_or_else(|| true, |table_spec| table_spec.has_suffix)
                         },
                     }.to_table_name();
 
@@ -264,9 +283,9 @@ pub fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableS
                 TableSet::new(&table.basename)
             });
             if table.spec.is_compacted {
-                tableset.compacted_h3_resolutions.insert(table.spec.h3_resolution);
+                tableset.compacted_tables.insert(table.spec.h3_resolution, table.spec);
             } else {
-                tableset.base_h3_resolutions.insert(table.spec.h3_resolution);
+                tableset.base_tables.insert(table.spec.h3_resolution, table.spec);
             }
         }
     }
@@ -286,10 +305,15 @@ mod tests {
                 h3_resolution: 5,
                 is_compacted: false,
                 is_intermediate: false,
+                has_suffix: true,
             },
         };
 
-        assert_eq!(table.to_table_name(), "some_table_05_base")
+        assert_eq!(table.to_table_name(), "some_table_05_base");
+
+        let mut table2 = table.clone();
+        table2.spec.has_suffix = false;
+        assert_eq!(table2.to_table_name(), "some_table_05");
     }
 
     #[test]
@@ -300,6 +324,13 @@ mod tests {
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert_eq!(table_u.spec.is_compacted, false);
+
+        let table2 = Table::parse("some_ta78ble_05");
+        assert!(table2.is_some());
+        let table2_u = table2.unwrap();
+        assert_eq!(table2_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table2_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table2_u.spec.is_compacted, false);
     }
 
     #[test]
@@ -314,27 +345,37 @@ mod tests {
             "water_01_base", "water_01_compacted", "water_02_base", "water_02_compacted", "water_03_base", "water_03_compacted", "water_04_base",
             "water_04_compacted", "water_05_base", "water_05_compacted", "water_06_base", "water_06_compacted", "water_07_base", "water_07_compacted",
             "water_08_base", "water_08_compacted", "water_09_base", "water_09_compacted", "water_10_base", "water_10_compacted", "water_11_base",
-            "water_11_compacted", "water_12_base", "water_12_compacted", "water_13_base", "water_13_compacted"
+            "water_11_compacted", "water_12_base", "water_12_compacted", "water_13_base", "water_13_compacted",
+            "elephants_02", "elephants_03", "elephants_01_compacted"
         ];
 
         let tablesets = find_tablesets(&table_names);
-        assert_eq!(tablesets.len(), 2);
+        assert_eq!(tablesets.len(), 3);
         assert!(tablesets.contains_key("water"));
         let water_ts = tablesets.get("water").unwrap();
         assert_eq!(water_ts.basename, "water");
         for h3res in 0..=13 {
-            assert!(water_ts.base_h3_resolutions.contains(&h3res));
-            assert!(water_ts.compacted_h3_resolutions.contains(&h3res));
+            assert!(water_ts.base_tables.get(&h3res).is_some());
+            assert!(water_ts.compacted_tables.get(&h3res).is_some());
         }
-        assert!(!water_ts.base_h3_resolutions.contains(&14));
-        assert!(!water_ts.compacted_h3_resolutions.contains(&14));
+        assert!(water_ts.base_tables.get(&14).is_none());
+        assert!(water_ts.compacted_tables.get(&14).is_none());
 
         assert!(tablesets.contains_key("something_else"));
         let se_ts = tablesets.get("something_else").unwrap();
         assert_eq!(se_ts.basename, "something_else");
-        assert_eq!(se_ts.base_h3_resolutions.len(), 2);
-        assert!(se_ts.base_h3_resolutions.contains(&6));
-        assert!(se_ts.base_h3_resolutions.contains(&7));
-        assert_eq!(se_ts.compacted_h3_resolutions.len(), 0);
+        assert_eq!(se_ts.base_tables.len(), 2);
+        assert!(se_ts.base_tables.get(&6).is_some());
+        assert!(se_ts.base_tables.get(&7).is_some());
+        assert_eq!(se_ts.compacted_tables.len(), 0);
+
+        assert!(tablesets.contains_key("elephants"));
+        let elephants_ts = tablesets.get("elephants").unwrap();
+        assert_eq!(elephants_ts.basename, "elephants");
+        assert_eq!(elephants_ts.base_tables.len(), 2);
+        assert!(elephants_ts.base_tables.get(&2).is_some());
+        assert!(elephants_ts.base_tables.get(&3).is_some());
+        assert_eq!(elephants_ts.compacted_tables.len(), 1);
+        assert!(elephants_ts.compacted_tables.get(&1).is_some());
     }
 }

@@ -73,17 +73,17 @@ impl TableSet {
 
     #[getter]
     pub fn get_finest_resolution(&self) -> PyResult<Option<u8>> {
-        Ok(self.inner.base_h3_resolutions.iter().max().cloned())
+        Ok(self.inner.base_resolutions().iter().max().cloned())
     }
 
     #[getter]
     pub fn get_compacted_resolutions(&self) -> PyResult<Vec<u8>> {
-        Ok(self.inner.compacted_h3_resolutions.iter().cloned().collect())
+        Ok(self.inner.compacted_resolutions())
     }
 
     #[getter]
     pub fn get_base_resolutions(&self) -> PyResult<Vec<u8>> {
-        Ok(self.inner.base_h3_resolutions.iter().cloned().collect())
+        Ok(self.inner.base_resolutions())
     }
 
     #[getter]

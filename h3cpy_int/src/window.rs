@@ -17,7 +17,7 @@ use crate::compacted_tables::TableSet;
 ///
 /// That resolution must be a base resolution
 pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> u8 {
-    let mut resolutions: Vec<_> = table_set.base_h3_resolutions
+    let mut resolutions: Vec<_> = table_set.base_resolutions()
         .iter()
         .filter(|r| **r < target_h3_resolution)
         .cloned()
@@ -126,25 +126,30 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::HashMap;
 
     use geo_types::{LineString, Polygon};
     use h3ron::Index;
 
-    use crate::compacted_tables::TableSet;
+    use crate::compacted_tables::{TableSet, TableSpec};
     use crate::window::{window_index_resolution, WindowFilter, WindowIterator};
 
     fn some_tableset() -> TableSet {
         TableSet {
             basename: "t1".to_string(),
-            base_h3_resolutions: {
-                let mut hs = HashSet::new();
+            base_tables: {
+                let mut hs = HashMap::new();
                 for r in 0..=6 {
-                    hs.insert(r);
+                    hs.insert(r, TableSpec {
+                        h3_resolution: r,
+                        is_compacted: false,
+                        is_intermediate: false,
+                        has_suffix: true
+                    });
                 }
                 hs
             },
-            compacted_h3_resolutions: Default::default(),
+            compacted_tables: Default::default(),
             columns: Default::default(),
         }
     }
