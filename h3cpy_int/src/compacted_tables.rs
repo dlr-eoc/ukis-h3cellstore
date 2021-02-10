@@ -27,7 +27,7 @@ pub struct Table {
 
 lazy_static! {
     static ref RE_TABLE: Regex =
-        { Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?$").unwrap() };
+        Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?$").unwrap();
 }
 
 impl Table {
