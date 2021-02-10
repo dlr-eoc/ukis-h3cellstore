@@ -3,11 +3,7 @@ use std::collections::HashSet;
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
-use h3ron::{
-    Index,
-    polyfill,
-    ToPolygon
-};
+use h3ron::{polyfill, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 
 use crate::compacted_tables::TableSet;
@@ -16,8 +12,13 @@ use crate::compacted_tables::TableSet;
 /// than window_max_size indexes per batch.
 ///
 /// That resolution must be a base resolution
-pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32) -> u8 {
-    let mut resolutions: Vec<_> = table_set.base_resolutions()
+pub fn window_index_resolution(
+    table_set: &TableSet,
+    target_h3_resolution: u8,
+    window_max_size: u32,
+) -> u8 {
+    let mut resolutions: Vec<_> = table_set
+        .base_resolutions()
         .iter()
         .filter(|r| **r < target_h3_resolution)
         .cloned()
@@ -35,7 +36,6 @@ pub fn window_index_resolution(table_set: &TableSet, target_h3_resolution: u8, w
     window_h3_resolution
 }
 
-
 pub trait WindowFilter {
     /// return true when the window should be used, return false when not
     fn filter(&self, window_index: &Index) -> bool;
@@ -50,7 +50,13 @@ pub struct WindowIterator<F: WindowFilter> {
 }
 
 impl<F: WindowFilter> WindowIterator<F> {
-    pub fn new(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32, window_filter: F) -> Self {
+    pub fn new(
+        window_polygon: Polygon<f64>,
+        table_set: &TableSet,
+        target_h3_resolution: u8,
+        window_max_size: u32,
+        window_filter: F,
+    ) -> Self {
         let window_res = window_index_resolution(table_set, target_h3_resolution, window_max_size);
 
         let mut window_index_set = HashSet::new();
@@ -80,7 +86,6 @@ pub struct Window {
     pub indexes: Vec<Index>,
 }
 
-
 impl<F: WindowFilter> Iterator for WindowIterator<F> {
     type Item = Window;
 
@@ -100,20 +105,21 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
                 continue;
             }
 
-            let child_indexes: Vec<_> = if let Some(window_rect) = self.window_polygon.bounding_rect() {
-                window_index.get_children(self.target_h3_resolution)
-                    .drain(..)
-                    // remove children located outside the window_polygon. It is probably is not worth the effort,
-                    // but it allows to relocate some load to the client.
-                    .filter(|ci| {
-                        let p = ci.to_polygon();
-                        window_rect.intersects(&p) && self.window_polygon.intersects(&p)
-                    })
-                    .collect()
-            } else {
-                continue; // TODO: when is there no rect?
-            };
-
+            let child_indexes: Vec<_> =
+                if let Some(window_rect) = self.window_polygon.bounding_rect() {
+                    window_index
+                        .get_children(self.target_h3_resolution)
+                        .drain(..)
+                        // remove children located outside the window_polygon. It is probably is not worth the effort,
+                        // but it allows to relocate some load to the client.
+                        .filter(|ci| {
+                            let p = ci.to_polygon();
+                            window_rect.intersects(&p) && self.window_polygon.intersects(&p)
+                        })
+                        .collect()
+                } else {
+                    continue; // TODO: when is there no rect?
+                };
 
             return Some(Window {
                 indexes: child_indexes,
@@ -140,12 +146,15 @@ mod tests {
             base_tables: {
                 let mut hs = HashMap::new();
                 for r in 0..=6 {
-                    hs.insert(r, TableSpec {
-                        h3_resolution: r,
-                        is_compacted: false,
-                        is_intermediate: false,
-                        has_suffix: true
-                    });
+                    hs.insert(
+                        r,
+                        TableSpec {
+                            h3_resolution: r,
+                            is_compacted: false,
+                            is_intermediate: false,
+                            has_suffix: true,
+                        },
+                    );
                 }
                 hs
             },
@@ -157,10 +166,7 @@ mod tests {
     #[test]
     fn test_window_index_resolution() {
         let ts = some_tableset();
-        assert_eq!(
-            window_index_resolution(&ts, 6, 1000),
-            3
-        );
+        assert_eq!(window_index_resolution(&ts, 6, 1000), 3);
     }
 
     struct OddFilter {}

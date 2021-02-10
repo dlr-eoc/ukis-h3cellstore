@@ -1,23 +1,13 @@
 use std::collections::HashSet;
 
-use geo::algorithm::{
-    bounding_rect::BoundingRect,
-    centroid::Centroid,
-};
+use geo::algorithm::{bounding_rect::BoundingRect, centroid::Centroid};
 use geo_types::{Polygon, Rect};
-use h3ron::{Index, polyfill};
+use h3ron::{polyfill, Index};
 use h3ron_h3_sys::H3Index;
-use pyo3::{
-    exceptions::PyValueError,
-    prelude::*,
-    PyResult,
-};
+use pyo3::{exceptions::PyValueError, prelude::*, PyResult};
 
 use h3cpy_int::{
-    compacted_tables::{
-        TableSet,
-        TableSetQuery,
-    },
+    compacted_tables::{TableSet, TableSetQuery},
     window::window_index_resolution,
 };
 
@@ -43,10 +33,16 @@ impl SlidingH3Window {
     }
 }
 
-pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_h3_resolution: u8, window_max_size: u32, query: TableSetQuery) -> PyResult<SlidingH3Window> {
+pub fn create_window(
+    window_polygon: Polygon<f64>,
+    table_set: &TableSet,
+    target_h3_resolution: u8,
+    window_max_size: u32,
+    query: TableSetQuery,
+) -> PyResult<SlidingH3Window> {
     let window_rect = match window_polygon.bounding_rect() {
         Some(w) => w,
-        None => return Err(PyValueError::new_err("empty polygon given"))
+        None => return Err(PyValueError::new_err("empty polygon given")),
     };
 
     let window_res = window_index_resolution(table_set, target_h3_resolution, window_max_size);
@@ -74,16 +70,12 @@ pub fn create_window(window_polygon: Polygon<f64>, table_set: &TableSet, target_
         add_index(index);
     }
 
-
     Ok(SlidingH3Window {
         window_polygon,
         window_rect,
         target_h3_resolution,
-        window_indexes: window_index_set
-            .drain()
-            .collect(),
+        window_indexes: window_index_set.drain().collect(),
         iter_pos: 0,
         query,
     })
 }
-

@@ -9,15 +9,13 @@ use pyo3::{
     wrap_pyfunction,
 };
 
-use h3cpy_int::{
-    ColVec
-};
+use h3cpy_int::ColVec;
 
 use crate::{
     clickhouse::{
-        RuntimedPool,
         ClickhouseConnection,
         ResultSet,
+        RuntimedPool,
     },
     inspect::{
         CompactedTable,

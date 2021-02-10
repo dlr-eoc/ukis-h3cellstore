@@ -11,7 +11,7 @@ use h3cpy_int::compacted_tables as ct;
 #[pyclass]
 #[derive(Clone)]
 pub struct CompactedTable {
-    pub table: ct::Table
+    pub table: ct::Table,
 }
 
 #[pymethods]
@@ -41,7 +41,6 @@ impl CompactedTable {
     }
 }
 
-
 #[pyproto]
 impl<'p> PyObjectProtocol<'p> for CompactedTable {
     fn __richcmp__(&self, other: CompactedTable, op: CompareOp) -> PyResult<bool> {
@@ -53,11 +52,10 @@ impl<'p> PyObjectProtocol<'p> for CompactedTable {
     }
 }
 
-
 #[pyclass]
 #[derive(Clone)]
 pub struct TableSet {
-    pub(crate) inner: ct::TableSet
+    pub(crate) inner: ct::TableSet,
 }
 
 #[pymethods]
@@ -68,7 +66,12 @@ impl TableSet {
     }
 
     pub fn tables(&self) -> PyResult<Vec<CompactedTable>> {
-        Ok(self.inner.tables().drain(..).map(|t| CompactedTable { table: t }).collect())
+        Ok(self
+            .inner
+            .tables()
+            .drain(..)
+            .map(|t| CompactedTable { table: t })
+            .collect())
     }
 
     #[getter]

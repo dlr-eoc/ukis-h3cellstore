@@ -18,7 +18,9 @@ impl fmt::Display for Error {
             Error::InvalidH3Index(index) => write!(f, "invalid h3indexes: {}", index.h3index()),
             Error::MixedResolutions => write!(f, "h3indexes with mixed resolutions"),
             Error::NoQueryableTables => write!(f, "no queryable tables found"),
-            Error::MissingQueryPlaceholder(placeholder) => write!(f, "missing query placeholder: {}", placeholder)
+            Error::MissingQueryPlaceholder(placeholder) => {
+                write!(f, "missing query placeholder: {}", placeholder)
+            }
         }
     }
 }

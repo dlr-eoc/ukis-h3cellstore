@@ -11,56 +11,56 @@ use h3ron::Index;
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
+    types::{PyBytes, PyTuple},
     PyResult,
-    types::{
-        PyBytes,
-        PyTuple,
-    },
 };
 use wkb::WKBReadExt;
 
 pub fn check_index_valid(index: &Index) -> PyResult<()> {
     if !index.is_valid() {
-        Err(PyValueError::new_err(format!("invalid h3index given: {}", index.h3index())))
+        Err(PyValueError::new_err(format!(
+            "invalid h3index given: {}",
+            index.h3index()
+        )))
     } else {
         Ok(())
     }
 }
 
-pub fn intresult_to_pyresult<T>(res: std::result::Result<T, h3cpy_int::error::Error>) -> PyResult<T> {
+pub fn intresult_to_pyresult<T>(
+    res: std::result::Result<T, h3cpy_int::error::Error>,
+) -> PyResult<T> {
     match res {
         Ok(v) => Ok(v),
-        Err(e) => Err(PyValueError::new_err(e.to_string()))
+        Err(e) => Err(PyValueError::new_err(e.to_string())),
     }
 }
-
 
 /// a polygon
 #[pyclass]
 pub struct Polygon {
-    pub inner: gt::Polygon<f64>
+    pub inner: gt::Polygon<f64>,
 }
 
 #[pymethods]
 impl Polygon {
-
     #[staticmethod]
     fn from_geojson(instr: &str) -> PyResult<Self> {
         let gj = GeoJson::from_str(instr)
             .map_err(|_| PyValueError::new_err("invalid geojson for polygon"))?;
-        let gj_geom: geojson::Geometry = gj.try_into()
+        let gj_geom: geojson::Geometry = gj
+            .try_into()
             .map_err(|_| PyValueError::new_err("geojson is not a geometry"))?;
-        let poly: gt::Polygon<f64> = gj_geom.value.try_into()
+        let poly: gt::Polygon<f64> = gj_geom
+            .value
+            .try_into()
             .map_err(|_| PyValueError::new_err("geojson is not a polygon"))?;
-        Ok(Self {
-            inner: poly
-        })
+        Ok(Self { inner: poly })
     }
 
     #[staticmethod]
     fn from_wkb(wkb_data: &[u8]) -> PyResult<Self> {
-        geotypes_polygon_from_wkb(wkb_data)
-            .map(|poly| Ok(Self { inner: poly }))?
+        geotypes_polygon_from_wkb(wkb_data).map(|poly| Ok(Self { inner: poly }))?
     }
 
     /// convert the object to a geojson string
@@ -88,10 +88,10 @@ impl Polygon {
             let rings: Vec<_> = once(self.inner.exterior())
                 .chain(self.inner.interiors().iter())
                 .map(|ring| {
-                    let r: Vec<_> = ring.0.iter()
-                        .map(|c| {
-                            PyTuple::new(py, &[c.x, c.y]).to_object(py)
-                        })
+                    let r: Vec<_> = ring
+                        .0
+                        .iter()
+                        .map(|c| PyTuple::new(py, &[c.x, c.y]).to_object(py))
                         .collect();
                     PyTuple::new(py, &r).to_object(py)
                 })
@@ -109,8 +109,11 @@ fn geotypes_polygon_from_wkb(wkb_data: &[u8]) -> PyResult<gt::Polygon<f64>> {
         Ok(geom) => match geom {
             gt::Geometry::Polygon(poly) => Ok(poly),
             _ => Err(PyValueError::new_err("unsupported geometry type")),
-        }
-        Err(e) => Err(PyValueError::new_err(format!("could not deserialize from wkb: {:?}", e))),
+        },
+        Err(e) => Err(PyValueError::new_err(format!(
+            "could not deserialize from wkb: {:?}",
+            e
+        ))),
     }
 }
 
@@ -118,6 +121,9 @@ fn geotypes_polygon_to_pyobject(poly: &gt::Polygon<f64>, py: Python) -> PyResult
     let geom = gt::Geometry::Polygon(poly.clone());
     match wkb::geom_to_wkb(&geom) {
         Ok(d) => Ok(PyBytes::new(py, &d).to_object(py)),
-        Err(e) => Err(PyValueError::new_err(format!("could not serialize to wkb: {:?}", e))),
+        Err(e) => Err(PyValueError::new_err(format!(
+            "could not serialize to wkb: {:?}",
+            e
+        ))),
     }
 }

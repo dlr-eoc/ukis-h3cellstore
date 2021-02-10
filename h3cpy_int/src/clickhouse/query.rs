@@ -4,27 +4,27 @@ use std::collections::{HashMap, HashSet};
 use chrono::prelude::*;
 use chrono_tz::Tz;
 use clickhouse_rs::{
-    ClientHandle,
     errors::{Error, Result},
     types::SqlType,
+    ClientHandle,
 };
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
+use crate::compacted_tables::{find_tablesets, TableSet};
 use crate::ColVec;
-use crate::compacted_tables::{
-    find_tablesets,
-    TableSet,
-};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
     let mut tablesets = {
-        let mut stream = ch.query("select table
+        let mut stream = ch
+            .query(
+                "select table
                 from system.columns
-                where name = 'h3index' and database = currentDatabase()"
-        ).stream();
+                where name = 'h3index' and database = currentDatabase()",
+            )
+            .stream();
 
         let mut tablenames = vec![];
         while let Some(row_res) = stream.next().await {
@@ -40,17 +40,23 @@ pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, Tabl
         let set_table_names = itertools::join(
             ts.tables()
                 .iter()
-                .map(|t| format!("'{}'", t.to_table_name()))
-            , ", ");
+                .map(|t| format!("'{}'", t.to_table_name())),
+            ", ",
+        );
 
-        let mut columns_stream = ch.query(format!("
+        let mut columns_stream = ch
+            .query(format!(
+                "
             select name, type, count(*) as c
                 from system.columns
                 where table in ({})
                 and database = currentDatabase()
                 and not startsWith(name, 'h3index')
                 group by name, type
-        ", set_table_names)).stream();
+        ",
+                set_table_names
+            ))
+            .stream();
         while let Some(c_row_res) = columns_stream.next().await {
             let c_row = c_row_res?;
             let c: u64 = c_row.get("c")?;
@@ -75,36 +81,31 @@ pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> R
     if let Some(first) = stream.next().await {
         match first {
             Ok(_) => Ok(true),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     } else {
         Ok(false)
     }
 }
 
-pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<HashMap<String, ColVec>> {
+pub async fn query_all(
+    mut ch: ClientHandle,
+    query_string: String,
+) -> Result<HashMap<String, ColVec>> {
     let block = ch.query(query_string).fetch_all().await?;
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
         macro_rules! collect_column_values {
-            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {
-            {
-                let values = column.iter::<$itertype>()?
-                    .map($conv_closure)
-                    .collect();
+            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
+                let values = column.iter::<$itertype>()?.map($conv_closure).collect();
                 ColVec::$cvtype(values)
-            }
-            };
-            ($cvtype:ident, $itertype:ty) => {
-            {
-                let values = column.iter::<$itertype>()?
-                    .cloned()
-                    .collect();
+            }};
+            ($cvtype:ident, $itertype:ty) => {{
+                let values = column.iter::<$itertype>()?.cloned().collect();
 
                 ColVec::$cvtype(values)
-            }
-            };
+            }};
         }
         // TODO: how to handle nullable columns? seems the numpy
         //    `Element` trait is not implemented for Option<T>
@@ -121,10 +122,18 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<Has
             SqlType::Int64 => collect_column_values!(I64, i64),
             SqlType::Float32 => collect_column_values!(F32, f32),
             SqlType::Float64 => collect_column_values!(F64, f64),
-            SqlType::Date => collect_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
-            SqlType::DateTime(_) => collect_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp()),
+            SqlType::Date => {
+                collect_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp())
+            }
+            SqlType::DateTime(_) => {
+                collect_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
+            }
             _ => {
-                error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
+                error!(
+                    "unsupported column type {} for column {}",
+                    column.sql_type().to_string(),
+                    column.name()
+                );
                 return Err(Error::Other(Cow::from("unsupported column type")));
             }
         };
@@ -134,7 +143,11 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<Has
 }
 
 /// return all rows from the query and uncompact the h3index in the h3index column, all other columns get duplicated accordingly
-pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: String, h3index_set: HashSet<u64>) -> Result<HashMap<String, ColVec>> {
+pub async fn query_all_with_uncompacting(
+    mut ch: ClientHandle,
+    query_string: String,
+    h3index_set: HashSet<u64>,
+) -> Result<HashMap<String, ColVec>> {
     let h3_res = if let Some(first) = h3index_set.iter().next() {
         Index::from(*first).resolution()
     } else {
@@ -142,8 +155,7 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
     };
     let block = ch.query(query_string).fetch_all().await?;
 
-    let h3index_column = if let Some(c) = block.columns().iter()
-        .find(|c| c.name() == "h3index") {
+    let h3index_column = if let Some(c) = block.columns().iter().find(|c| c.name() == "h3index") {
         c
     } else {
         return Err(Error::Other(Cow::from("no h3index column found")));
@@ -159,7 +171,8 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
         for h3index in h3index_column.iter::<u64>()? {
             let idx = Index::from(*h3index);
             let m = if idx.resolution() < h3_res {
-                let mut valid_children = idx.get_children(h3_res)
+                let mut valid_children = idx
+                    .get_children(h3_res)
                     .drain(..)
                     .map(|i| i.h3index())
                     .filter(|hi| h3index_set.contains(hi))
@@ -171,7 +184,9 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
                 h3_vec.push(idx.h3index());
                 1
             } else {
-                return Err(Error::Other(Cow::from("too small resolution during uncompacting")));
+                return Err(Error::Other(Cow::from(
+                    "too small resolution during uncompacting",
+                )));
             };
             row_repetitions.push(m);
         }
@@ -188,8 +203,7 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
         /// repeat column values according to the counts of the row_repetitions vec
         /// to create a "flat" table.
         macro_rules! repeat_column_values {
-            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {
-            {
+            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
                 let mut values = Vec::with_capacity(num_uncompacted_rows);
                 let mut pos = 0_usize;
                 for v in column.iter::<$itertype>()?.map($conv_closure) {
@@ -197,12 +211,11 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
                         values.push(v.clone())
                     }
                     pos += 1;
-                };
+                }
                 ColVec::$cvtype(values)
-            }
-            };
+            }};
             ($cvtype:ident, $itertype:ty) => {
-                 repeat_column_values!($cvtype, $itertype, |v| v)
+                repeat_column_values!($cvtype, $itertype, |v| v)
             };
         }
         // TODO: how to handle nullable columns? seems the numpy
@@ -219,10 +232,18 @@ pub async fn query_all_with_uncompacting(mut ch: ClientHandle, query_string: Str
             SqlType::Int64 => repeat_column_values!(I64, i64),
             SqlType::Float32 => repeat_column_values!(F32, f32),
             SqlType::Float64 => repeat_column_values!(F64, f64),
-            SqlType::Date => repeat_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp()),
-            SqlType::DateTime(_) => repeat_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp()),
+            SqlType::Date => {
+                repeat_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp())
+            }
+            SqlType::DateTime(_) => {
+                repeat_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
+            }
             _ => {
-                error!("unsupported column type {} for column {}", column.sql_type().to_string(), column.name());
+                error!(
+                    "unsupported column type {} for column {}",
+                    column.sql_type().to_string(),
+                    column.name()
+                );
                 return Err(Error::Other(Cow::from("unsupported column type")));
             }
         };
