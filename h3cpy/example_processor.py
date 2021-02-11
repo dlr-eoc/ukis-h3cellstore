@@ -207,10 +207,9 @@ def process_window(window_geom: Polygon):
         # library.
 
         # nan for area percent means that there was no detection -> setting to 0.0
-        for c in (
-                "area_percent_water_class_070_080", "area_percent_water_class_080_090",
-                "area_percent_water_class_090_100"):
-            joined_df[c] = joined_df[c].fillna(0.0)
+        joined_df.fillna(value={"area_percent_water_class_070_080": 0.0,
+                                "area_percent_water_class_080_090": 0.0,
+                                "area_percent_water_class_090_100": 0.0})  # or just all of them
 
         joined_df["water_certainty"] = (1.5 * joined_df["area_percent_water_class_090_100"]) \
                                        + (.85 * joined_df["area_percent_water_class_080_090"]) \
