@@ -19,6 +19,7 @@ pub struct SlidingH3Window {
     window_indexes: Vec<Index>,
     iter_pos: usize,
     pub(crate) query: TableSetQuery,
+    pub(crate) prefetch_query: TableSetQuery,
 }
 
 #[pymethods]
@@ -39,6 +40,7 @@ pub fn create_window(
     target_h3_resolution: u8,
     window_max_size: u32,
     query: TableSetQuery,
+    prefetch_query: Option<TableSetQuery>,
 ) -> PyResult<SlidingH3Window> {
     let window_rect = match window_polygon.bounding_rect() {
         Some(w) => w,
@@ -70,6 +72,7 @@ pub fn create_window(
         add_index(index);
     }
 
+    let prefetch_query_fallback = prefetch_query.unwrap_or_else(|| query.clone());
     Ok(SlidingH3Window {
         window_polygon,
         window_rect,
@@ -77,5 +80,6 @@ pub fn create_window(
         window_indexes: window_index_set.drain().collect(),
         iter_pos: 0,
         query,
+        prefetch_query: prefetch_query_fallback,
     })
 }

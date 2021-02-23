@@ -102,15 +102,23 @@ class ClickhouseConnection:
     def __init__(self, url: str):
         self.inner = create_connection(url)
 
-    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None):
+    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None, prefetch_querystring_template=None):
         """
         iterate in a sliding window over a tableset
 
-        :param window_polygon: polygon (geojson stirng, or something which is understood by the geojson module)
+        :param window_polygon: polygon (geojson string, or something which is understood by the geojson module)
         :param tableset: reference to the tableset to fetch
         :param h3_resolution: H3 resolution to fetch the data at
         :param window_max_size: data for how many h3indexes should be fetched at once
-        :param querystring_template: Template for the query string. .... TODO: write docs
+        :param querystring_template: Template for the query string to fetch the data. Using this
+                allows to use SQL JOINs, subqueries and SQL functions before getting the data in a
+                dataframe.
+                When not set the SELECT uses the columns of the tableset.
+        :param prefetch_querystring_template: Template for the prefetch. The prefetch query is used to determinate
+                if it is worth to fetch the contents of a window or not. It is issued against the table
+                containing the window resolution so it needs to inspect far less data and should be faster. Additionally, the
+                data is not read, it is only checked if there is at least one row.
+                When not set the same value as the `querystring_template` will be used with a `limit 1` appended
         :return: generator
         """
         sliding_window = self.inner.make_sliding_window(
@@ -118,7 +126,8 @@ class ClickhouseConnection:
             tableset,
             h3_resolution,
             window_max_size,
-            querystring_template=querystring_template
+            querystring_template=querystring_template,
+            prefetch_querystring_template=prefetch_querystring_template
         )
         while True:
             window_data = self.inner.fetch_next_window(sliding_window, tableset)
