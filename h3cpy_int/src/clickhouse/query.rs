@@ -4,16 +4,17 @@ use std::collections::{HashMap, HashSet};
 use chrono::prelude::*;
 use chrono_tz::Tz;
 use clickhouse_rs::{
+    ClientHandle,
     errors::{Error, Result},
     types::SqlType,
-    ClientHandle,
 };
+use clickhouse_rs::types::{Column, Complex};
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
-use crate::compacted_tables::{find_tablesets, TableSet};
 use crate::ColVec;
+use crate::compacted_tables::{find_tablesets, TableSet};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -96,48 +97,10 @@ pub async fn query_all(
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
-        macro_rules! collect_column_values {
-            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
-                let values = column.iter::<$itertype>()?.map($conv_closure).collect();
-                ColVec::$cvtype(values)
-            }};
-            ($cvtype:ident, $itertype:ty) => {{
-                let values = column.iter::<$itertype>()?.cloned().collect();
-
-                ColVec::$cvtype(values)
-            }};
-        }
-        // TODO: how to handle nullable columns? seems the numpy
-        //    `Element` trait is not implemented for Option<T>
-        //    https://docs.rs/numpy/0.13.0/numpy/trait.Element.html
-        // TODO: move column data without cloning
-        let values = match column.sql_type() {
-            SqlType::UInt8 => collect_column_values!(U8, u8),
-            SqlType::UInt16 => collect_column_values!(U16, u16),
-            SqlType::UInt32 => collect_column_values!(U32, u32),
-            SqlType::UInt64 => collect_column_values!(U64, u64),
-            SqlType::Int8 => collect_column_values!(I8, i8),
-            SqlType::Int16 => collect_column_values!(I16, i16),
-            SqlType::Int32 => collect_column_values!(I32, i32),
-            SqlType::Int64 => collect_column_values!(I64, i64),
-            SqlType::Float32 => collect_column_values!(F32, f32),
-            SqlType::Float64 => collect_column_values!(F64, f64),
-            SqlType::Date => {
-                collect_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp())
-            }
-            SqlType::DateTime(_) => {
-                collect_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
-            }
-            _ => {
-                error!(
-                    "unsupported column type {} for column {}",
-                    column.sql_type().to_string(),
-                    column.name()
-                );
-                return Err(Error::Other(Cow::from("unsupported column type")));
-            }
-        };
-        out_rows.insert(column.name().to_string(), values);
+        out_rows.insert(
+            column.name().to_string(),
+            read_column(column, None)?,
+        );
     }
     Ok(out_rows)
 }
@@ -200,55 +163,105 @@ pub async fn query_all_with_uncompacting(
             continue;
         }
 
-        /// repeat column values according to the counts of the row_repetitions vec
-        /// to create a "flat" table.
-        macro_rules! repeat_column_values {
-            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
-                let mut values = Vec::with_capacity(num_uncompacted_rows);
-                let mut pos = 0_usize;
-                for v in column.iter::<$itertype>()?.map($conv_closure) {
-                    for _ in 0..row_repetitions[pos] {
-                        values.push(v.clone())
-                    }
-                    pos += 1;
-                }
-                ColVec::$cvtype(values)
-            }};
-            ($cvtype:ident, $itertype:ty) => {
-                repeat_column_values!($cvtype, $itertype, |v| v)
-            };
-        }
-        // TODO: how to handle nullable columns? seems the numpy
-        //    `Element` trait is not implemented for Option<T>
-        //    https://docs.rs/numpy/0.13.0/numpy/trait.Element.html
-        let values = match column.sql_type() {
-            SqlType::UInt8 => repeat_column_values!(U8, u8),
-            SqlType::UInt16 => repeat_column_values!(U16, u16),
-            SqlType::UInt32 => repeat_column_values!(U32, u32),
-            SqlType::UInt64 => repeat_column_values!(U64, u64),
-            SqlType::Int8 => repeat_column_values!(I8, i8),
-            SqlType::Int16 => repeat_column_values!(I16, i16),
-            SqlType::Int32 => repeat_column_values!(I32, i32),
-            SqlType::Int64 => repeat_column_values!(I64, i64),
-            SqlType::Float32 => repeat_column_values!(F32, f32),
-            SqlType::Float64 => repeat_column_values!(F64, f64),
-            SqlType::Date => {
-                repeat_column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp())
-            }
-            SqlType::DateTime(_) => {
-                repeat_column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
-            }
-            _ => {
-                error!(
-                    "unsupported column type {} for column {}",
-                    column.sql_type().to_string(),
-                    column.name()
-                );
-                return Err(Error::Other(Cow::from("unsupported column type")));
-            }
-        };
-        out_rows.insert(column.name().to_string(), values);
+        out_rows.insert(
+            column.name().to_string(),
+            read_column(column, Some((num_uncompacted_rows, &row_repetitions)))?,
+        );
     }
     out_rows.insert("h3index".to_string(), h3_vec);
     Ok(out_rows)
+}
+
+fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
+    macro_rules! column_values {
+            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
+                let values = if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
+                    // repeat columns values according to the counts of the row_repetitions vec
+                    // to create a "flat" table.
+                    let mut values = Vec::with_capacity(num_uncompacted_rows);
+                    let mut pos = 0_usize;
+                    for v in column.iter::<$itertype>()?.map($conv_closure) {
+                        for _ in 0..row_repetitions[pos] {
+                            values.push(v)
+                        }
+                        pos += 1;
+                    }
+                    values
+                } else {
+                    // just copy everything
+                    column.iter::<$itertype>()?.map($conv_closure).collect()
+                };
+                ColVec::$cvtype(values)
+            }};
+            ($cvtype:ident, $itertype:ty) => {
+                if row_reps.is_some() {
+                    column_values!($cvtype, $itertype, |v| v.clone())
+                } else {
+                    let values = column.iter::<$itertype>()?.cloned().collect::<Vec<_>>();
+                    ColVec::$cvtype(values)
+                }
+            };
+        }
+
+    let values = match column.sql_type() {
+        SqlType::UInt8 => column_values!(U8, u8),
+        SqlType::UInt16 => column_values!(U16, u16),
+        SqlType::UInt32 => column_values!(U32, u32),
+        SqlType::UInt64 => column_values!(U64, u64),
+        SqlType::Int8 => column_values!(I8, i8),
+        SqlType::Int16 => column_values!(I16, i16),
+        SqlType::Int32 => column_values!(I32, i32),
+        SqlType::Int64 => column_values!(I64, i64),
+        SqlType::Float32 => column_values!(F32, f32),
+        SqlType::Float64 => column_values!(F64, f64),
+        SqlType::Date => {
+            column_values!(Date, Date<Tz>, |d| to_datetime(&d).timestamp())
+        }
+        SqlType::DateTime(_) => {
+            column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
+        }
+        SqlType::Nullable(inner_sqltype) => {
+            match inner_sqltype {
+                SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.map(|inner| inner.clone())),
+                SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Date => {
+                    column_values!(DateN, Option<Date<Tz>>, |d| d.map(|inner| to_datetime(&inner).timestamp()))
+                }
+                SqlType::DateTime(_) => {
+                    column_values!(DateTimeN, Option<DateTime<Tz>>, |d| d.map(|inner| inner.timestamp()))
+                }
+                _ => {
+                    error!(
+                        "unsupported nullable column type {} for column {}",
+                        column.sql_type().to_string(),
+                        column.name()
+                    );
+                    return Err(Error::Other(Cow::from("unsupported nullable column type")));
+                }
+            }
+        }
+        _ => {
+            error!(
+                "unsupported column type {} for column {}",
+                column.sql_type().to_string(),
+                column.name()
+            );
+            return Err(Error::Other(Cow::from("unsupported column type")));
+        }
+    };
+    Ok(values)
+}
+
+
+#[inline]
+fn to_datetime(date: &Date<Tz>) -> DateTime<Tz> {
+    date.and_hms(12, 0 ,0)
 }
