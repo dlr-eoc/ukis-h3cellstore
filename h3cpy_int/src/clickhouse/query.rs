@@ -99,7 +99,7 @@ pub async fn query_all(
     for column in block.columns() {
         out_rows.insert(
             column.name().to_string(),
-            read_column(column, None)?
+            read_column(column, None)?,
         );
     }
     Ok(out_rows)
@@ -165,7 +165,7 @@ pub async fn query_all_with_uncompacting(
 
         out_rows.insert(
             column.name().to_string(),
-            read_column(column, Some((num_uncompacted_rows, &row_repetitions)))?
+            read_column(column, Some((num_uncompacted_rows, &row_repetitions)))?,
         );
     }
     out_rows.insert("h3index".to_string(), h3_vec);
@@ -173,7 +173,6 @@ pub async fn query_all_with_uncompacting(
 }
 
 fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
-
     macro_rules! column_values {
             ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
                 let values = if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
@@ -216,10 +215,38 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
         SqlType::Float32 => column_values!(F32, f32),
         SqlType::Float64 => column_values!(F64, f64),
         SqlType::Date => {
-            column_values!(Date, Date<Tz>, |d| d.and_hms(12, 0, 0).timestamp())
+            column_values!(Date, Date<Tz>, |d| to_datetime(&d).timestamp())
         }
         SqlType::DateTime(_) => {
             column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
+        }
+        SqlType::Nullable(inner_sqltype) => {
+            match inner_sqltype {
+                SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.map(|inner| inner.clone())),
+                SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.map(|inner| inner.clone())),
+                SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.map(|inner| inner.clone())),
+                SqlType::Date => {
+                    column_values!(DateN, Option<Date<Tz>>, |d| d.map(|inner| to_datetime(&inner).timestamp()))
+                }
+                SqlType::DateTime(_) => {
+                    column_values!(DateTimeN, Option<DateTime<Tz>>, |d| d.map(|inner| inner.timestamp()))
+                }
+                _ => {
+                    error!(
+                        "unsupported nullable column type {} for column {}",
+                        column.sql_type().to_string(),
+                        column.name()
+                    );
+                    return Err(Error::Other(Cow::from("unsupported nullable column type")));
+                }
+            }
         }
         _ => {
             error!(
@@ -229,7 +256,12 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
             );
             return Err(Error::Other(Cow::from("unsupported column type")));
         }
-
     };
     Ok(values)
+}
+
+
+#[inline]
+fn to_datetime(date: &Date<Tz>) -> DateTime<Tz> {
+    date.and_hms(12, 0 ,0)
 }
