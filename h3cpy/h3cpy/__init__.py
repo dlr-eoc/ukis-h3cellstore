@@ -67,12 +67,8 @@ class ClickhouseResultSet:
             array = None
             if column_type == 'u8':
                 array = lib.resultset_drain_column_u8(self.resultset, column_name)
-            elif column_type == 'u8n':
-                array = lib.resultset_drain_column_u8n(self.resultset, column_name)
             elif column_type == 'i8':
                 array = lib.resultset_drain_column_i8(self.resultset, column_name)
-            elif column_type == 'i8n':
-                array = lib.resultset_drain_column_i8n(self.resultset, column_name)
             elif column_type == 'u16':
                 array = lib.resultset_drain_column_u16(self.resultset, column_name)
             elif column_type == 'i16':
