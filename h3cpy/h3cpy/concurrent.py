@@ -1,8 +1,11 @@
 """
 helpers for multiprocessing
 """
+import concurrent.futures
 import math
 import random
+from typing import Callable
+
 from shapely.geometry import box, Polygon
 
 
@@ -43,6 +46,41 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
     random.shuffle(chunks)
 
     return chunks
+
+
+def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_callback: Callable):
+    """cut the `polygon` into chunks and concurrently apply the `processing_callback`
+        to each of the chunks using `n_concurrent_processes` subprocesses.
+
+        `processing_callback` must be a callable taking a geometry instance as argument.
+
+        @:returns list of the return values of the `processing_callback`
+    """
+
+    results = []
+    if n_concurrent_processes == 1:
+        # using just a single process without spawning a separate process
+        results.append(processing_callback(polygon))
+    elif n_concurrent_processes > 1:
+
+        # let the kernel immediately kill all child processes on Ctrl-C
+        import signal
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        # split the geometry into chunks to distribute these across multiple processes
+        polygon_chunks = chunk_polygon(polygon, num_chunks_approx=n_concurrent_processes * 2)
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=n_concurrent_processes) as executor:
+            pending = [executor.submit(processing_callback, p) for p in polygon_chunks]
+            while len(pending) != 0:
+                finished, pending = concurrent.futures.wait(pending, timeout=10,
+                                                            return_when=concurrent.futures.FIRST_EXCEPTION)
+                for fut in finished:
+                    results.append(
+                        fut.result())  # re-raises the exception occurred in the subprocess when there was one
+    else:
+        raise ValueError("n_concurrent_processes must be > 1")
+    return results
 
 
 if __name__ == '__main__':

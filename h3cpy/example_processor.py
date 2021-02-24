@@ -26,7 +26,6 @@ ssh your-user-name@torvalds.eoc.dlr.de -L 9010:localhost:9010 -L 5433:localhost:
 Credentials for the Postgres metadata db are in the password database.
 """
 
-import concurrent.futures
 import h3.api.numpy_int as h3
 import h3ronpy
 import json
@@ -37,7 +36,7 @@ from datetime import datetime
 from shapely.geometry import shape, Polygon
 
 import h3cpy
-from h3cpy.concurrent import chunk_polygon
+from h3cpy.concurrent import process_polygon
 from h3cpy.postgres import fetch_using_intersecting_h3indexes
 
 # number of worker processes to use, set to 1 to skip parallelization and
@@ -239,28 +238,7 @@ def process_window(window_geom: Polygon):
 def main():
     aoi_geom = shape(json.loads(AOI))
     create_output_schema()
-
-    if MAX_WORKERS > 1:
-
-        # let the kernel immediately kill all child processes on Ctrl-C
-        import signal
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-        # split the AOI into chunks to distribute these accross multiple processes
-        polygon_chunks = chunk_polygon(aoi_geom, num_chunks_approx=MAX_WORKERS * 2)
-        print(f"split the polygon into {len(polygon_chunks)} chunks")
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            pending = [executor.submit(process_window, p) for p in polygon_chunks]
-            while len(pending) != 0:
-                finished, pending = concurrent.futures.wait(pending, timeout=2, return_when=concurrent.futures.FIRST_EXCEPTION)
-                for fut in finished:
-                    # re-raise the exception occured in the subprocess when there was one
-                    fut.result()
-
-    else:
-        # using just a single process
-        process_window(aoi_geom)
+    process_polygon(MAX_WORKERS, aoi_geom, process_window)
 
 
 if __name__ == "__main__":
