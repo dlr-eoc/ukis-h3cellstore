@@ -53,6 +53,9 @@ def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_ca
         to each of the chunks using `n_concurrent_processes` subprocesses.
 
         `processing_callback` must be a callable taking a geometry instance as argument.
+        The callable will be dispatched to a process pool, so it must not depend on
+        any global state which can not be pickled. Database connections, etc should
+        only be established within the callable.
 
         @:returns list of the return values of the `processing_callback`
     """
