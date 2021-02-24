@@ -40,7 +40,6 @@ import h3cpy
 from h3cpy.concurrent import chunk_polygon
 from h3cpy.postgres import fetch_using_intersecting_h3indexes
 
-
 # number of worker processes to use, set to 1 to skip parallelization and
 # gain better debuggability
 MAX_WORKERS = 1
@@ -123,15 +122,16 @@ def process_window(window_geom: Polygon):
         # print(ts.compacted_resolutions)
         # print(ts.columns)
 
+    # query to clickhouse, you can also create a prefetch template with a query against a higher resolution to
+    # determine whether it is worth fetching. This might be interesting when you are fetching nodata columns as well,
+    # they are only interesting when there is not exclusively nodata.
     querystring_template = """
-    select h3index, 
+    select scene as scene_id,
+        h3index, 
         recorded_at,
-        processed_at,
         area_percent_water_class_090_100, 
         area_percent_water_class_080_090, 
-        area_percent_water_class_070_080, 
-        sensor as sensor_id, 
-        processor as processor_id
+        area_percent_water_class_070_080
     from <[table]> 
     where recorded_at >= '2020-10-01 00:00:00' 
         and recorded_at < '2021-01-01 00:00:00'
@@ -144,7 +144,8 @@ def process_window(window_geom: Polygon):
     """
     # iteratively visit all indexes using a h3-based sliding window
     for resultset in clickhouse_conn.window_iter(window_geom, tablesets["water"], 13, window_max_size=20000,
-                                                 querystring_template=querystring_template):
+                                                 querystring_template=querystring_template,
+                                                 prefetch_querystring_template=querystring_template,):
 
         # the h3 index of the window itself. will have a lower resolution then the h3_resolution
         # requested for the window
@@ -155,7 +156,6 @@ def process_window(window_geom: Polygon):
 
         # get as a pandas dataframe. This will move the data, so the resultset will be empty afterwards
         detections_df = resultset.to_dataframe()
-        # print(detections_df)
 
         recording_timestamps = [datetime.utcfromtimestamp(ts.astype('O') / 1e9) for ts in
                                 detections_df.recorded_at.unique()]
@@ -166,19 +166,16 @@ def process_window(window_geom: Polygon):
         indexes_found = detections_df.h3index.unique()
         query_polygon = h3cpy.h3indexes_convex_hull(indexes_found)
 
-        # print(query_polygon.to_geojson_str())
-
         scene_h3indexes_df = fetch_using_intersecting_h3indexes(
             postgres_meta_cur,
             indexes_found,
-            # just query for the h3index where we got data from clickhouse for. thats all we need to find holes in the timeseries
+            # just query for the h3index where we got data from clickhouse for.
+            # That's all we need to find holes in the timeseries
             "wkb_geom",
             """
-            select distinct on (s.sensor_id, s.processor_id, s.recorded_at, s.processed_at)
-                s.sensor_id,
-                s.processor_id,
+            select
+                s.id as scene_id,
                 s.recorded_at,
-                s.processed_at,
                 st_asbinary(st_force2d(s.footprint)) wkb_geom 
             from scene s 
             where st_intersects(s.footprint, st_geomfromwkb(%s, 4326))
@@ -190,38 +187,41 @@ def process_window(window_geom: Polygon):
             print("skip")
             continue
 
-        # print(scene_h3indexes_df)
-
         # join the two dataframes to get a time series
         # cut of the timezone first, its UTC anyways. TODO: improve this
         scene_h3indexes_df['recorded_at'] = scene_h3indexes_df['recorded_at'].dt.tz_localize(None)
-        scene_h3indexes_df['processed_at'] = scene_h3indexes_df['processed_at'].dt.tz_localize(None)
         joined_df = pd.merge(scene_h3indexes_df, detections_df,
                              how="left",
-                             on=['h3index', 'recorded_at', 'processed_at', 'sensor_id', 'processor_id']
+                             on=['scene_id', 'h3index', 'recorded_at']
                              )
         joined_df.sort_values(by=["h3index", "recorded_at"], inplace=True)
-        # joined_df.set_index("h3index")
 
-        # do some analysis, this method is really simple, but its main purpose is to demonstrate the
-        # library.
+        # do some analysis:
 
         # nan for area percent means that there was no detection -> setting to 0.0
         joined_df.fillna(value={"area_percent_water_class_070_080": 0.0,
                                 "area_percent_water_class_080_090": 0.0,
-                                "area_percent_water_class_090_100": 0.0})  # or just all of them
+                                "area_percent_water_class_090_100": 0.0},
+                         inplace=True)
 
+        # randomly assigned weights, we can also just add to create a similar effect of what we are used to
         joined_df["water_certainty"] = (1.5 * joined_df["area_percent_water_class_090_100"]) \
                                        + (.85 * joined_df["area_percent_water_class_080_090"]) \
                                        + (.75 * joined_df["area_percent_water_class_070_080"])
 
-        water = joined_df[["h3index", "water_certainty"]].groupby(["h3index"]).mean()
+        # when we fetched nodata before would now be a good moment to take these values out again so they do not
+        # mess up the mean()
 
-        water_h3indexes = water[water.water_certainty >= 0.8].index.to_numpy(dtype="uint64")
+        rfreq = joined_df[["h3index", "water_certainty"]].groupby(["h3index"]).mean()
+        rfreq_threshold = 0.8
+
+        water_h3indexes = rfreq[rfreq.water_certainty >= rfreq_threshold].index.to_numpy(dtype="uint64")
         window_index_str = h3.h3_to_string(resultset.window_index)
         if water_h3indexes.size != 0:
             window_index_str = h3.h3_to_string(resultset.window_index)
-            polygons = h3ronpy.Polygon.from_h3indexes_aligned(water_h3indexes, h3.h3_get_resolution(resultset.window_index), smoothen=True)
+            polygons = h3ronpy.Polygon.from_h3indexes_aligned(water_h3indexes,
+                                                              h3.h3_get_resolution(resultset.window_index),
+                                                              smoothen=True)
 
             print(f"Found {len(polygons)} polygons in {window_index_str}")
             for poly in polygons:
