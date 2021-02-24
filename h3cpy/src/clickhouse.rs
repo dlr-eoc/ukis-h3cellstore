@@ -12,7 +12,7 @@ use crate::syncapi::ClickhousePool;
 use crate::{
     inspect::TableSet as TableSetWrapper,
     pywrap::{check_index_valid, intresult_to_pyresult, Polygon},
-    window::{create_window, SlidingH3Window},
+    window::SlidingH3Window,
 };
 
 #[pyclass]
@@ -38,7 +38,7 @@ impl ClickhouseConnection {
         querystring_template: Option<String>,
         prefetch_querystring_template: Option<String>,
     ) -> PyResult<SlidingH3Window> {
-        create_window(
+        SlidingH3Window::create(
             window_polygon.inner.clone(),
             &tableset.inner,
             target_h3_resolution,
