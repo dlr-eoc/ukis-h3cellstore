@@ -33,7 +33,6 @@ lazy_static! {
 impl Table {
     pub fn parse(full_table_name: &str) -> Option<Table> {
         if let Some(captures) = RE_TABLE.captures(full_table_name) {
-            dbg!(&captures);
             Some(Table {
                 basename: captures[1].to_string(),
                 spec: TableSpec {

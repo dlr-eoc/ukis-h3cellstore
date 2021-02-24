@@ -1,1 +1,4 @@
 maturin==0.8.3
+wheel
+setuptools_rust # for twine
+twine
