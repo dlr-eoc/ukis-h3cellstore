@@ -15,18 +15,19 @@ use crate::{
     clickhouse::{
         ClickhouseConnection,
         ResultSet,
-        RuntimedPool,
     },
     inspect::{
         CompactedTable,
         TableSet,
     },
+    syncapi::ClickhousePool,
 };
 
 mod window;
 mod inspect;
 mod clickhouse;
 mod pywrap;
+mod syncapi;
 
 /// version of the module
 #[pyfunction]
@@ -35,9 +36,7 @@ fn version() -> PyResult<String> { Ok(env!("CARGO_PKG_VERSION").to_string()) }
 /// open a connection to clickhouse
 #[pyfunction]
 fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
-    Ok(ClickhouseConnection {
-        rp: RuntimedPool::create(db_url)?
-    })
+    Ok(ClickhouseConnection::new(ClickhousePool::create(db_url)?))
 }
 
 macro_rules! resultset_drain_column_fn {

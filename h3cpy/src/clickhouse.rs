@@ -1,68 +1,29 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use geo::algorithm::intersects::Intersects;
 use h3ron::{Index, ToPolygon};
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
-use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult, Python};
-use tokio::runtime::Runtime;
+use pyo3::{prelude::*, PyResult, Python};
 
 use h3cpy_int::compacted_tables::TableSetQuery;
-use h3cpy_int::{
-    clickhouse::query::{
-        list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
-    },
-    clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, ClientHandle, Pool},
-    ColVec,
-};
+use h3cpy_int::ColVec;
 
+use crate::syncapi::ClickhousePool;
 use crate::{
     inspect::TableSet as TableSetWrapper,
     pywrap::{check_index_valid, intresult_to_pyresult, Polygon},
     window::{create_window, SlidingH3Window},
 };
 
-fn ch_to_pyerr(ch_err: ChError) -> PyErr {
-    PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
-}
-
-fn ch_to_pyresult<T>(res: ChResult<T>) -> PyResult<T> {
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(ch_to_pyerr(e)),
-    }
-}
-
-pub(crate) struct RuntimedPool {
-    pub(crate) pool: Pool,
-    pub(crate) rt: Runtime,
-}
-
-impl RuntimedPool {
-    pub fn create(db_url: &str) -> PyResult<RuntimedPool> {
-        let rt = match Runtime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                return Err(PyRuntimeError::new_err(format!(
-                    "could not create tokio rt: {:?}",
-                    e
-                )));
-            }
-        };
-        Ok(Self {
-            pool: Pool::new(db_url),
-            rt,
-        })
-    }
-
-    pub fn get_client(&mut self) -> PyResult<ClientHandle> {
-        let p = &self.pool;
-        ch_to_pyresult(self.rt.block_on(async { p.get_handle().await }))
-    }
-}
-
 #[pyclass]
 pub struct ClickhouseConnection {
-    pub(crate) rp: RuntimedPool,
+    pub(crate) clickhouse_pool: ClickhousePool,
+}
+
+impl ClickhouseConnection {
+    pub fn new(clickhouse_pool: ClickhousePool) -> Self {
+        Self { clickhouse_pool }
+    }
 }
 
 #[pymethods]
@@ -92,22 +53,17 @@ impl ClickhouseConnection {
     }
 
     fn list_tablesets(&mut self) -> PyResult<HashMap<String, TableSetWrapper>> {
-        let client = self.rp.get_client()?;
-        let mut ts = ch_to_pyresult(self.rp.rt.block_on(async { list_tablesets(client).await }))?;
-        Ok(ts
+        Ok(self
+            .clickhouse_pool
+            .list_tablesets()?
             .drain()
             .map(|(k, v)| (k, TableSetWrapper { inner: v }))
             .collect())
     }
 
     fn fetch_query(&mut self, query_string: String) -> PyResult<ResultSet> {
-        let client = self.rp.get_client()?;
-        let column_data = ch_to_pyresult(
-            self.rp
-                .rt
-                .block_on(async { query_all(client, query_string).await }),
-        )?;
-        Ok(column_data.into())
+        let resultset = self.clickhouse_pool.query_all(query_string)?.into();
+        Ok(resultset)
     }
 
     #[args(querystring_template = "None")]
@@ -124,12 +80,10 @@ impl ClickhouseConnection {
                 .build_select_query(&h3indexes_vec, &querystring_template.into()),
         )?;
 
-        let client = self.rp.get_client()?;
-        let column_data = ch_to_pyresult(self.rp.rt.block_on(async {
-            let h3index_set: HashSet<_> = h3indexes_vec.iter().cloned().collect();
-            query_all_with_uncompacting(client, query_string, h3index_set).await
-        }))?;
-        let mut resultset: ResultSet = column_data.into();
+        let mut resultset: ResultSet = self
+            .clickhouse_pool
+            .query_all_with_uncompacting(query_string, h3indexes_vec.iter().cloned().collect())?
+            .into();
         resultset.h3indexes_queried = Some(h3indexes_vec);
         Ok(resultset)
     }
@@ -156,13 +110,7 @@ impl ClickhouseConnection {
                 .inner
                 .build_select_query(&[index.h3index()], &tablesetquery),
         )?;
-
-        let client = self.rp.get_client()?;
-        ch_to_pyresult(
-            self.rp
-                .rt
-                .block_on(async { query_returns_rows(client, query_string).await }),
-        )
+        self.clickhouse_pool.query_returns_rows(query_string)
     }
 
     pub fn fetch_next_window(
@@ -205,12 +153,10 @@ impl ClickhouseConnection {
                     .inner
                     .build_select_query(&child_indexes, &sliding_h3_window.query),
             )?;
-            let client = self.rp.get_client()?;
-            let mut resultset: ResultSet = ch_to_pyresult(self.rp.rt.block_on(async {
-                let h3index_set: HashSet<_> = child_indexes.iter().cloned().collect();
-                query_all_with_uncompacting(client, query_string, h3index_set).await
-            }))?
-            .into();
+            let mut resultset: ResultSet = self
+                .clickhouse_pool
+                .query_all_with_uncompacting(query_string, child_indexes.iter().cloned().collect())?
+                .into();
             resultset.h3indexes_queried = Some(child_indexes);
             resultset.window_h3index = Some(window_h3index);
 
