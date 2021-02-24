@@ -251,7 +251,13 @@ def main():
         print(f"split the polygon into {len(polygon_chunks)} chunks")
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            executor.map(process_window, polygon_chunks)
+            pending = [executor.submit(process_window, p) for p in polygon_chunks]
+            while len(pending) != 0:
+                finished, pending = concurrent.futures.wait(pending, timeout=2, return_when=concurrent.futures.FIRST_EXCEPTION)
+                for fut in finished:
+                    # re-raise the exception occured in the subprocess when there was one
+                    fut.result()
+
     else:
         # using just a single process
         process_window(aoi_geom)
