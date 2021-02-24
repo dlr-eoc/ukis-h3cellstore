@@ -1,6 +1,6 @@
 [package]
 name = "h3cpy"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2018"
 authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
