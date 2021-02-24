@@ -6,14 +6,14 @@ use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult, Python};
 use tokio::runtime::Runtime;
 
+use h3cpy_int::compacted_tables::TableSetQuery;
 use h3cpy_int::{
     clickhouse::query::{
         list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
     },
-    clickhouse_rs::{ClientHandle, errors::Error as ChError, errors::Result as ChResult, Pool},
+    clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, ClientHandle, Pool},
     ColVec,
 };
-use h3cpy_int::compacted_tables::TableSetQuery;
 
 use crate::{
     inspect::TableSet as TableSetWrapper,
@@ -67,7 +67,7 @@ pub struct ClickhouseConnection {
 
 #[pymethods]
 impl ClickhouseConnection {
-    #[args(querystring_template = "None")]
+    #[args(querystring_template = "None", prefetch_querystring_template = "None")]
     pub fn make_sliding_window(
         &self,
         window_polygon: &Polygon,
@@ -185,8 +185,9 @@ impl ClickhouseConnection {
             let child_indexes: Vec<_> = Index::from(window_h3index)
                 .get_children(sliding_h3_window.target_h3_resolution)
                 .drain(..)
-                // remove children located outside of the window_polygon. It is probably is not worth the effort,
-                // but it allows to relocate some load to the client.
+                // remove children located outside of the window_polygon. It is probably is not
+                // worth the effort, but it allows to relocate some load from the DB server
+                // to the users machine.
                 .filter(|ci| {
                     let p = ci.to_polygon();
                     sliding_h3_window.window_polygon.intersects(&p)
@@ -209,7 +210,7 @@ impl ClickhouseConnection {
                 let h3index_set: HashSet<_> = child_indexes.iter().cloned().collect();
                 query_all_with_uncompacting(client, query_string, h3index_set).await
             }))?
-                .into();
+            .into();
             resultset.h3indexes_queried = Some(child_indexes);
             resultset.window_h3index = Some(window_h3index);
 
