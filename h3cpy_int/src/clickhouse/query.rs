@@ -222,16 +222,16 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
         }
         SqlType::Nullable(inner_sqltype) => {
             match inner_sqltype {
-                SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.map(|inner| inner.clone())),
-                SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.map(|inner| inner.clone())),
-                SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.map(|inner| inner.clone())),
-                SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.map(|inner| inner.clone())),
-                SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.map(|inner| inner.clone())),
-                SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.map(|inner| inner.clone())),
-                SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.map(|inner| inner.clone())),
-                SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.map(|inner| inner.clone())),
-                SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.map(|inner| inner.clone())),
-                SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.map(|inner| inner.clone())),
+                SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.copied()),
+                SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.copied()),
+                SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.copied()),
+                SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.copied()),
+                SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.copied()),
+                SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.copied()),
+                SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.copied()),
+                SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.copied()),
+                SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.copied()),
+                SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.copied()),
                 SqlType::Date => {
                     column_values!(DateN, Option<Date<Tz>>, |d| d.map(|inner| to_datetime(&inner).timestamp()))
                 }
