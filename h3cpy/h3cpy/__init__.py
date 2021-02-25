@@ -6,7 +6,6 @@ import pandas as pd
 from . import h3cpy as lib
 from .h3cpy import create_connection, \
     Polygon, \
-    h3indexes_convex_hull, \
     version
 
 __all__ = [
@@ -102,7 +101,8 @@ class ClickhouseConnection:
     def __init__(self, url: str):
         self.inner = create_connection(url)
 
-    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None, prefetch_querystring_template=None):
+    def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None,
+                    prefetch_querystring_template=None):
         """
         iterate in a sliding window over a tableset
 
@@ -130,9 +130,9 @@ class ClickhouseConnection:
             prefetch_querystring_template=prefetch_querystring_template
         )
         while True:
-            window_data = self.inner.fetch_next_window(sliding_window, tableset)
+            window_data = self.inner.fetch_next_window(sliding_window)
             if window_data is None:
-                break
+                break  # reached end of iteration
             if window_data.is_empty():
                 continue
             yield ClickhouseResultSet(window_data)

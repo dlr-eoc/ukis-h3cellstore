@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use geo::algorithm::intersects::Intersects;
-use h3ron::{Index, ToPolygon};
+use h3ron::Index;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{prelude::*, PyResult, Python};
 
@@ -40,7 +39,7 @@ impl ClickhouseConnection {
     ) -> PyResult<SlidingH3Window> {
         SlidingH3Window::create(
             window_polygon.inner.clone(),
-            &tableset.inner,
+            tableset.inner.clone(),
             target_h3_resolution,
             window_max_size,
             if let Some(s) = querystring_template {
@@ -116,60 +115,15 @@ impl ClickhouseConnection {
     pub fn fetch_next_window(
         &mut self,
         sliding_h3_window: &mut SlidingH3Window,
-        tableset: &TableSetWrapper,
     ) -> PyResult<Option<ResultSet>> {
-        while let Some(window_h3index) = sliding_h3_window.next_window() {
-            // check if the window index contains any data on coarse resolution, when not,
-            // then there is no need to load anything
-            if !self.has_data(
-                tableset,
-                window_h3index,
-                sliding_h3_window.prefetch_query.clone().into(),
-            )? {
-                log::info!("window without any database contents skipped");
-                continue;
-            }
-
-            let child_indexes: Vec<_> = Index::from(window_h3index)
-                .get_children(sliding_h3_window.target_h3_resolution)
-                .drain(..)
-                // remove children located outside of the window_polygon. It is probably is not
-                // worth the effort, but it allows to relocate some load from the DB server
-                // to the users machine.
-                .filter(|ci| {
-                    let p = ci.to_polygon();
-                    sliding_h3_window.window_polygon.intersects(&p)
-                })
-                .map(|i| i.h3index())
-                .collect();
-
-            if child_indexes.is_empty() {
-                log::info!("window without intersecting h3indexes skipped");
-                continue;
-            }
-
-            let query_string = intresult_to_pyresult(
-                tableset
-                    .inner
-                    .build_select_query(&child_indexes, &sliding_h3_window.query),
-            )?;
-            let mut resultset: ResultSet = self
-                .clickhouse_pool
-                .query_all_with_uncompacting(query_string, child_indexes.iter().cloned().collect())?
-                .into();
-            resultset.h3indexes_queried = Some(child_indexes);
-            resultset.window_h3index = Some(window_h3index);
-
-            return Ok(Some(resultset));
-        }
-        Ok(None)
+        sliding_h3_window.fetch_next_window(&mut self.clickhouse_pool)
     }
 }
 
 #[pyclass]
 pub struct ResultSet {
-    h3indexes_queried: Option<Vec<u64>>,
-    window_h3index: Option<u64>,
+    pub(crate) h3indexes_queried: Option<Vec<u64>>,
+    pub(crate) window_h3index: Option<u64>,
     pub(crate) column_data: HashMap<String, ColVec>,
 }
 
