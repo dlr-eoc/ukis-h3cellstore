@@ -6,14 +6,22 @@ import pandas as pd
 from . import h3cpy as lib
 from .h3cpy import create_connection, \
     Polygon, \
+    CompactedTable, \
+    TableSet, \
+    ResultSet, \
+    h3indexes_convex_hull, \
     version
 
 __all__ = [
-    "CompactedTable",
     "ClickhouseConnection",
     "ClickhouseResultSet",
-    "Polygon",
-    "h3indexes_convex_hull",
+
+    # accessing the imported function and classes to let IDEs know these are not
+    # unused imports. They are only re-exported, but not used in this file.
+    Polygon.__name__,
+    CompactedTable.__name__,
+    h3indexes_convex_hull.__name__,
+    TableSet.__name__,
 ]
 
 __version__ = version()
@@ -32,7 +40,7 @@ def to_polygon(input):
 class ClickhouseResultSet:
     resultset = None
 
-    def __init__(self, rs):
+    def __init__(self, rs: ResultSet):
         self.resultset = rs
 
     @property
