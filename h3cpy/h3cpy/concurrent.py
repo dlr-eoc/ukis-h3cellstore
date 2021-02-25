@@ -41,14 +41,15 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
             else:
                 raise ValueError(f"unsupported geometry type: {g.type}")
 
-    # evenly distribute chunks to distribute load by distributing chunks with a
-    # high data density across the whole list
+    # evenly distribute chunks to balance the processing load by
+    # distributing chunks with a high local data density across the whole list
     random.shuffle(chunks)
 
     return chunks
 
 
-def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_callback: Callable):
+def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_callback: Callable,
+                    num_chunks_per_proccess_approx=2):
     """cut the `polygon` into chunks and concurrently apply the `processing_callback`
         to each of the chunks using `n_concurrent_processes` subprocesses.
 
@@ -71,7 +72,8 @@ def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_ca
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
         # split the geometry into chunks to distribute these across multiple processes
-        polygon_chunks = chunk_polygon(polygon, num_chunks_approx=n_concurrent_processes * 2)
+        polygon_chunks = chunk_polygon(polygon,
+                                       num_chunks_approx=n_concurrent_processes * num_chunks_per_proccess_approx)
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=n_concurrent_processes) as executor:
             pending = [executor.submit(processing_callback, p) for p in polygon_chunks]

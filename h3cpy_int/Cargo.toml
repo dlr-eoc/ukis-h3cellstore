@@ -1,6 +1,6 @@
 [package]
 name = "h3cpy_int"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Nico Mandery <nico.mandery@dlr.de>"]
 edition = "2018"
 description = "Internal code of h3cpy"
