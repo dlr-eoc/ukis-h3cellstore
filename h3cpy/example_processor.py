@@ -84,19 +84,23 @@ AOI = """
 def create_output_schema():
     postgres_conn = psycopg2.connect(DSN_POSTGRES_OUTPUT)
     postgres_cur = postgres_conn.cursor()
-    postgres_cur.execute("""
+    postgres_cur.execute(
+        """
     create table if not exists water_results (
         id serial primary key,
         window_h3index text,
         geom geometry(Polygon, 4326)
     )
-    """)
+    """
+    )
 
     # create an index, this slows down inserts, but allows to view
     # the contents while the processor is running with qgis
-    postgres_cur.execute("""
+    postgres_cur.execute(
+        """
     create index if not exists water_results_geom_idx on water_results using gist(geom);
-    """)
+    """
+    )
     postgres_conn.commit()
     postgres_conn.close()
 
@@ -142,9 +146,14 @@ def process_window(window_geom: Polygon):
         and h3index in <[h3indexes]>
     """
     # iteratively visit all indexes using a h3-based sliding window
-    for resultset in clickhouse_conn.window_iter(window_geom, tablesets["water"], 13, window_max_size=20000,
-                                                 querystring_template=querystring_template,
-                                                 prefetch_querystring_template=querystring_template,):
+    for resultset in clickhouse_conn.window_iter(
+        window_geom,
+        tablesets["water"],
+        13,
+        window_max_size=20000,
+        querystring_template=querystring_template,
+        prefetch_querystring_template=querystring_template,
+    ):
 
         # the h3 index of the window itself. will have a lower resolution then the h3_resolution
         # requested for the window
@@ -156,8 +165,9 @@ def process_window(window_geom: Polygon):
         # get as a pandas dataframe. This will move the data, so the resultset will be empty afterwards
         detections_df = resultset.to_dataframe()
 
-        recording_timestamps = [datetime.utcfromtimestamp(ts.astype('O') / 1e9) for ts in
-                                detections_df.recorded_at.unique()]
+        recording_timestamps = [
+            datetime.utcfromtimestamp(ts.astype("O") / 1e9) for ts in detections_df.recorded_at.unique()
+        ]
 
         # to get missing values when there have been no detections, we must generate all timestamps when a index
         # has been covered by a scene - they are not stored. We just use the scene footprints to generate our subset of
@@ -180,7 +190,7 @@ def process_window(window_geom: Polygon):
             where st_intersects(s.footprint, st_geomfromwkb(%s, 4326))
                 and s.recorded_at = any(%s)
             """,
-            (query_polygon.to_wkb(), recording_timestamps)
+            (query_polygon.to_wkb(), recording_timestamps),
         )
         if scene_h3indexes_df.empty:  # TODO
             print("skip")
@@ -188,48 +198,51 @@ def process_window(window_geom: Polygon):
 
         # join the two dataframes to get a time series
         # cut of the timezone first, its UTC anyways. TODO: improve this
-        scene_h3indexes_df['recorded_at'] = scene_h3indexes_df['recorded_at'].dt.tz_localize(None)
-        joined_df = pd.merge(scene_h3indexes_df, detections_df,
-                             how="left",
-                             on=['scene_id', 'h3index', 'recorded_at']
-                             )
+        scene_h3indexes_df["recorded_at"] = scene_h3indexes_df["recorded_at"].dt.tz_localize(None)
+        joined_df = pd.merge(scene_h3indexes_df, detections_df, how="left", on=["scene_id", "h3index", "recorded_at"])
         joined_df.sort_values(by=["h3index", "recorded_at"], inplace=True)
 
         # do some analysis:
 
         # nan for area percent means that there was no detection -> setting to 0.0
-        joined_df.fillna(value={"area_percent_water_class_070_080": 0.0,
-                                "area_percent_water_class_080_090": 0.0,
-                                "area_percent_water_class_090_100": 0.0},
-                         inplace=True)
+        joined_df.fillna(
+            value={
+                "area_percent_water_class_070_080": 0.0,
+                "area_percent_water_class_080_090": 0.0,
+                "area_percent_water_class_090_100": 0.0,
+            },
+            inplace=True,
+        )
 
         # randomly assigned weights, we can also just add to create a similar effect of what we are used to
-        joined_df["water_certainty"] = (1.5 * joined_df["area_percent_water_class_090_100"]) \
-                                       + (.85 * joined_df["area_percent_water_class_080_090"]) \
-                                       + (.75 * joined_df["area_percent_water_class_070_080"])
+        joined_df["water_frequency"] = (
+            (1.5 * joined_df["area_percent_water_class_090_100"])
+            + (0.85 * joined_df["area_percent_water_class_080_090"])
+            + (0.75 * joined_df["area_percent_water_class_070_080"])
+        )
 
         # when we fetched nodata before would now be a good moment to take these values out again so they do not
         # mess up the mean()
 
-        rfreq = joined_df[["h3index", "water_certainty"]].groupby(["h3index"]).mean()
+        water = joined_df[["h3index", "water_frequency"]].groupby(["h3index"]).mean()
         rfreq_threshold = 0.8
 
-        water_h3indexes = rfreq[rfreq.water_certainty >= rfreq_threshold].index.to_numpy(dtype="uint64")
+        water_h3indexes = water[water.water_frequency >= rfreq_threshold].index.to_numpy(dtype="uint64")
         window_index_str = h3.h3_to_string(resultset.window_index)
+
         if water_h3indexes.size != 0:
-            window_index_str = h3.h3_to_string(resultset.window_index)
-            polygons = h3ronpy.Polygon.from_h3indexes_aligned(water_h3indexes,
-                                                              h3.h3_get_resolution(resultset.window_index),
-                                                              smoothen=True)
+            polygons = h3ronpy.Polygon.from_h3indexes_aligned(
+                water_h3indexes, h3.h3_get_resolution(resultset.window_index), smoothen=True
+            )
 
             print(f"Found {len(polygons)} polygons in {window_index_str}")
             for poly in polygons:
-                postgres_output_cur.execute("""
+                postgres_output_cur.execute(
+                    """
                 insert into water_results (window_h3index, geom) select %s, st_geomfromwkb(%s, 4326)
-                """, (
-                    window_index_str,
-                    psycopg2.Binary(shapely.wkb.dumps(shape(poly)))
-                ))
+                """,
+                    (window_index_str, psycopg2.Binary(shapely.wkb.dumps(shape(poly)))),
+                )
             postgres_output_conn.commit()
         else:
             print(f"Found no polygons in {window_index_str}")
