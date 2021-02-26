@@ -1,4 +1,4 @@
-use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
+use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::{
         PyIndexError,
@@ -46,9 +46,7 @@ macro_rules! resultset_drain_column_fn {
                 if let Some(cv) = rs.column_data.get_mut(column_name) {
                     if let ColVec::$cvtype(v) = cv {
                         let data = std::mem::take(v);
-                        let gil = Python::acquire_gil();
-                        let py = gil.python();
-                        Ok(data.into_pyarray(py).to_owned())
+                        Ok(crate::pywrap::vec_to_numpy_owned(data))
                     } else {
                         Err(PyValueError::new_err(format!("column {} is not accessible as type {}", column_name, stringify!($dtype))))
                     }

@@ -37,6 +37,13 @@ pub fn intresult_to_pyresult<T>(
     }
 }
 
+/// convert a Vec to a numpy array
+pub fn vec_to_numpy_owned<T: numpy::Element>(in_vec: Vec<T>) -> Py<PyArray<T, Ix1>> {
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    in_vec.into_pyarray(py).to_owned()
+}
+
 /// a polygon
 #[pyclass]
 pub struct Polygon {
@@ -159,8 +166,6 @@ impl H3IndexesContainedIn {
             .map(|(h3index, _)| *h3index)
             .collect();
 
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        Ok(contained.into_pyarray(py).to_owned())
+        Ok(vec_to_numpy_owned(contained))
     }
 }
