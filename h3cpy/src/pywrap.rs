@@ -111,6 +111,14 @@ impl Polygon {
     }
 }
 
+impl From<gt::Polygon<f64>> for Polygon {
+    fn from(gt_poly: gt::Polygon<f64>) -> Self {
+        Self {
+            inner: gt_poly
+        }
+    }
+}
+
 fn geotypes_polygon_from_wkb(wkb_data: &[u8]) -> PyResult<gt::Polygon<f64>> {
     let mut cursor = Cursor::new(wkb_data);
     match cursor.read_wkb() {

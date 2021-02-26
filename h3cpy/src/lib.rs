@@ -75,9 +75,7 @@ resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
 #[pyfunction]
 fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::pywrap::Polygon> {
     let view = np_array.as_array();
-    Ok(crate::pywrap::Polygon {
-        inner: h3cpy_int::algorithm::h3indexes_convex_hull(&view)
-    })
+    Ok(h3cpy_int::algorithm::h3indexes_convex_hull(&view).into())
 }
 
 /// A Python module implemented in Rust.
