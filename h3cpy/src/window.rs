@@ -3,14 +3,14 @@ use std::collections::{HashSet, VecDeque};
 use geo::algorithm::centroid::Centroid;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
-use h3ron::{polyfill, Index, ToPolygon};
+use h3ron::{Index, polyfill, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use h3cpy_int::{
+    ColVec,
     compacted_tables::{TableSet, TableSetQuery},
     window::window_index_resolution,
-    ColVec,
 };
 
 use crate::clickhouse::ResultSet;
@@ -21,6 +21,7 @@ use crate::syncapi::ClickhousePool;
 pub struct SlidingH3Window {
     window_polygon: Polygon<f64>,
     target_h3_resolution: u8,
+    window_h3_resolution: u8,
     window_indexes: Vec<Index>,
     iter_pos: usize,
 
@@ -41,10 +42,10 @@ impl SlidingH3Window {
         query: TableSetQuery,
         prefetch_query: Option<TableSetQuery>,
     ) -> PyResult<Self> {
-        let window_res = window_index_resolution(&tableset, target_h3_resolution, window_max_size);
+        let window_h3_resolution = window_index_resolution(&tableset, target_h3_resolution, window_max_size);
         log::info!(
             "sliding window: using H3 res {} as window resolution",
-            window_res
+            window_h3_resolution
         );
 
         let mut window_index_set = HashSet::new();
@@ -58,7 +59,7 @@ impl SlidingH3Window {
             window_index_set.insert(index);
         };
 
-        for h3index in polyfill(&window_polygon, window_res) {
+        for h3index in polyfill(&window_polygon, window_h3_resolution) {
             let index = Index::from(h3index);
             add_index(index);
         }
@@ -66,7 +67,7 @@ impl SlidingH3Window {
         // for small windows, polyfill may not yield results,
         // so just adding the center as well.
         if let Some(point) = window_polygon.centroid() {
-            let index = Index::from_coordinate(&point.0, window_res);
+            let index = Index::from_coordinate(&point.0, window_h3_resolution);
             add_index(index);
         }
         log::info!(
@@ -78,6 +79,7 @@ impl SlidingH3Window {
         Ok(Self {
             window_polygon,
             target_h3_resolution,
+            window_h3_resolution,
             window_indexes: window_index_set.drain().collect(),
             iter_pos: 0,
             prefetched_window_indexes: Default::default(),
@@ -88,6 +90,8 @@ impl SlidingH3Window {
     }
 }
 
+const WINDOW_INDEX_COL_NAME: &str = "window_index";
+
 impl SlidingH3Window {
     /// prefetch until some data-containing indexes where found or the
     /// window has been completely crawled
@@ -95,7 +99,7 @@ impl SlidingH3Window {
         loop {
             // prefetch a new batch
             let mut indexes_to_prefetch = vec![];
-            for _ in 0..20 {
+            for _ in 0..100 {
                 if let Some(window_index) = self.window_indexes.get(self.iter_pos) {
                     indexes_to_prefetch.push(window_index);
                     self.iter_pos += 1;
@@ -108,31 +112,21 @@ impl SlidingH3Window {
             }
 
             let query_string = {
-                let mut parts = vec![];
-                for index in indexes_to_prefetch {
-                    let q = intresult_to_pyresult(
-                        self.tableset
-                            .build_select_query(&[index.h3index()], &self.prefetch_query),
-                    )?;
-
-                    // `q` probably contains UNIONed queries.
-                    // Clickhouse UNION + LIMIT behaviour: ORDER BY and LIMIT are applied to
-                    // separate queries, not to the final result.
-                    // https://clickhouse.tech/docs/en/sql-reference/statements/select/union/
-                    parts.push(format!(
-                        "select {} as window_h3index from ({} limit 1)",
-                        index.h3index(),
-                        q
-                    ));
-                }
+                let h3indexes : Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
+                let q = intresult_to_pyresult(
+                    self.tableset
+                        .build_select_query(&h3indexes, &self.prefetch_query),
+                )?;
                 format!(
-                    "select distinct window_h3index from ({})",
-                    parts.join("\n union all ")
+                    "select distinct h3ToParent(h3index, {}) as {} from ({})",
+                    self.window_h3_resolution,
+                    WINDOW_INDEX_COL_NAME,
+                    q
                 )
             };
 
             let query_data = pool.query_all(query_string)?;
-            if let Some(colvec) = query_data.get("window_h3index") {
+            if let Some(colvec) = query_data.get(WINDOW_INDEX_COL_NAME) {
                 if colvec.is_empty() {
                     continue;
                 }
@@ -144,12 +138,12 @@ impl SlidingH3Window {
                         Ok(())
                     }
                     _ => Err(PyRuntimeError::new_err(
-                        "expected the 'h3index' column of the prefetch query to be UInt64",
+                        format!("expected the '{}' column of the prefetch query to be UInt64", WINDOW_INDEX_COL_NAME),
                     )),
                 };
             } else {
                 return Err(PyRuntimeError::new_err(
-                    "expected the generated prefetch query to contain a column called 'window_h3index'",
+                    format!("expected the generated prefetch query to contain a column called '{}'", WINDOW_INDEX_COL_NAME),
                 ));
             }
         }
