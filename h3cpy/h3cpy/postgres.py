@@ -71,6 +71,9 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
                 if column_idx == wkb_column_idx:
                     continue
                 resultdict[column_names[column_idx]] = [value, ]
+
+            # this merge is more efficient than calling .insert() or .assign()
+            # for each column. Seems to be more optimized inside pandas.
             df = pd.DataFrame(resultdict).merge(
                 pd.DataFrame({"h3index": h3index_column}),
                 how='cross' # pandas >=1.2
