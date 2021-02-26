@@ -4,3 +4,6 @@ members = [
     "h3cpy",
     "h3cpy_int"
 ]
+
+[profile.release]
+lto = "fat"
