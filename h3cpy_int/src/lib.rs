@@ -1,9 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-/// re-export clickhouse_rs for easier matching the version
-pub use clickhouse_rs;
-
 pub use crate::colvec::ColVec;
 
 pub mod algorithm;
@@ -12,3 +9,9 @@ mod colvec;
 pub mod compacted_tables;
 pub mod error;
 pub mod window;
+
+// re-export some crates for downstream h3cpy (and other crates) to ensure matching
+// versions
+pub use geo_types;
+pub use geo;
+pub use clickhouse_rs;

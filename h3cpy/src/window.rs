@@ -1,8 +1,5 @@
 use std::collections::{HashSet, VecDeque};
 
-use geo::algorithm::centroid::Centroid;
-use geo::algorithm::intersects::Intersects;
-use geo_types::Polygon;
 use h3ron::{Index, polyfill, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
@@ -10,6 +7,11 @@ use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 use h3cpy_int::{
     ColVec,
     compacted_tables::{TableSet, TableSetQuery},
+    geo::algorithm::{
+        intersects::Intersects,
+        centroid::Centroid
+    },
+    geo_types::Polygon,
     window::window_index_resolution,
 };
 

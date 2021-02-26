@@ -4,8 +4,8 @@ use std::io::Cursor;
 use std::iter::once;
 use std::str::FromStr;
 
-use geo::algorithm::contains::Contains;
-use geo_types as gt;
+use h3cpy_int::geo::algorithm::contains::Contains;
+use h3cpy_int::geo_types as gt;
 use geojson::GeoJson;
 use h3ron::{Index, ToCoordinate};
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
