@@ -35,7 +35,13 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
     cur.execute(query_str, *query_args)
 
     contained_in_check = H3IndexesContainedIn.from_array(h3indexes)
+
+    # list of dataframes, one for each intersecting row of the postgres query.
+    # It is far faster to create individual dataframes and to combine them once instead
+    # of appending to an existing dataframe. Each append requires the complete copy of all
+    # contents to new arrays of the new combined size.
     dataframes = []
+
     column_names = []
     wkb_column_idx = None
     while True:
