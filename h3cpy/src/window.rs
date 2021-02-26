@@ -66,7 +66,7 @@ impl SlidingH3Window {
         // for small windows, polyfill may not yield results,
         // so just adding the center as well.
         if let Some(point) = window_polygon.centroid() {
-            let index = Index::from_coordinate(&point.0, target_h3_resolution);
+            let index = Index::from_coordinate(&point.0, window_res);
             add_index(index);
         }
         log::info!(
