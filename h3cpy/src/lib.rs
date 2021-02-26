@@ -92,6 +92,7 @@ fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("ClickhouseConnection", py.get_type::<ClickhouseConnection>())?;
     m.add("ResultSet", py.get_type::<ResultSet>())?;
     m.add("Polygon", py.get_type::<crate::pywrap::Polygon>())?;
+    m.add("H3IndexesContainedIn", py.get_type::<crate::pywrap::H3IndexesContainedIn>())?;
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;

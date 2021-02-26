@@ -8,7 +8,7 @@ import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 
-from . import Polygon
+from . import Polygon, H3IndexesContainedIn
 
 
 def as_bytes(in_val):
@@ -24,8 +24,6 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
     execute a sql query and return the rows for all results intersecting with a h3index of the
      given numpy array
 
-    TODO: move more of this to rust?
-
     :param cur:
     :param h3indexes: numpy-array of h3indexes
     :param wkb_column_name: the name of the column containing a polygon in WKB format
@@ -36,11 +34,7 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
 
     cur.execute(query_str, *query_args)
 
-    # calculate the h3index coordinates
-    h3indexes_coords = []  # h3index with (x, y) coordinate
-    for h3index in np.nditer(h3indexes):
-        (lat, lon) = h3.h3_to_geo(h3index)
-        h3indexes_coords.append((h3index, lon, lat))  # this is not an accidental switch
+    contained_in_check = H3IndexesContainedIn.from_array(h3indexes)
     dataframes = []
     column_names = []
     wkb_column_idx = None
@@ -63,7 +57,7 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
         poly = Polygon.from_wkb(as_bytes(row[wkb_column_idx]))
 
         # collect the h3indexes contained in the geometry of the row
-        h3index_column = np.fromiter([h3index for (h3index, x, y) in h3indexes_coords if poly.contains_point(x, y)], np.uint64)
+        h3index_column = contained_in_check.contained_h3indexes(poly)
 
         if h3index_column.size > 0:
             resultdict = {}

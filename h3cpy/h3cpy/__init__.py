@@ -9,6 +9,7 @@ from .h3cpy import create_connection, \
     CompactedTable, \
     TableSet, \
     ResultSet, \
+    H3IndexesContainedIn, \
     h3indexes_convex_hull, \
     version
 
@@ -22,6 +23,7 @@ __all__ = [
     CompactedTable.__name__,
     h3indexes_convex_hull.__name__,
     TableSet.__name__,
+    H3IndexesContainedIn.__name__,
 ]
 
 __version__ = version()

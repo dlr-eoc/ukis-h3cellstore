@@ -7,7 +7,8 @@ use std::str::FromStr;
 use geo::algorithm::contains::Contains;
 use geo_types as gt;
 use geojson::GeoJson;
-use h3ron::Index;
+use h3ron::{Index, ToCoordinate};
+use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
@@ -39,7 +40,7 @@ pub fn intresult_to_pyresult<T>(
 /// a polygon
 #[pyclass]
 pub struct Polygon {
-    pub inner: gt::Polygon<f64>,
+    pub(crate) inner: gt::Polygon<f64>,
 }
 
 #[pymethods]
@@ -125,5 +126,41 @@ fn geotypes_polygon_to_pyobject(poly: &gt::Polygon<f64>, py: Python) -> PyResult
             "could not serialize to wkb: {:?}",
             e
         ))),
+    }
+}
+
+///
+/// brute-force (no index) check a list of h3 indexes if
+/// they are contained in polygons
+#[pyclass]
+pub struct H3IndexesContainedIn {
+    h3index_points: Vec<(u64, gt::Coordinate<f64>)>,
+}
+
+#[pymethods]
+impl H3IndexesContainedIn {
+    #[staticmethod]
+    pub fn from_array(h3indexes: PyReadonlyArray1<u64>) -> PyResult<Self> {
+        let h3indexes_vec = h3indexes.as_array();
+        let mut h3index_points = Vec::with_capacity(h3indexes_vec.len());
+        for h3index in h3indexes_vec.iter() {
+            h3index_points.push((*h3index, Index::new(*h3index).to_coordinate()))
+        }
+        Ok(Self { h3index_points })
+    }
+
+    /// perform a containment check and return a numpy array of the contained
+    /// h3indexes.
+    pub fn contained_h3indexes(&self, poly: &Polygon) -> PyResult<Py<PyArray<u64, Ix1>>> {
+        let contained: Vec<_> = self
+            .h3index_points
+            .iter()
+            .filter(|(_, c)| poly.inner.contains(c))
+            .map(|(h3index, _)| *h3index)
+            .collect();
+
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        Ok(contained.into_pyarray(py).to_owned())
     }
 }
