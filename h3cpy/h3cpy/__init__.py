@@ -112,9 +112,9 @@ class ClickhouseConnection:
         self.inner = create_connection(url)
 
     def window_iter(self, window_polygon, tableset, h3_resolution, window_max_size=16000, querystring_template=None,
-                    prefetch_querystring_template=None):
+                    prefetch_querystring_template=None, preload=False):
         """
-        iterate in a sliding window over a tableset
+        iterate in a sliding window over a tableset.
 
         :param window_polygon: polygon (geojson string, or something which is understood by the geojson module)
         :param tableset: reference to the tableset to fetch
@@ -127,8 +127,12 @@ class ClickhouseConnection:
         :param prefetch_querystring_template: Template for the prefetch. The prefetch query is used to determinate
                 if it is worth to fetch the contents of a window or not. It is issued against the table
                 containing the window resolution so it needs to inspect far less data and should be faster. Additionally, the
-                data is not read, it is only checked if there is at least one row.
+                data is not read; the query must contain a column named `h3index`.
                 When not set the same value as the `querystring_template` will be used with a `limit 1` appended
+        :param preload: Load the next window in the background while python is still processing the
+                current window. Enabling this increases processing speed by reducing the time python
+                has to wait for new data. Increases RAM usage and load on the Clickhouse server.
+                Default is True.
         :return: generator
         """
         sliding_window = self.inner.make_sliding_window(
@@ -137,10 +141,11 @@ class ClickhouseConnection:
             h3_resolution,
             window_max_size,
             querystring_template=querystring_template,
-            prefetch_querystring_template=prefetch_querystring_template
+            prefetch_querystring_template=prefetch_querystring_template,
+            preload=preload
         )
         while True:
-            window_data = self.inner.fetch_next_window(sliding_window)
+            window_data = sliding_window.fetch_next_window()
             if window_data is None:
                 break  # reached end of iteration
             if window_data.is_empty():
