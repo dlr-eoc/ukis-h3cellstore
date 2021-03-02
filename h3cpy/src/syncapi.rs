@@ -149,18 +149,6 @@ impl ClickhousePool {
         }))
     }
 
-    pub fn query_all_with_uncompacting(
-        &self,
-        query_string: String,
-        h3index_set: HashSet<u64>,
-    ) -> PyResult<HashMap<String, ColVec>> {
-        let p = &self.pool;
-        ch_to_pyresult(self.tokio_handle.block_on(async {
-            let client = p.get_handle().await?;
-            query_all_with_uncompacting(client, query_string, h3index_set).await
-        }))
-    }
-
     pub fn list_tablesets(&self) -> PyResult<HashMap<String, TableSet>> {
         let p = &self.pool;
         ch_to_pyresult(self.tokio_handle.block_on(async {
