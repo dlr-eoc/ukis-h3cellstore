@@ -1,61 +1,64 @@
+use std::sync::Arc;
+
 use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
-    exceptions::{
-        PyIndexError,
-        PyValueError,
-    },
+    exceptions::{PyIndexError, PyValueError},
     prelude::*,
-    Python,
-    wrap_pyfunction,
+    Python, wrap_pyfunction,
 };
 
 use h3cpy_int::ColVec;
 
 use crate::{
-    clickhouse::{
-        ClickhouseConnection,
-        ResultSet,
-    },
-    inspect::{
-        CompactedTable,
-        TableSet,
-    },
+    clickhouse::{ClickhouseConnection, ResultSet},
+    inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
 };
 
-mod window;
-mod inspect;
 mod clickhouse;
+mod inspect;
 mod pywrap;
 mod syncapi;
+mod window;
 
 /// version of the module
 #[pyfunction]
-fn version() -> PyResult<String> { Ok(env!("CARGO_PKG_VERSION").to_string()) }
+fn version() -> PyResult<String> {
+    Ok(env!("CARGO_PKG_VERSION").to_string())
+}
 
 /// open a connection to clickhouse
 #[pyfunction]
 fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
-    Ok(ClickhouseConnection::new(ClickhousePool::create(db_url)?))
+    Ok(ClickhouseConnection::new(Arc::new(ClickhousePool::create(
+        db_url,
+    )?)))
 }
 
 macro_rules! resultset_drain_column_fn {
-        ($fnname:ident, $dtype:ty, $cvtype:ident) => {
-            #[pyfunction]
-            fn $fnname(rs: &mut ResultSet, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
-                if let Some(cv) = rs.column_data.get_mut(column_name) {
-                    if let ColVec::$cvtype(v) = cv {
-                        let data = std::mem::take(v);
-                        Ok(crate::pywrap::vec_to_numpy_owned(data))
-                    } else {
-                        Err(PyValueError::new_err(format!("column {} is not accessible as type {}", column_name, stringify!($dtype))))
-                    }
+    ($fnname:ident, $dtype:ty, $cvtype:ident) => {
+        #[pyfunction]
+        fn $fnname(rs: &mut ResultSet, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
+            if let Some(cv) = rs.column_data.get_mut(column_name) {
+                if let ColVec::$cvtype(v) = cv {
+                    let data = std::mem::take(v);
+                    Ok(crate::pywrap::vec_to_numpy_owned(data))
                 } else {
-                    Err(PyIndexError::new_err(format!("unknown column {}", column_name)))
+                    Err(PyValueError::new_err(format!(
+                        "column {} is not accessible as type {}",
+                        column_name,
+                        stringify!($dtype)
+                    )))
                 }
+            } else {
+                Err(PyIndexError::new_err(format!(
+                    "unknown column {}",
+                    column_name
+                )))
             }
-        };
-    }
+        }
+    };
+}
 
 resultset_drain_column_fn!(resultset_drain_column_u8, u8, U8);
 resultset_drain_column_fn!(resultset_drain_column_i8, i8, I8);
@@ -69,7 +72,6 @@ resultset_drain_column_fn!(resultset_drain_column_f32, f32, F32);
 resultset_drain_column_fn!(resultset_drain_column_f64, f64, F64);
 resultset_drain_column_fn!(resultset_drain_column_date, i64, Date);
 resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
-
 
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
@@ -85,10 +87,20 @@ fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;
     m.add("TableSet", py.get_type::<TableSet>())?;
-    m.add("ClickhouseConnection", py.get_type::<ClickhouseConnection>())?;
+    m.add(
+        "ClickhouseConnection",
+        py.get_type::<ClickhouseConnection>(),
+    )?;
     m.add("ResultSet", py.get_type::<ResultSet>())?;
     m.add("Polygon", py.get_type::<crate::pywrap::Polygon>())?;
-    m.add("H3IndexesContainedIn", py.get_type::<crate::pywrap::H3IndexesContainedIn>())?;
+    m.add(
+        "H3IndexesContainedIn",
+        py.get_type::<crate::pywrap::H3IndexesContainedIn>(),
+    )?;
+    m.add(
+        "SlidingH3Window",
+        py.get_type::<crate::window::SlidingH3Window>(),
+    )?;
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
