@@ -2,6 +2,8 @@
 
 Python bindings to integrate clickhouse H3 databases with the python data-science world.
 
+![](doc/img/h3cpy.png)
+
 ## Goals
 
 1. Provide an integration with the widely known Python libraries.
