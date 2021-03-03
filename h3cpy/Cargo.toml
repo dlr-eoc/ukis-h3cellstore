@@ -27,7 +27,16 @@ features = [
 
 [dependencies.pyo3]
 version = "^0.13"
-features = ["extension-module"]
+features = [
+    "extension-module",
+    "abi3",
+
+    # minimum python version this library supports
+    # as this library depends on pandas>=1.2 we are using the
+    # same minimum python version as pandas.
+    # https://pypi.org/project/pandas/1.2.3/
+    "abi3-py37"
+]
 
 [dependencies.tokio]
 version = "^1"
