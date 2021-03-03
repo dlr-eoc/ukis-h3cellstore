@@ -1,2 +1,4 @@
 /target
 /Cargo.lock
+/h3cpy/example_processor.mod.py
+*.prof
