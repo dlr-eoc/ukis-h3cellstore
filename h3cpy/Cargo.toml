@@ -12,8 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 h3cpy_int = { path = "../h3cpy_int" }
-numpy = "0.12"
-itertools = "0.10"
+numpy = "^0.13"
 log = "0.4"
 env_logger = "0.8"
 wkb = "0.7"
@@ -27,7 +26,7 @@ features = [
 ]
 
 [dependencies.pyo3]
-version = "0.12.4"
+version = "^0.13"
 features = ["extension-module"]
 
 [dependencies.tokio]
