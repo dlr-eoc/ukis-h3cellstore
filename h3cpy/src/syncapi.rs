@@ -80,8 +80,22 @@ impl ClickhousePool {
         })
     }
 
-    /// run a query task without waiting for its result. Returns a joinHandle to
+    /// run a query task without waiting for its result. Returns a JoinHandle to
     /// obtain the result later
+    ///
+    /// The main idea behind is to push queries to background threads to reduce
+    /// the time the python thread got to wait for query results
+    ///
+    /// ´´´svgbob
+    /// .---------------------------------.  .-----------------------------.
+    /// |   python doing some work, incl. |  |  python obtaining and using |
+    /// |  starting the query             |  |  the queryresults           |
+    /// `---------------------------------'  `-----------------------------'
+    ///                   .--------------------.
+    ///                   |  the running query |
+    ///                   | incl. uncompacting |
+    ///                   `--------------------'
+    /// ´´´
     pub fn spawn_query(
         &self,
         query_kind: Query,
