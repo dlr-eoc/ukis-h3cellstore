@@ -7,7 +7,7 @@ description = "Internal code of h3cpy"
 
 [dependencies]
 regex = "^1.4"
-lazy_static = "1.4.0"
+lazy_static = "^1.4"
 geo-types = "^0.6"
 geo = "^0.16"
 ndarray = "0.14"
@@ -19,9 +19,8 @@ h3ron = "0.7.1"
 h3ron-h3-sys = "0.7.1"
 
 [dependencies.clickhouse-rs]
-git = "https://github.com/suharev7/clickhouse-rs.git"
-rev = "d288a4f8a" # to include https://github.com/suharev7/clickhouse-rs/pull/102
+version = "1.0.0-alpha.1"
 
 [dependencies.futures-util]
-version = "0.3.5"
+version = "^0.3"
 features = ["sink"]

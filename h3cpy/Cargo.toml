@@ -31,14 +31,14 @@ version = "0.12.4"
 features = ["extension-module"]
 
 [dependencies.tokio]
-version = "0.2.21"
+version = "^1"
 default-features = false
 features = [
     "io-util",
     "time",
     "net",
     "sync",
-    #"rt-threaded"
+    "rt-multi-thread"
 ]
 
 [package.metadata.maturin]
