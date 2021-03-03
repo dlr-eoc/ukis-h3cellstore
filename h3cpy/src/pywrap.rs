@@ -10,11 +10,12 @@ use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
-    PyResult,
     types::{PyBytes, PyTuple},
+    PyResult,
 };
 use wkb::WKBReadExt;
 
+use h3cpy_int::geo::algorithm::bounding_rect::BoundingRect;
 use h3cpy_int::geo::algorithm::contains::Contains;
 use h3cpy_int::geo_types as gt;
 
@@ -114,9 +115,7 @@ impl Polygon {
 
 impl From<gt::Polygon<f64>> for Polygon {
     fn from(gt_poly: gt::Polygon<f64>) -> Self {
-        Self {
-            inner: gt_poly
-        }
+        Self { inner: gt_poly }
     }
 }
 
@@ -150,28 +149,55 @@ fn geotypes_polygon_to_pyobject(poly: &gt::Polygon<f64>, py: Python) -> PyResult
 /// they are contained in polygons
 #[pyclass]
 pub struct H3IndexesContainedIn {
-    h3index_points: Vec<(u64, gt::Coordinate<f64>)>,
+    h3indexes: Vec<u64>,
+    h3indexes_coords: Vec<gt::Coordinate<f64>>,
+
+    /// the box all points are contained in
+    bounding_poly: Option<gt::Polygon<f64>>,
 }
 
 #[pymethods]
 impl H3IndexesContainedIn {
     #[staticmethod]
     pub fn from_array(h3indexes: PyReadonlyArray1<u64>) -> PyResult<Self> {
-        let h3indexes_vec = h3indexes.as_array();
-        let mut h3index_points = Vec::with_capacity(h3indexes_vec.len());
-        for h3index in h3indexes_vec.iter() {
-            h3index_points.push((*h3index, Index::new(*h3index).to_coordinate()))
+        let h3indexes = h3indexes.as_array().to_vec();
+
+        let mut h3indexes_coords = Vec::with_capacity(h3indexes.len());
+        for h3index in h3indexes.iter() {
+            h3indexes_coords.push(Index::new(*h3index).to_coordinate())
         }
-        Ok(Self { h3index_points })
+        let bounding_poly = gt::MultiPoint(
+            h3indexes_coords
+                .iter()
+                .map(|coord| gt::Point(*coord))
+                .collect(),
+        )
+        .bounding_rect()
+        .map(|r| r.to_polygon());
+
+        Ok(Self {
+            h3indexes,
+            h3indexes_coords,
+            bounding_poly,
+        })
     }
 
     /// perform a containment check and return a numpy array of the contained
     /// h3indexes.
     pub fn contained_h3indexes(&self, poly: &Polygon) -> PyResult<Py<PyArray<u64, Ix1>>> {
+        // shortcut - is the whole bounding_poly inside the other poly, then there is no need
+        // to check each of the points. Should be helpful when dealing with large
+        // satellite footprints.
+        if let Some(bounding_poly) = &self.bounding_poly {
+            if poly.inner.contains(bounding_poly) {
+                return Ok(vec_to_numpy_owned(self.h3indexes.clone()));
+            }
+        }
         let contained: Vec<_> = self
-            .h3index_points
+            .h3indexes
             .iter()
-            .filter(|(_, c)| poly.inner.contains(c))
+            .zip(self.h3indexes_coords.iter())
+            .filter(|(_, c)| poly.inner.contains(*c))
             .map(|(h3index, _)| *h3index)
             .collect();
 
