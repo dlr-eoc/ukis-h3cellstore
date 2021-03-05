@@ -15,9 +15,9 @@ use pyo3::{
 };
 use wkb::WKBReadExt;
 
-use h3cpy_int::geo::algorithm::bounding_rect::BoundingRect;
-use h3cpy_int::geo::algorithm::contains::Contains;
-use h3cpy_int::geo_types as gt;
+use bamboo_h3_int::geo::algorithm::bounding_rect::BoundingRect;
+use bamboo_h3_int::geo::algorithm::contains::Contains;
+use bamboo_h3_int::geo_types as gt;
 
 pub fn check_index_valid(index: &Index) -> PyResult<()> {
     if !index.is_valid() {
@@ -31,7 +31,7 @@ pub fn check_index_valid(index: &Index) -> PyResult<()> {
 }
 
 pub fn intresult_to_pyresult<T>(
-    res: std::result::Result<T, h3cpy_int::error::Error>,
+    res: std::result::Result<T, bamboo_h3_int::error::Error>,
 ) -> PyResult<T> {
     match res {
         Ok(v) => Ok(v),

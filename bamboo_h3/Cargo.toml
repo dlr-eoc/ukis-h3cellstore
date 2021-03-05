@@ -1,5 +1,5 @@
 [package]
-name = "h3cpy"
+name = "bamboo_h3"
 version = "0.6.0"
 edition = "2018"
 authors = [
@@ -7,11 +7,11 @@ authors = [
 ]
 
 [lib]
-name = "h3cpy"
+name = "bamboo_h3"
 crate-type = ["cdylib"]
 
 [dependencies]
-h3cpy_int = { path = "../h3cpy_int" }
+bamboo_h3_int = { path = "../bamboo_h3_int" }
 numpy = "^0.13"
 log = "0.4"
 env_logger = "0.8"

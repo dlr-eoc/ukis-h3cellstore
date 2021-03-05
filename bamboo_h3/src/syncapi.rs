@@ -5,12 +5,12 @@ use pyo3::{PyErr, PyResult};
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
-use h3cpy_int::clickhouse::query::{
+use bamboo_h3_int::clickhouse::query::{
     list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
 };
-use h3cpy_int::clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, Pool};
-use h3cpy_int::compacted_tables::TableSet;
-use h3cpy_int::ColVec;
+use bamboo_h3_int::clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, Pool};
+use bamboo_h3_int::compacted_tables::TableSet;
+use bamboo_h3_int::ColVec;
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))

@@ -10,7 +10,7 @@ pub mod compacted_tables;
 pub mod error;
 pub mod window;
 
-// re-export some crates for downstream h3cpy (and other crates) to ensure matching
+// re-export some crates for downstream bamboo_h3 (and other crates) to ensure matching
 // versions
 pub use geo_types;
 pub use geo;

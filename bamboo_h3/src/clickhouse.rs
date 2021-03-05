@@ -5,8 +5,8 @@ use h3ron::Index;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{prelude::*, PyResult, Python};
 
-use h3cpy_int::ColVec;
-use h3cpy_int::compacted_tables::TableSetQuery;
+use bamboo_h3_int::ColVec;
+use bamboo_h3_int::compacted_tables::TableSetQuery;
 
 use crate::{
     inspect::TableSet as TableSetWrapper,

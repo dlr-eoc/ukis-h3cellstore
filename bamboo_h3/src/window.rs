@@ -6,7 +6,7 @@ use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
-use h3cpy_int::{
+use bamboo_h3_int::{
     ColVec,
     compacted_tables::{TableSet, TableSetQuery},
     geo::algorithm::{centroid::Centroid, intersects::Intersects},

@@ -1,9 +1,9 @@
 [package]
-name = "h3cpy_int"
+name = "bamboo_h3_int"
 version = "0.6.0"
 authors = ["Nico Mandery <nico.mandery@dlr.de>"]
 edition = "2018"
-description = "Internal code of h3cpy"
+description = "Internal code of bamboo_h3"
 
 [dependencies]
 regex = "^1.4"
