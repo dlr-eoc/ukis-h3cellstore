@@ -80,6 +80,7 @@ impl ClickhousePool {
         })
     }
 
+    #[svgbobdoc::transform]
     /// run a query task without waiting for its result. Returns a JoinHandle to
     /// obtain the result later
     ///
