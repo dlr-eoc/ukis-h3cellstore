@@ -6,7 +6,7 @@ use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use h3cpy_int::compacted_tables as ct;
+use bamboo_h3_int::compacted_tables as ct;
 
 #[pyclass]
 #[derive(Clone)]

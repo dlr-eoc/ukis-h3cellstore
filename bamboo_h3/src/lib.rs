@@ -7,7 +7,7 @@ use pyo3::{
     Python, wrap_pyfunction,
 };
 
-use h3cpy_int::ColVec;
+use bamboo_h3_int::ColVec;
 
 use crate::{
     clickhouse::{ClickhouseConnection, ResultSet},
@@ -77,12 +77,12 @@ resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
 #[pyfunction]
 fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::pywrap::Polygon> {
     let view = np_array.as_array();
-    Ok(h3cpy_int::algorithm::h3indexes_convex_hull(&view).into())
+    Ok(bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into())
 }
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn h3cpy(py: Python, m: &PyModule) -> PyResult<()> {
+fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
     env_logger::init();
 
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;

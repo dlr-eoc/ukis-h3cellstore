@@ -35,9 +35,9 @@ import shapely.wkb
 from datetime import datetime
 from shapely.geometry import shape, Polygon
 
-import h3cpy
-from h3cpy.concurrent import process_polygon
-from h3cpy.postgres import fetch_using_intersecting_h3indexes
+import bamboo_h3
+from bamboo_h3.concurrent import process_polygon
+from bamboo_h3.postgres import fetch_using_intersecting_h3indexes
 
 # number of worker processes to use, set to 1 to skip parallelization and
 # gain better debuggability
@@ -111,7 +111,7 @@ def process_window(window_geom: Polygon):
     postgres_meta_cur = postgres_meta_conn.cursor()
 
     # connect to clickhouse
-    clickhouse_conn = h3cpy.ClickhouseConnection(DSN_CLICKHOUSE)
+    clickhouse_conn = bamboo_h3.ClickhouseConnection(DSN_CLICKHOUSE)
     tablesets = clickhouse_conn.list_tablesets()
 
     # connect to postgres for output
@@ -173,7 +173,7 @@ def process_window(window_geom: Polygon):
         # has been covered by a scene - they are not stored. We just use the scene footprints to generate our subset of
         # h3indexes for each scene covering a h3index
         indexes_found = detections_df.h3index.unique()
-        query_polygon = h3cpy.h3indexes_convex_hull(indexes_found)
+        query_polygon = bamboo_h3.h3indexes_convex_hull(indexes_found)
 
         scene_h3indexes_df = fetch_using_intersecting_h3indexes(
             postgres_meta_cur,

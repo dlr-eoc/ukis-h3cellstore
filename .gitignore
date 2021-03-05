@@ -1,4 +1,4 @@
 /target
 /Cargo.lock
-/h3cpy/example_processor.mod.py
+/bamboo_h3/example_processor.mod.py
 *.prof

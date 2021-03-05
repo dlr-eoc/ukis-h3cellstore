@@ -3,8 +3,8 @@ import geojson
 import numpy as np
 import pandas as pd
 
-from . import h3cpy as lib
-from .h3cpy import create_connection, \
+from . import bamboo_h3 as lib
+from .bamboo_h3 import create_connection, \
     Polygon, \
     CompactedTable, \
     TableSet, \

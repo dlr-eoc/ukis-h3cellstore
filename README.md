@@ -1,8 +1,8 @@
-# h3cpy
+# bamboo_h3
 
 Python bindings to integrate clickhouse H3 databases with the python data-science world.
 
-![](doc/img/h3cpy.png)
+![](doc/img/bamboo_h3.png)
 
 ## Goals
 
