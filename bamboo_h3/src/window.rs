@@ -1,28 +1,28 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use h3ron::{Index, polyfill, ToPolygon};
+use h3ron::{polyfill, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use bamboo_h3_int::{
-    ColVec,
     compacted_tables::{TableSet, TableSetQuery},
     geo::algorithm::{centroid::Centroid, intersects::Intersects},
     geo_types::Polygon,
     window::window_index_resolution,
+    ColVec,
 };
 
-use crate::clickhouse::{ResultSet, AwaitableResultSet};
+use crate::clickhouse::{AwaitableResultSet, ResultSet};
 use crate::pywrap::intresult_to_pyresult;
 use crate::syncapi::{ClickhousePool, Query};
+use std::iter::FromIterator;
 
 #[pyclass]
 pub struct SlidingH3Window {
     clickhouse_pool: Arc<ClickhousePool>,
     window_polygon: Polygon<f64>,
     target_h3_resolution: u8,
-    window_h3_resolution: u8,
     window_indexes: Vec<Index>,
     iter_pos: usize,
 
@@ -98,7 +98,6 @@ pub fn create_window(
         clickhouse_pool,
         window_polygon,
         target_h3_resolution,
-        window_h3_resolution,
         window_indexes: window_index_set.drain().collect(),
         iter_pos: 0,
         prefetched_window_indexes: Default::default(),
@@ -117,8 +116,11 @@ fn preload_next_resultset(sliding_window: &mut SlidingH3Window) -> PyResult<()> 
     if let Some(queryparameters) = next_window_queryparameters(sliding_window)? {
         let mut resultset: ResultSet = AwaitableResultSet {
             clickhouse_pool: sliding_window.clickhouse_pool.clone(),
-            handle: sliding_window.clickhouse_pool.spawn_query(queryparameters.query)
-        }.into();
+            handle: sliding_window
+                .clickhouse_pool
+                .spawn_query(queryparameters.query),
+        }
+        .into();
         resultset.window_h3index = Some(queryparameters.window_h3index);
         resultset.h3indexes_queried = Some(queryparameters.h3indexes_queried);
         sliding_window.preloaded_window = Some(resultset);
@@ -183,7 +185,7 @@ fn next_window_index(sliding_window: &mut SlidingH3Window) -> PyResult<Option<H3
     }
 }
 
-const WINDOW_INDEX_COL_NAME: &str = "window_index";
+const WINDOW_INDEX_COL_NAME: &str = "h3index";
 
 /// prefetch until some data-containing indexes where found, or the
 /// window has been completely crawled
@@ -203,22 +205,26 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
             return Ok(()); // reached the end of the window iteration
         }
 
-        let query_string = {
-            let h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
+        let query = {
+            let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
             let q = intresult_to_pyresult(
                 sliding_window
                     .tableset
                     .build_select_query(&h3indexes, &sliding_window.prefetch_query),
             )?;
-            format!(
-                "select distinct h3ToParent(h3index, {}) as {} from ({})",
-                sliding_window.window_h3_resolution, WINDOW_INDEX_COL_NAME, q
+            Query::Uncompact(
+                format!(
+                    "select distinct h3index as {} from ({})",
+                    WINDOW_INDEX_COL_NAME,
+                    q
+                ),
+                HashSet::from_iter(h3indexes.drain(..)),
             )
         };
 
         let query_data = sliding_window
             .clickhouse_pool
-            .query(Query::Plain(query_string))?;
+            .query(query)?;
         if let Some(colvec) = query_data.get(WINDOW_INDEX_COL_NAME) {
             if colvec.is_empty() {
                 continue;
