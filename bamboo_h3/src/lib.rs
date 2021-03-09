@@ -4,7 +4,7 @@ use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::{PyIndexError, PyValueError},
     prelude::*,
-    Python, wrap_pyfunction,
+    wrap_pyfunction, Python,
 };
 
 use bamboo_h3_int::ColVec;
@@ -14,6 +14,8 @@ use crate::{
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
 };
+use either::Either;
+use pyo3::exceptions::PyRuntimeError;
 
 mod clickhouse;
 mod inspect;
@@ -39,26 +41,32 @@ macro_rules! resultset_drain_column_fn {
     ($fnname:ident, $dtype:ty, $cvtype:ident) => {
         #[pyfunction]
         fn $fnname(rs: &mut ResultSet, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
-            if let Some(cv) = rs.column_data.get_mut(column_name) {
-                if let ColVec::$cvtype(v) = cv {
-                    let data = std::mem::take(v);
-                    Ok(crate::pywrap::vec_to_numpy_owned(data))
+            rs.await_column_data()?;
+            if let Either::Left(cd) = &mut rs.column_data {
+                if let Some(cv) = cd.get_mut(column_name) {
+                    if let ColVec::$cvtype(v) = cv {
+                        let data = std::mem::take(v);
+                        Ok(crate::pywrap::vec_to_numpy_owned(data))
+                    } else {
+                        Err(PyValueError::new_err(format!(
+                            "column {} is not accessible as type {}",
+                            column_name,
+                            stringify!($dtype)
+                        )))
+                    }
                 } else {
-                    Err(PyValueError::new_err(format!(
-                        "column {} is not accessible as type {}",
-                        column_name,
-                        stringify!($dtype)
+                    Err(PyIndexError::new_err(format!(
+                        "unknown column {}",
+                        column_name
                     )))
                 }
             } else {
-                Err(PyIndexError::new_err(format!(
-                    "unknown column {}",
-                    column_name
-                )))
+                Err(PyRuntimeError::new_err("non-awaited resultset"))
             }
         }
     };
 }
+
 
 resultset_drain_column_fn!(resultset_drain_column_u8, u8, U8);
 resultset_drain_column_fn!(resultset_drain_column_i8, i8, I8);

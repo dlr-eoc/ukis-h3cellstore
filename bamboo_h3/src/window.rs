@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use h3ron::{Index, polyfill, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
-use tokio::task::JoinHandle as TaskJoinHandle;
 
 use bamboo_h3_int::{
     ColVec,
@@ -14,7 +13,7 @@ use bamboo_h3_int::{
     window::window_index_resolution,
 };
 
-use crate::clickhouse::ResultSet;
+use crate::clickhouse::{ResultSet, AwaitableResultSet};
 use crate::pywrap::intresult_to_pyresult;
 use crate::syncapi::{ClickhousePool, Query};
 
@@ -32,29 +31,18 @@ pub struct SlidingH3Window {
 
     tableset: TableSet,
     query: TableSetQuery,
+
+    /// query to pre-evaluate if a window is worth fetching
     prefetch_query: TableSetQuery,
-    preloaded_window: Option<PreloadedWindow>,
+    preloaded_window: Option<ResultSet>,
 }
 
 #[pymethods]
 impl SlidingH3Window {
     fn fetch_next_window(&mut self) -> PyResult<Option<ResultSet>> {
         if let Some(preloaded) = self.preloaded_window.take() {
-            let mut resultset: ResultSet =
-                self.clickhouse_pool.await_query(preloaded.awaiting)?.into();
-            resultset.h3indexes_queried = Some(preloaded.h3indexes_queried);
-            resultset.window_h3index = Some(preloaded.window_h3index);
-
-            next_window_preload(self)?;
-
-            Ok(Some(resultset))
-        } else if let Some(queryparameters) = next_window_queryparameters(self)? {
-            let mut resultset: ResultSet =
-                self.clickhouse_pool.query(queryparameters.query)?.into();
-            resultset.h3indexes_queried = Some(queryparameters.h3indexes_queried);
-            resultset.window_h3index = Some(queryparameters.window_h3index);
-
-            Ok(Some(resultset))
+            preload_next_resultset(self)?;
+            Ok(Some(preloaded))
         } else {
             Ok(None)
         }
@@ -70,9 +58,6 @@ pub fn create_window(
     window_max_size: u32,
     query: TableSetQuery,
     prefetch_query: Option<TableSetQuery>,
-
-    // preload the data for the next window in the background
-    preload: bool,
 ) -> PyResult<SlidingH3Window> {
     let window_h3_resolution =
         window_index_resolution(&tableset, target_h3_resolution, window_max_size);
@@ -123,30 +108,20 @@ pub fn create_window(
         preloaded_window: None,
     };
 
-    if preload {
-        next_window_preload(&mut sliding_window)?;
-    }
+    preload_next_resultset(&mut sliding_window)?;
 
     Ok(sliding_window)
 }
 
-struct PreloadedWindow {
-    awaiting: TaskJoinHandle<PyResult<HashMap<String, ColVec>>>,
-    h3indexes_queried: Vec<u64>,
-    window_h3index: u64,
-}
-
-fn next_window_preload(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
+fn preload_next_resultset(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
     if let Some(queryparameters) = next_window_queryparameters(sliding_window)? {
-        let preloaded = PreloadedWindow {
-            awaiting: sliding_window
-                .clickhouse_pool
-                .spawn_query(queryparameters.query),
-
-            h3indexes_queried: queryparameters.h3indexes_queried,
-            window_h3index: queryparameters.window_h3index,
-        };
-        sliding_window.preloaded_window = Some(preloaded);
+        let mut resultset: ResultSet = AwaitableResultSet {
+            clickhouse_pool: sliding_window.clickhouse_pool.clone(),
+            handle: sliding_window.clickhouse_pool.spawn_query(queryparameters.query)
+        }.into();
+        resultset.window_h3index = Some(queryparameters.window_h3index);
+        resultset.h3indexes_queried = Some(queryparameters.h3indexes_queried);
+        sliding_window.preloaded_window = Some(resultset);
     }
     Ok(())
 }
