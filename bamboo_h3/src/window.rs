@@ -70,9 +70,6 @@ pub fn create_window(
     window_max_size: u32,
     query: TableSetQuery,
     prefetch_query: Option<TableSetQuery>,
-
-    // preload the data for the next window in the background
-    preload: bool,
 ) -> PyResult<SlidingH3Window> {
     let window_h3_resolution =
         window_index_resolution(&tableset, target_h3_resolution, window_max_size);
@@ -123,9 +120,7 @@ pub fn create_window(
         preloaded_window: None,
     };
 
-    if preload {
-        next_window_preload(&mut sliding_window)?;
-    }
+    next_window_preload(&mut sliding_window)?;
 
     Ok(sliding_window)
 }
