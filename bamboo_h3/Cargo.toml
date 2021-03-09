@@ -19,6 +19,7 @@ wkb = "0.7"
 h3ron = "0.7.1"
 h3ron-h3-sys = "0.7.1"
 svgbobdoc = "^0.2"
+either = "^1.6"
 
 [dependencies.geojson]
 version = "^0.21"
