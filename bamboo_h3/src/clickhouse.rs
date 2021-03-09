@@ -67,7 +67,7 @@ impl ClickhouseConnection {
             .collect())
     }
 
-    fn fetch_query(&mut self, query_string: String) -> PyResult<ResultSet> {
+    fn query_fetch(&mut self, query_string: String) -> PyResult<ResultSet> {
         let awrs = AwaitableResultSet {
             clickhouse_pool: self.clickhouse_pool.clone(),
             handle: self.clickhouse_pool.spawn_query(Query::Plain(query_string)),
@@ -75,18 +75,18 @@ impl ClickhouseConnection {
         Ok(awrs.into())
     }
 
-    #[args(querystring_template = "None")]
-    fn fetch_tableset(
+    #[args(query_template = "None")]
+    fn tableset_fetch(
         &mut self,
         tableset: &TableSetWrapper,
         h3indexes: PyReadonlyArray1<u64>,
-        querystring_template: Option<String>,
+        query_template: Option<String>,
     ) -> PyResult<ResultSet> {
         let h3indexes_vec = h3indexes.as_array().to_vec();
         let query_string = intresult_to_pyresult(
             tableset
                 .inner
-                .build_select_query(&h3indexes_vec, &querystring_template.into()),
+                .build_select_query(&h3indexes_vec, &query_template.into()),
         )?;
 
         let awrs = AwaitableResultSet {
@@ -102,17 +102,17 @@ impl ClickhouseConnection {
     }
 
     /// check if the tableset contains the h3index or any of its parents
-    #[args(querystring_template = "None")]
-    fn has_data(
+    #[args(query_template = "None")]
+    fn tableset_contains_h3index(
         &mut self,
         tableset: &TableSetWrapper,
         h3index: u64,
-        querystring_template: Option<String>,
+        query_template: Option<String>,
     ) -> PyResult<bool> {
         let index = Index::from(h3index);
         check_index_valid(&index)?;
 
-        let tablesetquery = match querystring_template {
+        let tablesetquery = match query_template {
             Some(qs) => TableSetQuery::TemplatedSelect(format!("{} limit 1", qs)),
             None => TableSetQuery::TemplatedSelect(
                 "select h3index from <[table]> where h3index in <[h3indexes]> limit 1".to_string(),

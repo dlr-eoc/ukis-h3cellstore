@@ -1,8 +1,8 @@
 # import from rust library
+from typing import Dict
 import geojson
 import numpy as np
 import pandas as pd
-
 from . import bamboo_h3 as lib
 from .bamboo_h3 import create_connection, \
     Polygon, \
@@ -47,6 +47,11 @@ class ClickhouseResultSet:
 
     @property
     def column_types(self):
+        """
+        This method will wait for asynchronous queries to be finished executing.
+
+        :return:
+        """
         return self.resultset.column_types
 
     @property
@@ -70,6 +75,8 @@ class ClickhouseResultSet:
 
         draining meeans that the data gets moved to avoid duplication and increased
         memory requirements. The resultset will be empty afterwards
+
+        This method will wait for asynchronous queries to be finished executing.
         """
         data = {}
         for column_name, column_type in self.column_types.items():
@@ -106,6 +113,57 @@ class ClickhouseResultSet:
 
 
 class ClickhouseConnection:
+    """
+    Connection to the clickhouse DB
+
+    Query terminology
+    =================
+
+    In this documentation there are multiple kinds of SQL-queries with slight differences. Hopefully this
+    section explains these differences a bit.
+
+    Querystring
+    -----------
+
+    This as simple as it gets, it is just a SQL string without any placeholders or support for parameters.
+
+    QueryTemplate
+    -------------
+
+    This is also just a string, also without any parameter support. The difference is that it is geared to be
+    used with tableset. It can be applied to any resolution of a tableset and this library will use this query
+    to dynamically query the compacted, lower resolutions of the tableset to be able to perform the uncompacting
+    of data.
+
+    The selected columns must include the h3indexes in a column named `h3index`
+
+    The query must include these placeholders:
+    * '<[table]>': will be filled with the table to be queried
+    * '<[h3indexes]>': will be filled with an array of h3indexes used for the query
+
+    Asynchronicity
+    ==============
+
+    Some query functionalities of this library are asynchronous. This is not to be confused with pythons `async`/`await`
+    syntax. In contrast to the native python async support, this here does not require any special calling conventions,
+    or an `asyncio` loop to execute.
+
+    This library internally uses multiple threads. Async-Queries are send to background threads to execute. After
+    that python can continue to do other work. Only when the data of the resultset is accessed, the python-thread
+    will wait until the results of the query have arrived. In the optimal case, the query has already finished executing
+    and python can directly access the data.
+
+    Functions with are asynchronous are marked in their docstring.
+
+    .. code-block:: python
+
+        some_data = conn.query_fetch("select .....")
+
+        # do something else
+
+        df = some_data.to_dataframe() # now the query will be waited for
+
+    """
     inner = None
 
     def __init__(self, url: str):
@@ -120,11 +178,11 @@ class ClickhouseConnection:
         :param tableset: reference to the tableset to fetch
         :param h3_resolution: H3 resolution to fetch the data at
         :param window_max_size: data for how many h3indexes should be fetched at once
-        :param querystring_template: Template for the query string to fetch the data. Using this
+        :param querystring_template: QueryTemplate for the query string to fetch the data. Using this
                 allows to use SQL JOINs, subqueries and SQL functions before getting the data in a
                 dataframe.
                 When not set the SELECT uses the columns of the tableset.
-        :param prefetch_querystring_template: Template for the prefetch. The prefetch query is used to determinate
+        :param prefetch_querystring_template: QueryTemplate for the prefetch. The prefetch query is used to determinate
                 if it is worth to fetch the contents of a window or not. It is issued against the table
                 containing the window resolution so it needs to inspect far less data and should be faster. Additionally, the
                 data is not read; the query must contain a column named `h3index`.
@@ -147,6 +205,35 @@ class ClickhouseConnection:
                 continue
             yield ClickhouseResultSet(window_data)
 
-    def list_tablesets(self):
+    def list_tablesets(self) -> Dict[str, TableSet]:
         """list all tablesets in the database"""
         return self.inner.list_tablesets()
+
+    def query_fetch(self, query_string) -> ClickhouseResultSet:
+        """
+        execute a query string.
+
+        :return an asynchronous resultset
+        """
+        return ClickhouseResultSet(self.inner.query_fetch(query_string))
+
+    def tableset_fetch(self, tableset: TableSet, h3indexes, query_template=None) -> ClickhouseResultSet:
+        """
+        Fetch data for a given numpy-array of h3 indexes from a tableset. The query will be autogenerated to fetch
+        all columns unless a query template is given via the 'query_template' parameter.
+
+        Uncompacting is done automatically
+
+        :return an asynchronous resultset
+        """
+        return ClickhouseResultSet(
+            self.inner.tableset_fetch(tableset, h3indexes, query_template=query_template)
+        )
+
+    def tableset_contains_h3index(self, tableset:TableSet, h3index: int, query_template=None) -> bool:
+        """
+        check if the tableset contains the h3index or any of its parents
+
+        :return: bool
+        """
+        return self.inner.tableset_contains_h3index(tableset, h3index, query_template=query_template)
