@@ -2,16 +2,16 @@ use std::collections::{HashSet, VecDeque};
 use std::iter::FromIterator;
 use std::sync::Arc;
 
-use h3ron::{Index, polyfill, ToPolygon};
+use h3ron::{polyfill, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use bamboo_h3_int::{
-    COL_NAME_H3INDEX,
-    ColVec,
     compacted_tables::{TableSet, TableSetQuery},
     geo::algorithm::{centroid::Centroid, intersects::Intersects},
-    geo_types::Polygon, window::window_index_resolution,
+    geo_types::Polygon,
+    window::window_index_resolution,
+    ColVec, COL_NAME_H3INDEX,
 };
 
 use crate::clickhouse::{AwaitableResultSet, ResultSet};
@@ -61,10 +61,18 @@ pub fn create_window(
 ) -> PyResult<SlidingH3Window> {
     let window_h3_resolution =
         window_index_resolution(&tableset, target_h3_resolution, window_max_size);
-    log::info!(
-        "sliding window: using H3 res {} as window resolution",
-        window_h3_resolution
-    );
+    if (target_h3_resolution as i16 - window_h3_resolution as i16).abs() <= 3 {
+        log::warn!(
+            "sliding window: using H3 res {} as window resolution to iterate over H3 res {} data. This is probably inefficient - try to increase window_max_size.",
+            window_h3_resolution,
+            target_h3_resolution
+        );
+    } else {
+        log::info!(
+            "sliding window: using H3 res {} as window resolution",
+            window_h3_resolution
+        );
+    }
 
     let mut window_index_set = HashSet::new();
     let mut add_index = |index: Index| {
