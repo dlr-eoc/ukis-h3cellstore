@@ -15,3 +15,8 @@ pub mod window;
 pub use geo_types;
 pub use geo;
 pub use clickhouse_rs;
+
+
+/// the column name which must be used for h3indexes.
+pub const COL_NAME_H3INDEX: &str = "h3index";
+

@@ -3,28 +3,29 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
+use clickhouse_rs::types::{Column, Complex};
 use clickhouse_rs::{
-    ClientHandle,
     errors::{Error, Result},
     types::SqlType,
+    ClientHandle,
 };
-use clickhouse_rs::types::{Column, Complex};
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
-use crate::ColVec;
 use crate::compacted_tables::{find_tablesets, TableSet};
+use crate::{ColVec, COL_NAME_H3INDEX};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
     let mut tablesets = {
         let mut stream = ch
-            .query(
+            .query(format!(
                 "select table
                 from system.columns
-                where name = 'h3index' and database = currentDatabase()",
-            )
+                where name = '{}' and database = currentDatabase()",
+                COL_NAME_H3INDEX
+            ))
             .stream();
 
         let mut tablenames = vec![];
@@ -52,10 +53,10 @@ pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, Tabl
                 from system.columns
                 where table in ({})
                 and database = currentDatabase()
-                and not startsWith(name, 'h3index')
+                and not startsWith(name, '{}')
                 group by name, type
         ",
-                set_table_names
+                set_table_names, COL_NAME_H3INDEX
             ))
             .stream();
         while let Some(c_row_res) = columns_stream.next().await {
@@ -97,10 +98,7 @@ pub async fn query_all(
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
-        out_rows.insert(
-            column.name().to_string(),
-            read_column(column, None)?,
-        );
+        out_rows.insert(column.name().to_string(), read_column(column, None)?);
     }
     Ok(out_rows)
 }
@@ -118,10 +116,17 @@ pub async fn query_all_with_uncompacting(
     };
     let block = ch.query(query_string).fetch_all().await?;
 
-    let h3index_column = if let Some(c) = block.columns().iter().find(|c| c.name() == "h3index") {
+    let h3index_column = if let Some(c) = block
+        .columns()
+        .iter()
+        .find(|c| c.name() == COL_NAME_H3INDEX)
+    {
         c
     } else {
-        return Err(Error::Other(Cow::from("no h3index column found")));
+        return Err(Error::Other(Cow::from(format!(
+            "no {} column found",
+            COL_NAME_H3INDEX
+        ))));
     };
 
     // the number denoting how often a value of the other columns must be repeated
@@ -159,7 +164,7 @@ pub async fn query_all_with_uncompacting(
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
-        if column.name() == "h3index" {
+        if column.name() == COL_NAME_H3INDEX {
             continue;
         }
 
@@ -168,40 +173,40 @@ pub async fn query_all_with_uncompacting(
             read_column(column, Some((num_uncompacted_rows, &row_repetitions)))?,
         );
     }
-    out_rows.insert("h3index".to_string(), h3_vec);
+    out_rows.insert(COL_NAME_H3INDEX.to_string(), h3_vec);
     Ok(out_rows)
 }
 
 fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
     macro_rules! column_values {
-            ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
-                let values = if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
-                    // repeat columns values according to the counts of the row_repetitions vec
-                    // to create a "flat" table.
-                    let mut values = Vec::with_capacity(num_uncompacted_rows);
-                    let mut pos = 0_usize;
-                    for v in column.iter::<$itertype>()?.map($conv_closure) {
-                        for _ in 0..row_repetitions[pos] {
-                            values.push(v)
-                        }
-                        pos += 1;
+        ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
+            let values = if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
+                // repeat columns values according to the counts of the row_repetitions vec
+                // to create a "flat" table.
+                let mut values = Vec::with_capacity(num_uncompacted_rows);
+                let mut pos = 0_usize;
+                for v in column.iter::<$itertype>()?.map($conv_closure) {
+                    for _ in 0..row_repetitions[pos] {
+                        values.push(v)
                     }
-                    values
-                } else {
-                    // just copy everything
-                    column.iter::<$itertype>()?.map($conv_closure).collect()
-                };
-                ColVec::$cvtype(values)
-            }};
-            ($cvtype:ident, $itertype:ty) => {
-                if row_reps.is_some() {
-                    column_values!($cvtype, $itertype, |v| v.clone())
-                } else {
-                    let values = column.iter::<$itertype>()?.cloned().collect::<Vec<_>>();
-                    ColVec::$cvtype(values)
+                    pos += 1;
                 }
+                values
+            } else {
+                // just copy everything
+                column.iter::<$itertype>()?.map($conv_closure).collect()
             };
-        }
+            ColVec::$cvtype(values)
+        }};
+        ($cvtype:ident, $itertype:ty) => {
+            if row_reps.is_some() {
+                column_values!($cvtype, $itertype, |v| v.clone())
+            } else {
+                let values = column.iter::<$itertype>()?.cloned().collect::<Vec<_>>();
+                ColVec::$cvtype(values)
+            }
+        };
+    }
 
     let values = match column.sql_type() {
         SqlType::UInt8 => column_values!(U8, u8),
@@ -220,34 +225,34 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
         SqlType::DateTime(_) => {
             column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
         }
-        SqlType::Nullable(inner_sqltype) => {
-            match inner_sqltype {
-                SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.copied()),
-                SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.copied()),
-                SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.copied()),
-                SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.copied()),
-                SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.copied()),
-                SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.copied()),
-                SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.copied()),
-                SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.copied()),
-                SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.copied()),
-                SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.copied()),
-                SqlType::Date => {
-                    column_values!(DateN, Option<Date<Tz>>, |d| d.map(|inner| to_datetime(&inner).timestamp()))
-                }
-                SqlType::DateTime(_) => {
-                    column_values!(DateTimeN, Option<DateTime<Tz>>, |d| d.map(|inner| inner.timestamp()))
-                }
-                _ => {
-                    error!(
-                        "unsupported nullable column type {} for column {}",
-                        column.sql_type().to_string(),
-                        column.name()
-                    );
-                    return Err(Error::Other(Cow::from("unsupported nullable column type")));
-                }
+        SqlType::Nullable(inner_sqltype) => match inner_sqltype {
+            SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.copied()),
+            SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.copied()),
+            SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.copied()),
+            SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.copied()),
+            SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.copied()),
+            SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.copied()),
+            SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.copied()),
+            SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.copied()),
+            SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.copied()),
+            SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.copied()),
+            SqlType::Date => {
+                column_values!(DateN, Option<Date<Tz>>, |d| d
+                    .map(|inner| to_datetime(&inner).timestamp()))
             }
-        }
+            SqlType::DateTime(_) => {
+                column_values!(DateTimeN, Option<DateTime<Tz>>, |d| d
+                    .map(|inner| inner.timestamp()))
+            }
+            _ => {
+                error!(
+                    "unsupported nullable column type {} for column {}",
+                    column.sql_type().to_string(),
+                    column.name()
+                );
+                return Err(Error::Other(Cow::from("unsupported nullable column type")));
+            }
+        },
         _ => {
             error!(
                 "unsupported column type {} for column {}",
@@ -260,8 +265,7 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
     Ok(values)
 }
 
-
 #[inline]
 fn to_datetime(date: &Date<Tz>) -> DateTime<Tz> {
-    date.and_hms(12, 0 ,0)
+    date.and_hms(12, 0, 0)
 }

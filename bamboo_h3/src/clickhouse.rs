@@ -6,7 +6,7 @@ use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{prelude::*, PyResult, Python};
 
 use bamboo_h3_int::compacted_tables::TableSetQuery;
-use bamboo_h3_int::ColVec;
+use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::{
     inspect::TableSet as TableSetWrapper,
@@ -115,7 +115,11 @@ impl ClickhouseConnection {
         let tablesetquery = match query_template {
             Some(qs) => TableSetQuery::TemplatedSelect(format!("{} limit 1", qs)),
             None => TableSetQuery::TemplatedSelect(
-                "select h3index from <[table]> where h3index in <[h3indexes]> limit 1".to_string(),
+                format!(
+                    "select {} from <[table]> where {} in <[h3indexes]> limit 1",
+                    COL_NAME_H3INDEX,
+                    COL_NAME_H3INDEX,
+                )
             ),
         };
         let query_string = intresult_to_pyresult(

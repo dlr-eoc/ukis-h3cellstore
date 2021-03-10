@@ -1,22 +1,22 @@
 use std::collections::{HashSet, VecDeque};
+use std::iter::FromIterator;
 use std::sync::Arc;
 
-use h3ron::{polyfill, Index, ToPolygon};
+use h3ron::{Index, polyfill, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use bamboo_h3_int::{
+    COL_NAME_H3INDEX,
+    ColVec,
     compacted_tables::{TableSet, TableSetQuery},
     geo::algorithm::{centroid::Centroid, intersects::Intersects},
-    geo_types::Polygon,
-    window::window_index_resolution,
-    ColVec,
+    geo_types::Polygon, window::window_index_resolution,
 };
 
 use crate::clickhouse::{AwaitableResultSet, ResultSet};
 use crate::pywrap::intresult_to_pyresult;
 use crate::syncapi::{ClickhousePool, Query};
-use std::iter::FromIterator;
 
 #[pyclass]
 pub struct SlidingH3Window {
@@ -185,8 +185,6 @@ fn next_window_index(sliding_window: &mut SlidingH3Window) -> PyResult<Option<H3
     }
 }
 
-const WINDOW_INDEX_COL_NAME: &str = "h3index";
-
 /// prefetch until some data-containing indexes where found, or the
 /// window has been completely crawled
 fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
@@ -213,19 +211,13 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
                     .build_select_query(&h3indexes, &sliding_window.prefetch_query),
             )?;
             Query::Uncompact(
-                format!(
-                    "select distinct h3index as {} from ({})",
-                    WINDOW_INDEX_COL_NAME,
-                    q
-                ),
+                format!("select distinct {} from ({})", COL_NAME_H3INDEX, q),
                 HashSet::from_iter(h3indexes.drain(..)),
             )
         };
 
-        let query_data = sliding_window
-            .clickhouse_pool
-            .query(query)?;
-        if let Some(colvec) = query_data.get(WINDOW_INDEX_COL_NAME) {
+        let query_data = sliding_window.clickhouse_pool.query(query)?;
+        if let Some(colvec) = query_data.get(COL_NAME_H3INDEX) {
             if colvec.is_empty() {
                 continue;
             }
@@ -240,13 +232,13 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
                 }
                 _ => Err(PyRuntimeError::new_err(format!(
                     "expected the '{}' column of the prefetch query to be UInt64",
-                    WINDOW_INDEX_COL_NAME
+                    COL_NAME_H3INDEX
                 ))),
             };
         } else {
             return Err(PyRuntimeError::new_err(format!(
                 "expected the generated prefetch query to contain a column called '{}'",
-                WINDOW_INDEX_COL_NAME
+                COL_NAME_H3INDEX
             )));
         }
     }
