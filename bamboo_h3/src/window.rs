@@ -199,7 +199,7 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
     loop {
         // prefetch a new batch
         let mut indexes_to_prefetch = vec![];
-        for _ in 0..100 {
+        for _ in 0..600 {
             if let Some(window_index) = sliding_window.window_indexes.get(sliding_window.iter_pos) {
                 indexes_to_prefetch.push(window_index);
                 sliding_window.iter_pos += 1;
