@@ -15,6 +15,15 @@ Python bindings to integrate clickhouse H3 databases with the python data-scienc
 
 # Usage
 
+## Connecting to clickhouse
+
+This library uses [clickhouse_rs], so all the connection options from [the documentation there](https://docs.rs/clickhouse-rs/1.0.0-alpha.1/clickhouse_rs/index.html#dns)
+can be used. A few things to keep in mind:
+
+* Always use the cheap `lz4` compression. This reduces the amount of data to be transfered over the network.
+* The default `connection_timeout` is quite low for large amounts of geodata. You may want to increase that, but it also should be multiple minutes.
+
+
 ## Logging
 
 This library uses rusts [log crate](https://docs.rs/log/0.4.6/log/) together with 
