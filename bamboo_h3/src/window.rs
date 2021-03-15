@@ -1,5 +1,4 @@
 use std::collections::{HashSet, VecDeque};
-use std::iter::FromIterator;
 use std::sync::Arc;
 
 use h3ron::{polyfill, Index, ToPolygon};
@@ -220,7 +219,7 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
             )?;
             Query::Uncompact(
                 format!("select distinct {} from ({})", COL_NAME_H3INDEX, q),
-                HashSet::from_iter(h3indexes.drain(..)),
+                h3indexes.drain(..).collect(),
             )
         };
 

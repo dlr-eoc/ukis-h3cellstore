@@ -10,7 +10,7 @@ use pyo3::{
 use bamboo_h3_int::ColVec;
 
 use crate::{
-    clickhouse::{ClickhouseConnection, ResultSet},
+    clickhouse::{ClickhouseConnection, ResultSet, validate_clickhouse_url},
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
 };
@@ -32,6 +32,7 @@ fn version() -> PyResult<String> {
 /// open a connection to clickhouse
 #[pyfunction]
 fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
+    validate_clickhouse_url(db_url)?;
     Ok(ClickhouseConnection::new(Arc::new(ClickhousePool::create(
         db_url,
     )?)))

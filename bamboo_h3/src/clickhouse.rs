@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use h3ron::Index;
+use log::warn;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{prelude::*, PyResult, Python};
 
@@ -16,6 +17,7 @@ use crate::{
 };
 use either::Either;
 use either::Either::{Left, Right};
+use pyo3::exceptions::PyValueError;
 use std::collections::hash_map::RandomState;
 use tokio::task::JoinHandle as TaskJoinHandle;
 
@@ -114,13 +116,10 @@ impl ClickhouseConnection {
 
         let tablesetquery = match query_template {
             Some(qs) => TableSetQuery::TemplatedSelect(format!("{} limit 1", qs)),
-            None => TableSetQuery::TemplatedSelect(
-                format!(
-                    "select {} from <[table]> where {} in <[h3indexes]> limit 1",
-                    COL_NAME_H3INDEX,
-                    COL_NAME_H3INDEX,
-                )
-            ),
+            None => TableSetQuery::TemplatedSelect(format!(
+                "select {} from <[table]> where {} in <[h3indexes]> limit 1",
+                COL_NAME_H3INDEX, COL_NAME_H3INDEX,
+            )),
         };
         let query_string = intresult_to_pyresult(
             tableset
@@ -234,4 +233,28 @@ impl ResultSet {
         }
         Ok(true)
     }
+}
+
+pub(crate) fn validate_clickhouse_url(u: &str) -> PyResult<()> {
+    let parsed_url = url::Url::parse(u)
+        .map_err(|e| PyValueError::new_err(format!("Invalid Url given: {:?}", e)))?;
+
+    let parameters: HashMap<_, _> = parsed_url
+        .query_pairs()
+        .map(|(name, value)| (name.to_lowercase(), value.to_string()))
+        .collect();
+
+    if parameters
+        .get("compression")
+        .cloned()
+        .unwrap_or_else(|| "none".to_string())
+        == *"none"
+    {
+        warn!("possible inefficient data transfer: consider setting a compression_method in the clickhouse connection parameters. 'lz4' is one option.")
+    }
+    if parameters.get("connection_timeout").is_none() {
+        warn!("short connection_timeout: clickhouse connection parameters sets no connection_timeout, so it uses the very short default of 500ms")
+    }
+
+    Ok(())
 }
