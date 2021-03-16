@@ -121,12 +121,10 @@ pub fn create_window(
 
 fn preload_next_resultset(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
     if let Some(queryparameters) = next_window_queryparameters(sliding_window)? {
-        let mut resultset: ResultSet = AwaitableResultSet {
-            clickhouse_pool: sliding_window.clickhouse_pool.clone(),
-            handle: sliding_window
-                .clickhouse_pool
-                .spawn_query(queryparameters.query),
-        }
+        let mut resultset: ResultSet = AwaitableResultSet::new(
+            sliding_window.clickhouse_pool.clone(),
+            queryparameters.query,
+        )
         .into();
         resultset.window_h3index = Some(queryparameters.window_h3index);
         resultset.h3indexes_queried = Some(queryparameters.h3indexes_queried);

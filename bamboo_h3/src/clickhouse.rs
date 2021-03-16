@@ -17,8 +17,8 @@ use crate::{
 };
 use either::Either;
 use either::Either::{Left, Right};
-use pyo3::exceptions::PyValueError;
-use std::collections::hash_map::RandomState;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use std::time::{Duration, Instant};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
 #[pyclass]
@@ -70,10 +70,8 @@ impl ClickhouseConnection {
     }
 
     fn query_fetch(&mut self, query_string: String) -> PyResult<ResultSet> {
-        let awrs = AwaitableResultSet {
-            clickhouse_pool: self.clickhouse_pool.clone(),
-            handle: self.clickhouse_pool.spawn_query(Query::Plain(query_string)),
-        };
+        let awrs =
+            AwaitableResultSet::new(self.clickhouse_pool.clone(), Query::Plain(query_string));
         Ok(awrs.into())
     }
 
@@ -91,14 +89,11 @@ impl ClickhouseConnection {
                 .build_select_query(&h3indexes_vec, &query_template.into()),
         )?;
 
-        let awrs = AwaitableResultSet {
-            clickhouse_pool: self.clickhouse_pool.clone(),
-            handle: self.clickhouse_pool.spawn_query(Query::Uncompact(
-                query_string,
-                h3indexes_vec.iter().cloned().collect(),
-            )),
-        };
-        let mut resultset: ResultSet = awrs.into();
+        let mut resultset: ResultSet = AwaitableResultSet::new(
+            self.clickhouse_pool.clone(),
+            Query::Uncompact(query_string, h3indexes_vec.iter().cloned().collect()),
+        )
+        .into();
         resultset.h3indexes_queried = Some(h3indexes_vec);
         Ok(resultset)
     }
@@ -130,25 +125,54 @@ impl ClickhouseConnection {
     }
 }
 
-pub(crate) struct AwaitableResultSet<T> {
-    pub(crate) clickhouse_pool: Arc<ClickhousePool>,
-    pub(crate) handle: TaskJoinHandle<PyResult<T>>,
+pub(crate) struct AwaitableResultSet {
+    pub clickhouse_pool: Arc<ClickhousePool>,
+    pub handle: Option<TaskJoinHandle<PyResult<HashMap<String, ColVec>>>>,
+
+    /// time the query started
+    pub t_query_start: Instant,
+}
+
+impl AwaitableResultSet {
+    pub fn new(clickhouse_pool: Arc<ClickhousePool>, query: Query) -> Self {
+        let handle = Some(clickhouse_pool.spawn_query(query));
+        Self {
+            clickhouse_pool,
+            handle,
+            t_query_start: Instant::now(),
+        }
+    }
+
+    pub fn wait_until_finished(&mut self) -> PyResult<(HashMap<String, ColVec>, Duration)> {
+        if let Some(handle) = self.handle.take() {
+            let resultmap = self.clickhouse_pool.await_query(handle)?;
+            Ok((resultmap, self.t_query_start.elapsed()))
+        } else {
+            Err(PyRuntimeError::new_err(
+                "resultset can only be awaited once".to_string(),
+            ))
+        }
+    }
 }
 
 #[pyclass]
 pub struct ResultSet {
     pub(crate) h3indexes_queried: Option<Vec<u64>>,
     pub(crate) window_h3index: Option<u64>,
-    pub(crate) column_data:
-        Either<HashMap<String, ColVec>, Option<AwaitableResultSet<HashMap<String, ColVec>>>>,
+    pub(crate) column_data: Either<HashMap<String, ColVec>, Option<AwaitableResultSet>>,
+
+    /// the duration the query took to finish
+    /// Not measured for all queries
+    query_duration: Option<Duration>,
 }
 
 impl ResultSet {
     pub(crate) fn await_column_data(&mut self) -> PyResult<()> {
         if let Either::Right(maybe_awaitable) = &mut self.column_data {
-            if let Some(awaitable) = maybe_awaitable.take() {
-                let columns_hashmap = awaitable.clickhouse_pool.await_query(awaitable.handle)?;
+            if let Some(mut awaitable) = maybe_awaitable.take() {
+                let (columns_hashmap, query_duration) = awaitable.wait_until_finished()?;
                 self.column_data = Left(columns_hashmap);
+                self.query_duration = Some(query_duration);
             }
         }
         Ok(())
@@ -161,16 +185,18 @@ impl From<HashMap<String, ColVec>> for ResultSet {
             h3indexes_queried: None,
             window_h3index: None,
             column_data: Left(column_data),
+            query_duration: None,
         }
     }
 }
 
-impl From<AwaitableResultSet<HashMap<String, ColVec>>> for ResultSet {
-    fn from(awrs: AwaitableResultSet<HashMap<String, ColVec, RandomState>>) -> Self {
+impl From<AwaitableResultSet> for ResultSet {
+    fn from(awrs: AwaitableResultSet) -> Self {
         Self {
             h3indexes_queried: None,
             window_h3index: None,
             column_data: Right(Some(awrs)),
+            query_duration: None,
         }
     }
 }
@@ -232,6 +258,16 @@ impl ResultSet {
             }
         }
         Ok(true)
+    }
+
+    #[getter]
+    /// the number of seconds the query took to execute
+    ///
+    /// Only measured for async queries, so this may be None.
+    /// Calling this results in waiting until the results are available.
+    pub fn get_query_duration_secs(&mut self) -> PyResult<Option<f64>> {
+        self.await_column_data()?;
+        Ok(self.query_duration.map(|d| d.as_millis() as f64 / 1000.0))
     }
 }
 

@@ -55,6 +55,18 @@ class ClickhouseResultSet:
         return self.resultset.column_types
 
     @property
+    def query_duration_secs(self):
+        """
+        The number of seconds the query took to execute.
+
+        Only measured for async queries, so this may be None.
+        Calling this results in waiting until the results are available.
+
+        :return: float|None
+        """
+        return self.resultset.query_duration_secs
+
+    @property
     def num_h3indexes_queried(self):
         """get the number of h3indexes which where used in the query"""
         return self.resultset.num_h3indexes_queried
