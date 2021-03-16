@@ -170,6 +170,7 @@ def process_window(window_geom: Polygon):
 
         # get as a pandas dataframe. This will move the data, so the resultset will be empty afterwards
         detections_df = resultset.to_dataframe()
+        print(f"query took {resultset.query_duration_secs} secs and returned {detections_df.size} rows")
 
         recording_timestamps = [
             datetime.utcfromtimestamp(ts.astype("O") / 1e9) for ts in detections_df.recorded_at.unique()
