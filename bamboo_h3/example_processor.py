@@ -26,6 +26,12 @@ ssh your-user-name@torvalds.eoc.dlr.de -L 9010:localhost:9010 -L 5433:localhost:
 Credentials for the Postgres metadata db are in the password database.
 """
 
+
+# set the loglevel for bamboo_h3. This is optional, but must be done before bamboo_h3 is
+# imported to take effect.
+import os
+os.environ["RUST_LOG"] = "bamboo_h3=debug"
+
 import h3.api.numpy_int as h3
 import h3ronpy
 import json

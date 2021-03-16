@@ -100,12 +100,18 @@ pub fn create_window(
         window_index_set.len()
     );
 
+    let mut window_indexes: Vec<_> = window_index_set.drain().collect();
+
+    // always process windows in the same order. This is probably easier for to
+    // user when inspecting the results produced during the processing
+    window_indexes.sort_unstable();
+
     let prefetch_query_fallback = prefetch_query.unwrap_or_else(|| query.clone());
     let mut sliding_window = SlidingH3Window {
         clickhouse_pool,
         window_polygon,
         target_h3_resolution,
-        window_indexes: window_index_set.drain().collect(),
+        window_indexes,
         iter_pos: 0,
         prefetched_window_indexes: Default::default(),
         tableset,
