@@ -254,7 +254,7 @@ class ClickhouseConnection:
 
 
 def to_dataframecontents(df: pd.DataFrame) -> DataFrameContents:
-    contents = DataFrameContents.create()
+    contents = DataFrameContents()
     for column_name in df.columns:
         contents.add_numpy_column(column_name, df[column_name].to_numpy())
     return contents

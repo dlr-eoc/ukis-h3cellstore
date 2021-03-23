@@ -30,14 +30,14 @@ pub struct DataFrameContents {
 #[pymethods]
 impl DataFrameContents {
 
-    #[staticmethod]
-    pub fn create() -> Self {
+    #[new]
+    fn new() -> Self {
         Self {
             columns: Default::default(),
         }
     }
 
-    pub fn add_numpy_column(&mut self, column_name: String, data: DataFrameColumnData) {
+    fn add_numpy_column(&mut self, column_name: String, data: DataFrameColumnData) {
         self.columns.insert(column_name, data.into());
     }
 }
