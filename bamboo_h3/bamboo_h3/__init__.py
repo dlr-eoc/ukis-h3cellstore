@@ -257,6 +257,7 @@ def to_dataframecontents(df: pd.DataFrame) -> DataFrameContents:
     contents = DataFrameContents()
     for column_name in df.columns:
         contents.add_numpy_column(column_name, df[column_name].to_numpy())
+    print(len(contents))
     return contents
 
 def dump_dataframe(df: pd.DataFrame):
