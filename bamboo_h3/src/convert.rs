@@ -1,9 +1,37 @@
 use bamboo_h3_int::ColVec;
-use numpy::PyReadonlyArray1;
+use h3ron::Index;
+use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::PyMappingProtocol;
 use std::collections::HashMap;
+
+pub fn check_index_valid(index: &Index) -> PyResult<()> {
+    if !index.is_valid() {
+        Err(PyValueError::new_err(format!(
+            "invalid h3index given: {}",
+            index.h3index()
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn intresult_to_pyresult<T>(
+    res: std::result::Result<T, bamboo_h3_int::error::Error>,
+) -> PyResult<T> {
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Err(PyValueError::new_err(e.to_string())),
+    }
+}
+
+/// convert a Vec to a numpy array
+pub fn vec_to_numpy_owned<T: numpy::Element>(in_vec: Vec<T>) -> Py<PyArray<T, Ix1>> {
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    in_vec.into_pyarray(py).to_owned()
+}
 
 /// dataframe columns passed from python to this library
 #[derive(FromPyObject)]

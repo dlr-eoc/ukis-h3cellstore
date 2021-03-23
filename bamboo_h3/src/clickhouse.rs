@@ -10,8 +10,9 @@ use bamboo_h3_int::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::{
+    convert::{check_index_valid, intresult_to_pyresult},
+    geo::Polygon,
     inspect::TableSet as TableSetWrapper,
-    pywrap::{check_index_valid, intresult_to_pyresult, Polygon},
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };

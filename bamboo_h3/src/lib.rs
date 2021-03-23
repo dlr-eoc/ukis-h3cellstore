@@ -10,20 +10,20 @@ use pyo3::{
 use bamboo_h3_int::ColVec;
 
 use crate::{
-    clickhouse::{ClickhouseConnection, ResultSet, validate_clickhouse_url},
+    clickhouse::{validate_clickhouse_url, ClickhouseConnection, ResultSet},
+    convert::DataFrameContents,
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
-    from_py::DataFrameContents,
 };
 use either::Either;
 use pyo3::exceptions::PyRuntimeError;
 
 mod clickhouse;
+mod convert;
+mod geo;
 mod inspect;
-mod pywrap;
 mod syncapi;
 mod window;
-mod from_py;
 
 /// version of the module
 #[pyfunction]
@@ -49,7 +49,7 @@ macro_rules! resultset_drain_column_fn {
                 if let Some(cv) = cd.get_mut(column_name) {
                     if let ColVec::$cvtype(v) = cv {
                         let data = std::mem::take(v);
-                        Ok(crate::pywrap::vec_to_numpy_owned(data))
+                        Ok(crate::convert::vec_to_numpy_owned(data))
                     } else {
                         Err(PyValueError::new_err(format!(
                             "column {} is not accessible as type {}",
@@ -70,7 +70,6 @@ macro_rules! resultset_drain_column_fn {
     };
 }
 
-
 resultset_drain_column_fn!(resultset_drain_column_u8, u8, U8);
 resultset_drain_column_fn!(resultset_drain_column_i8, i8, I8);
 resultset_drain_column_fn!(resultset_drain_column_u16, u16, U16);
@@ -86,18 +85,21 @@ resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
 
 #[pyfunction]
 fn dump_dataframecontents(df_contents: &DataFrameContents) -> PyResult<()> {
-    df_contents.columns.iter().for_each(|(column_name, colvec )| {
-        println!("column {}, type: {}", column_name, colvec.type_name());
-        if let ColVec::U32(cv32) = colvec {
-            dbg!(cv32);
-        }
-    });
+    df_contents
+        .columns
+        .iter()
+        .for_each(|(column_name, colvec)| {
+            println!("column {}, type: {}", column_name, colvec.type_name());
+            if let ColVec::U32(cv32) = colvec {
+                dbg!(cv32);
+            }
+        });
     Ok(())
 }
 
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
-fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::pywrap::Polygon> {
+fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo::Polygon> {
     let view = np_array.as_array();
     Ok(bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into())
 }
@@ -114,19 +116,16 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
         py.get_type::<ClickhouseConnection>(),
     )?;
     m.add("ResultSet", py.get_type::<ResultSet>())?;
-    m.add("Polygon", py.get_type::<crate::pywrap::Polygon>())?;
+    m.add("Polygon", py.get_type::<crate::geo::Polygon>())?;
     m.add(
         "H3IndexesContainedIn",
-        py.get_type::<crate::pywrap::H3IndexesContainedIn>(),
+        py.get_type::<crate::geo::H3IndexesContainedIn>(),
     )?;
     m.add(
         "SlidingH3Window",
         py.get_type::<crate::window::SlidingH3Window>(),
     )?;
-    m.add(
-        "DataFrameContents",
-        py.get_type::<DataFrameContents>(),
-    )?;
+    m.add("DataFrameContents", py.get_type::<DataFrameContents>())?;
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
@@ -150,4 +149,3 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
 
     Ok(())
 }
-
