@@ -88,4 +88,33 @@ impl ColVec {
             ColVec::DateTimeN(v) => v.is_empty(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            ColVec::U8(v) => v.len(),
+            ColVec::U8N(v) => v.len(),
+            ColVec::I8(v) => v.len(),
+            ColVec::I8N(v) => v.len(),
+            ColVec::U16(v) => v.len(),
+            ColVec::U16N(v) => v.len(),
+            ColVec::I16(v) => v.len(),
+            ColVec::I16N(v) => v.len(),
+            ColVec::U32(v) => v.len(),
+            ColVec::U32N(v) => v.len(),
+            ColVec::I32(v) => v.len(),
+            ColVec::I32N(v) => v.len(),
+            ColVec::U64(v) => v.len(),
+            ColVec::U64N(v) => v.len(),
+            ColVec::I64(v) => v.len(),
+            ColVec::I64N(v) => v.len(),
+            ColVec::F32(v) => v.len(),
+            ColVec::F32N(v) => v.len(),
+            ColVec::F64(v) => v.len(),
+            ColVec::F64N(v) => v.len(),
+            ColVec::Date(v) => v.len(),
+            ColVec::DateN(v) => v.len(),
+            ColVec::DateTime(v) => v.len(),
+            ColVec::DateTimeN(v) => v.len(),
+        }
+    }
 }
