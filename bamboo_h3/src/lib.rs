@@ -13,6 +13,7 @@ use crate::{
     clickhouse::{ClickhouseConnection, ResultSet, validate_clickhouse_url},
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
+    from_py::DataFrameContents,
 };
 use either::Either;
 use pyo3::exceptions::PyRuntimeError;
@@ -22,6 +23,7 @@ mod inspect;
 mod pywrap;
 mod syncapi;
 mod window;
+mod from_py;
 
 /// version of the module
 #[pyfunction]
@@ -82,6 +84,17 @@ resultset_drain_column_fn!(resultset_drain_column_f64, f64, F64);
 resultset_drain_column_fn!(resultset_drain_column_date, i64, Date);
 resultset_drain_column_fn!(resultset_drain_column_datetime, i64, DateTime);
 
+#[pyfunction]
+fn dump_dataframecontents(df_contents: &DataFrameContents) -> PyResult<()> {
+    df_contents.columns.iter().for_each(|(column_name, colvec )| {
+        println!("column {}, type: {}", column_name, colvec.type_name());
+        if let ColVec::U32(cv32) = colvec {
+            dbg!(cv32);
+        }
+    });
+    Ok(())
+}
+
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
 fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::pywrap::Polygon> {
@@ -110,6 +123,10 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
         "SlidingH3Window",
         py.get_type::<crate::window::SlidingH3Window>(),
     )?;
+    m.add(
+        "DataFrameContents",
+        py.get_type::<DataFrameContents>(),
+    )?;
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
@@ -129,5 +146,8 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(h3indexes_convex_hull, m)?)?;
 
+    m.add_function(wrap_pyfunction!(dump_dataframecontents, m)?)?;
+
     Ok(())
 }
+

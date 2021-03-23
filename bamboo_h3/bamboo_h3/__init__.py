@@ -11,7 +11,8 @@ from .bamboo_h3 import create_connection, \
     ResultSet, \
     H3IndexesContainedIn, \
     h3indexes_convex_hull, \
-    version
+    version, \
+    DataFrameContents
 
 __all__ = [
     "ClickhouseConnection",
@@ -24,6 +25,7 @@ __all__ = [
     h3indexes_convex_hull.__name__,
     TableSet.__name__,
     H3IndexesContainedIn.__name__,
+    DataFrameContents.__name__,
 ]
 
 __version__ = version()
@@ -249,3 +251,14 @@ class ClickhouseConnection:
         :return: bool
         """
         return self.inner.tableset_contains_h3index(tableset, h3index, query_template=query_template)
+
+
+def to_dataframecontents(df: pd.DataFrame) -> DataFrameContents:
+    contents = DataFrameContents.create()
+    for column_name in df.columns:
+        contents.add_numpy_column(column_name, df[column_name].to_numpy())
+    return contents
+
+def dump_dataframe(df: pd.DataFrame):
+    lib.dump_dataframecontents(to_dataframecontents(df))
+
