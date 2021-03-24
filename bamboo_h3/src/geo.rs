@@ -1,3 +1,7 @@
+///
+/// geospatial primitives and algorithms
+///
+
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::Cursor;

@@ -5,6 +5,7 @@ use pyo3::{PyErr, PyResult};
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
+use crate::convert::ColumnSet;
 use bamboo_h3_int::clickhouse::query::{
     list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
 };
@@ -97,10 +98,7 @@ impl ClickhousePool {
     ///                   | incl. uncompacting |
     ///                   `--------------------'
     /// ´´´
-    pub fn spawn_query(
-        &self,
-        query_kind: Query,
-    ) -> TaskJoinHandle<PyResult<HashMap<String, ColVec>>> {
+    pub fn spawn_query(&self, query_kind: Query) -> TaskJoinHandle<PyResult<ColumnSet>> {
         let p = &self.pool;
         let gethandle = self.runtime.block_on(async { p.get_handle().await });
         self.runtime.spawn(async {
@@ -116,7 +114,8 @@ impl ClickhousePool {
                 Query::Uncompact(query_string, h3index_set) => {
                     query_all_with_uncompacting(client, query_string, h3index_set).await
                 }
-            };
+            }
+            .map(|hm| hm.into());
             ch_to_pyresult(res)
         })
     }
@@ -124,8 +123,8 @@ impl ClickhousePool {
     /// obtain the result of a formerly started query task (with `spawn_query`)
     pub fn await_query(
         &self,
-        join_handle: TaskJoinHandle<PyResult<HashMap<String, ColVec>>>,
-    ) -> PyResult<HashMap<String, ColVec>> {
+        join_handle: TaskJoinHandle<PyResult<ColumnSet>>,
+    ) -> PyResult<ColumnSet> {
         self.runtime.block_on(async move {
             join_handle.await.map_err(|e| {
                 PyRuntimeError::new_err(format!("could not join awaited query handle: {:?}", e))

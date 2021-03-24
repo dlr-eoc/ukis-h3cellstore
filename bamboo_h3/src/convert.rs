@@ -1,7 +1,7 @@
 use bamboo_h3_int::ColVec;
 use h3ron::Index;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyValueError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::PyMappingProtocol;
 use std::collections::HashMap;
@@ -53,15 +53,20 @@ impl Into<ColVec> for DataFrameColumnData<'_> {
     }
 }
 
+///
+/// a set of columns with their values
+///
+/// This can be seen as the equivalent to the pandas DateFrame but limited
+/// to storage only.
 #[pyclass]
-pub struct DataFrameContents {
+pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
 
     /// length of all of the columns in the dataframe
     size: Option<usize>,
 }
 
-impl DataFrameContents {
+impl ColumnSet {
     /// create without validating the lenghts of the columns
     pub fn from_columns(columns: HashMap<String, ColVec>) -> Self {
         let size = columns
@@ -105,7 +110,7 @@ impl DataFrameContents {
     }
 }
 
-impl Default for DataFrameContents {
+impl Default for ColumnSet {
     fn default() -> Self {
         Self {
             columns: Default::default(),
@@ -114,8 +119,16 @@ impl Default for DataFrameContents {
     }
 }
 
+impl From<HashMap<String, ColVec>> for ColumnSet {
+    fn from(columns: HashMap<String, ColVec>) -> Self {
+        Self::from_columns(columns)
+    }
+}
+
+
+
 #[pymethods]
-impl DataFrameContents {
+impl ColumnSet {
     #[new]
     fn new() -> Self {
         Self {
@@ -127,10 +140,72 @@ impl DataFrameContents {
     fn add_numpy_column(&mut self, column_name: String, data: DataFrameColumnData) -> PyResult<()> {
         self.add_column(column_name, data.into())
     }
+
+    #[getter]
+    /// get the names and types of the columns in the df
+    fn get_column_types(&self) -> PyResult<HashMap<String, String>> {
+        self.column_type_names()
+    }
+
+    #[getter]
+    fn get_empty(&self) -> PyResult<bool> {
+        Ok(self.is_empty())
+    }
 }
 
+// creating multiple impls is ugly - replace this in the future
+macro_rules! columnset_drain_column_fn {
+    ($fnname:ident, $dtype:ty, $cvtype:ident) => {
+
+        #[pymethods]
+        impl ColumnSet {
+            fn $fnname(&mut self, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
+                if let Some(cv) = self.columns.get_mut(column_name) {
+                    if let ColVec::$cvtype(v) = cv {
+                        let data = std::mem::take(v);
+
+                        // remove new completely as the type matches
+                        self.columns.remove(column_name);
+                        if self.columns.is_empty() {
+                            self.size = None;
+                        }
+
+                        Ok(crate::convert::vec_to_numpy_owned(data))
+                    } else {
+                        Err(PyValueError::new_err(format!(
+                            "column {} is not accessible as type {}",
+                            column_name,
+                            stringify!($dtype)
+                        )))
+                    }
+                } else {
+                    Err(PyIndexError::new_err(format!(
+                        "unknown column {}",
+                        column_name
+                    )))
+                }
+            }
+            }
+    };
+}
+
+columnset_drain_column_fn!(drain_column_u8, u8, U8);
+columnset_drain_column_fn!(drain_column_i8, i8, I8);
+columnset_drain_column_fn!(drain_column_u16, u16, U16);
+columnset_drain_column_fn!(drain_column_i16, i16, I16);
+columnset_drain_column_fn!(drain_column_u32, u32, U32);
+columnset_drain_column_fn!(drain_column_i32, i32, I32);
+columnset_drain_column_fn!(drain_column_u64, u64, U64);
+columnset_drain_column_fn!(drain_column_i64, i64, I64);
+columnset_drain_column_fn!(drain_column_f32, f32, F32);
+columnset_drain_column_fn!(drain_column_f64, f64, F64);
+columnset_drain_column_fn!(drain_column_date, i64, Date);
+columnset_drain_column_fn!(drain_column_datetime, i64, DateTime);
+
+
+
 #[pyproto]
-impl PyMappingProtocol for DataFrameContents {
+impl PyMappingProtocol for ColumnSet {
     fn __len__(&self) -> usize {
         self.len()
     }

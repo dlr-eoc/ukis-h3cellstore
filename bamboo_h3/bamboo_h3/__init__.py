@@ -1,5 +1,5 @@
 # import from rust library
-from typing import Dict
+from typing import Dict, Optional
 import geojson
 import numpy as np
 import pandas as pd
@@ -11,8 +11,8 @@ from .bamboo_h3 import create_connection, \
     ResultSet, \
     H3IndexesContainedIn, \
     h3indexes_convex_hull, \
-    version, \
-    DataFrameContents
+    version
+from .container import ColumnSet
 
 __all__ = [
     "ClickhouseConnection",
@@ -25,7 +25,7 @@ __all__ = [
     h3indexes_convex_hull.__name__,
     TableSet.__name__,
     H3IndexesContainedIn.__name__,
-    DataFrameContents.__name__,
+    ColumnSet.__name__,
 ]
 
 __version__ = version()
@@ -46,15 +46,6 @@ class ClickhouseResultSet:
 
     def __init__(self, rs: ResultSet):
         self.resultset = rs
-
-    @property
-    def column_types(self):
-        """
-        This method will wait for asynchronous queries to be finished executing.
-
-        :return:
-        """
-        return self.resultset.column_types
 
     @property
     def query_duration_secs(self):
@@ -83,47 +74,34 @@ class ClickhouseResultSet:
         """get the h3index of the window in case this resultset was fetched in a sliding window"""
         return self.resultset.window_index
 
-    def to_dataframe(self):
+    def to_columnset(self) -> Optional[ColumnSet]:
         """
-        drains the resultset into a pandas dataframe.
+        drains the resultset into a columnset.
 
-        draining meeans that the data gets moved to avoid duplication and increased
+        draining means that the data gets moved to avoid duplication and increased
         memory requirements. The resultset will be empty afterwards
 
         This method will wait for asynchronous queries to be finished executing.
         """
-        data = {}
-        for column_name, column_type in self.column_types.items():
-            array = None
-            if column_type == 'u8':
-                array = lib.resultset_drain_column_u8(self.resultset, column_name)
-            elif column_type == 'i8':
-                array = lib.resultset_drain_column_i8(self.resultset, column_name)
-            elif column_type == 'u16':
-                array = lib.resultset_drain_column_u16(self.resultset, column_name)
-            elif column_type == 'i16':
-                array = lib.resultset_drain_column_i16(self.resultset, column_name)
-            elif column_type == 'u32':
-                array = lib.resultset_drain_column_u32(self.resultset, column_name)
-            elif column_type == 'i32':
-                array = lib.resultset_drain_column_i32(self.resultset, column_name)
-            elif column_type == 'u64':
-                array = lib.resultset_drain_column_u64(self.resultset, column_name)
-            elif column_type == 'i64':
-                array = lib.resultset_drain_column_i64(self.resultset, column_name)
-            elif column_type == 'f32':
-                array = lib.resultset_drain_column_f32(self.resultset, column_name)
-            elif column_type == 'f64':
-                array = lib.resultset_drain_column_f64(self.resultset, column_name)
-            elif column_type == 'date':
-                array = np.asarray(lib.resultset_drain_column_date(self.resultset, column_name), dtype='datetime64[s]')
-            elif column_type == 'datetime':
-                array = np.asarray(lib.resultset_drain_column_datetime(self.resultset, column_name),
-                                   dtype='datetime64[s]')
-            else:
-                raise NotImplementedError(f"unsupported column type: {column_type}")
-            data[column_name] = array
-        return pd.DataFrame(data)
+        inner_cs = self.resultset.columnset()
+        if inner_cs is not None:
+            return ColumnSet(inner_cs)
+        return None
+
+    def to_dataframe(self) -> Optional[pd.DataFrame]:
+        """
+        drains the resultset into a pandas dataframe.
+
+        draining means that the data gets moved to avoid duplication and increased
+        memory requirements. The resultset will be empty afterwards
+
+        This method will wait for asynchronous queries to be finished executing.
+        """
+        cs = self.to_columnset()
+        if cs:
+            return cs.to_dataframe()
+        return None
+
 
 
 class ClickhouseConnection:
@@ -244,7 +222,7 @@ class ClickhouseConnection:
             self.inner.tableset_fetch(tableset, h3indexes, query_template=query_template)
         )
 
-    def tableset_contains_h3index(self, tableset:TableSet, h3index: int, query_template=None) -> bool:
+    def tableset_contains_h3index(self, tableset: TableSet, h3index: int, query_template=None) -> bool:
         """
         check if the tableset contains the h3index or any of its parents
 
@@ -252,14 +230,4 @@ class ClickhouseConnection:
         """
         return self.inner.tableset_contains_h3index(tableset, h3index, query_template=query_template)
 
-
-def to_dataframecontents(df: pd.DataFrame) -> DataFrameContents:
-    contents = DataFrameContents()
-    for column_name in df.columns:
-        contents.add_numpy_column(column_name, df[column_name].to_numpy())
-    print(len(contents))
-    return contents
-
-def dump_dataframe(df: pd.DataFrame):
-    lib.dump_dataframecontents(to_dataframecontents(df))
 

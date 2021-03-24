@@ -17,10 +17,10 @@ use crate::{
     window::SlidingH3Window,
 };
 use either::Either;
-use either::Either::{Left, Right};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle as TaskJoinHandle;
+use crate::convert::ColumnSet;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -128,7 +128,7 @@ impl ClickhouseConnection {
 
 pub(crate) struct AwaitableResultSet {
     pub clickhouse_pool: Arc<ClickhousePool>,
-    pub handle: Option<TaskJoinHandle<PyResult<HashMap<String, ColVec>>>>,
+    pub handle: Option<TaskJoinHandle<PyResult<ColumnSet>>>,
 
     /// time the query started
     pub t_query_start: Instant,
@@ -144,9 +144,9 @@ impl AwaitableResultSet {
         }
     }
 
-    pub fn wait_until_finished(&mut self) -> PyResult<(HashMap<String, ColVec>, Duration)> {
+    pub fn wait_until_finished(&mut self) -> PyResult<(ColumnSet, Duration)> {
         if let Some(handle) = self.handle.take() {
-            let resultmap = self.clickhouse_pool.await_query(handle)?;
+            let resultmap = self.clickhouse_pool.await_query(handle)?.into();
             Ok((resultmap, self.t_query_start.elapsed()))
         } else {
             Err(PyRuntimeError::new_err(
@@ -160,7 +160,7 @@ impl AwaitableResultSet {
 pub struct ResultSet {
     pub(crate) h3indexes_queried: Option<Vec<u64>>,
     pub(crate) window_h3index: Option<u64>,
-    pub(crate) column_data: Either<HashMap<String, ColVec>, Option<AwaitableResultSet>>,
+    pub(crate) column_data: Either<Option<ColumnSet>, Option<AwaitableResultSet>>,
 
     /// the duration the query took to finish
     /// Not measured for all queries
@@ -172,7 +172,7 @@ impl ResultSet {
         if let Either::Right(maybe_awaitable) = &mut self.column_data {
             if let Some(mut awaitable) = maybe_awaitable.take() {
                 let (columns_hashmap, query_duration) = awaitable.wait_until_finished()?;
-                self.column_data = Left(columns_hashmap);
+                self.column_data = Either::Left(Some(columns_hashmap.into()));
                 self.query_duration = Some(query_duration);
             }
         }
@@ -185,7 +185,7 @@ impl From<HashMap<String, ColVec>> for ResultSet {
         Self {
             h3indexes_queried: None,
             window_h3index: None,
-            column_data: Left(column_data),
+            column_data: Either::Left(Some(column_data.into())),
             query_duration: None,
         }
     }
@@ -196,7 +196,7 @@ impl From<AwaitableResultSet> for ResultSet {
         Self {
             h3indexes_queried: None,
             window_h3index: None,
-            column_data: Right(Some(awrs)),
+            column_data: Either::Right(Some(awrs)),
             query_duration: None,
         }
     }
@@ -230,35 +230,19 @@ impl ResultSet {
         Ok(self.window_h3index)
     }
 
+
     #[getter]
-    /// get the names and types of the columns in the resultset
+    /// get the contents fetched in resultset
+    ///
+    /// This can be done only once as the ownership get passed to python.
     ///
     /// Calling this results in waiting until the results are available.
-    fn get_column_types(&mut self) -> PyResult<HashMap<String, String>> {
+    fn get_columnset(&mut self) -> PyResult<Option<ColumnSet>> {
         self.await_column_data()?;
-        match &self.column_data {
-            Either::Left(cd) => Ok(cd
-                .iter()
-                .map(|(name, data)| (name.clone(), data.type_name().to_string()))
-                .collect()),
-            Either::Right(_) => Ok(Default::default()),
+        match self.column_data.as_mut() {
+            Either::Left(cd) => Ok(cd.take()),
+            Either::Right(_) => Ok(None),
         }
-    }
-
-    /// Calling this results in waiting until the results are available.
-    pub fn is_empty(&mut self) -> PyResult<bool> {
-        self.await_column_data()?;
-        if let Left(cd) = &self.column_data {
-            if cd.is_empty() {
-                return Ok(true);
-            }
-            for (_, v) in cd.iter() {
-                if !v.is_empty() {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
     }
 
     #[getter]
