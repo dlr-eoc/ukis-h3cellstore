@@ -40,6 +40,13 @@ pub enum DataFrameColumnData<'a> {
     U16(PyReadonlyArray1<'a, u16>),
     U32(PyReadonlyArray1<'a, u32>),
     U64(PyReadonlyArray1<'a, u64>),
+    I8(PyReadonlyArray1<'a, i8>),
+    I16(PyReadonlyArray1<'a, i16>),
+    I32(PyReadonlyArray1<'a, i32>),
+    I64(PyReadonlyArray1<'a, i64>),
+    F32(PyReadonlyArray1<'a, f32>),
+    F64(PyReadonlyArray1<'a, f64>),
+    // TODO: Date and DateTime
 }
 
 impl Into<ColVec> for DataFrameColumnData<'_> {
@@ -49,6 +56,13 @@ impl Into<ColVec> for DataFrameColumnData<'_> {
             Self::U16(ra) => ColVec::U16(ra.as_array().to_vec()),
             Self::U32(ra) => ColVec::U32(ra.as_array().to_vec()),
             Self::U64(ra) => ColVec::U64(ra.as_array().to_vec()),
+            Self::I8(ra) => ColVec::I8(ra.as_array().to_vec()),
+            Self::I16(ra) => ColVec::I16(ra.as_array().to_vec()),
+            Self::I32(ra) => ColVec::I32(ra.as_array().to_vec()),
+            Self::I64(ra) => ColVec::I64(ra.as_array().to_vec()),
+            Self::F32(ra) => ColVec::F32(ra.as_array().to_vec()),
+            Self::F64(ra) => ColVec::F64(ra.as_array().to_vec()),
+            // TODO: Date and DateTime
         }
     }
 }
