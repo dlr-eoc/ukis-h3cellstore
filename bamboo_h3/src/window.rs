@@ -14,7 +14,7 @@ use bamboo_h3_int::{
 };
 
 use crate::clickhouse::{AwaitableResultSet, ResultSet};
-use crate::pywrap::intresult_to_pyresult;
+use crate::convert::intresult_to_pyresult;
 use crate::syncapi::{ClickhousePool, Query};
 
 #[pyclass]

@@ -1,3 +1,7 @@
+///
+/// geospatial primitives and algorithms
+///
+
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -6,7 +10,7 @@ use std::str::FromStr;
 
 use geojson::GeoJson;
 use h3ron::{Index, ToCoordinate};
-use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
+use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
@@ -15,36 +19,10 @@ use pyo3::{
 };
 use wkb::WKBReadExt;
 
+use crate::convert::vec_to_numpy_owned;
 use bamboo_h3_int::geo::algorithm::bounding_rect::BoundingRect;
 use bamboo_h3_int::geo::algorithm::contains::Contains;
 use bamboo_h3_int::geo_types as gt;
-
-pub fn check_index_valid(index: &Index) -> PyResult<()> {
-    if !index.is_valid() {
-        Err(PyValueError::new_err(format!(
-            "invalid h3index given: {}",
-            index.h3index()
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-pub fn intresult_to_pyresult<T>(
-    res: std::result::Result<T, bamboo_h3_int::error::Error>,
-) -> PyResult<T> {
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(PyValueError::new_err(e.to_string())),
-    }
-}
-
-/// convert a Vec to a numpy array
-pub fn vec_to_numpy_owned<T: numpy::Element>(in_vec: Vec<T>) -> Py<PyArray<T, Ix1>> {
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    in_vec.into_pyarray(py).to_owned()
-}
 
 /// a polygon
 #[pyclass]
