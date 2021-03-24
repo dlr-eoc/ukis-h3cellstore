@@ -1,9 +1,6 @@
 # import from rust library
 from typing import Dict, Optional
-import geojson
-import numpy as np
 import pandas as pd
-from . import bamboo_h3 as lib
 from .bamboo_h3 import create_connection, \
     Polygon, \
     CompactedTable, \
@@ -13,6 +10,7 @@ from .bamboo_h3 import create_connection, \
     h3indexes_convex_hull, \
     version
 from .container import ColumnSet
+from .geo import to_polygon
 
 __all__ = [
     "ClickhouseConnection",
@@ -26,19 +24,11 @@ __all__ = [
     TableSet.__name__,
     H3IndexesContainedIn.__name__,
     ColumnSet.__name__,
+    to_polygon.__name__,
 ]
 
 __version__ = version()
 
-
-def to_polygon(input):
-    if type(input) == Polygon:
-        return input
-    if type(input) == str:
-        return Polygon.from_geojson(input)
-    # geojson should also take care of objects implementing __geo_interface__
-    # geo interface specification: https://gist.github.com/sgillies/2217756
-    return Polygon.from_geojson(geojson.dumps(input))
 
 
 class ClickhouseResultSet:
