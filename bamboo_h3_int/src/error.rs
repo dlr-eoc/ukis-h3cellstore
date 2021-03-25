@@ -9,6 +9,7 @@ pub enum Error {
     MixedResolutions,
     NoQueryableTables,
     MissingQueryPlaceholder(String),
+    DifferentColumnLength(String, usize, usize),
 }
 
 impl fmt::Display for Error {
@@ -20,6 +21,9 @@ impl fmt::Display for Error {
             Error::NoQueryableTables => write!(f, "no queryable tables found"),
             Error::MissingQueryPlaceholder(placeholder) => {
                 write!(f, "missing query placeholder: {}", placeholder)
+            },
+            Error::DifferentColumnLength(column_name, expected_len, found_len) => {
+                write!(f, "column {} has the a differing length. Expected {}, found {}", column_name, expected_len, found_len)
             }
         }
     }

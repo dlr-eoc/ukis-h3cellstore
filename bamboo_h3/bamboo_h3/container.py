@@ -24,6 +24,8 @@ class ColumnSet:
         """
         inner = lib.ColumnSet()
         for column_name in df.columns:
+            # TODO: convert numpy datetimes to datetime[s]
+            # numpy uses uint64 for all datetimes, see https://docs.scipy.org/doc/numpy-1.13.0/reference/arrays.datetime.html#datetime-units
             inner.add_numpy_column(column_name, df[column_name].to_numpy())
             if drain:
                 del df[column_name]

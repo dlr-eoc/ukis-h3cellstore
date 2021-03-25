@@ -1,3 +1,6 @@
+use crate::error::Error;
+use std::collections::HashMap;
+
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable
@@ -45,7 +48,7 @@ impl ColVec {
             ColVec::U32N(_) => "u32n",
             ColVec::I32(_) => "i32",
             ColVec::I32N(_) => "i32n",
-            ColVec::U64(_) => "u64" ,
+            ColVec::U64(_) => "u64",
             ColVec::U64N(_) => "u64n",
             ColVec::I64(_) => "i64",
             ColVec::I64N(_) => "i64n",
@@ -116,5 +119,76 @@ impl ColVec {
             ColVec::DateTime(v) => v.len(),
             ColVec::DateTimeN(v) => v.len(),
         }
+    }
+}
+
+///
+/// a set of columns with their values
+///
+/// This can be seen as the equivalent to the pandas DateFrame but limited
+/// to storage only. Additionally, this would be the point where arrow support
+/// could be added (using arrows StructArray)
+pub struct ColumnSet {
+    pub columns: HashMap<String, ColVec>,
+
+    /// length of all of the columns in the dataframe
+    pub size: Option<usize>,
+}
+
+impl ColumnSet {
+    /// create without validating the lenghts of the columns
+    pub fn from_columns(columns: HashMap<String, ColVec>) -> Self {
+        let size = columns
+            .iter()
+            .next()
+            .map_or(None, |(_, colvec)| Some(colvec.len()));
+        Self { columns, size }
+    }
+
+    pub fn add_column(&mut self, column_name: String, colvec: ColVec) -> Result<(), Error> {
+        // enforce all colvecs having the same length
+        if let Some(size) = self.size {
+            if colvec.len() != size {
+                return Err(Error::DifferentColumnLength(
+                    column_name,
+                    colvec.len(),
+                    size,
+                ));
+            }
+        } else {
+            self.size = Some(colvec.len())
+        }
+        self.columns.insert(column_name, colvec);
+        Ok(())
+    }
+
+    pub fn column_type_names(&self) -> HashMap<String, String> {
+        self.columns
+            .iter()
+            .map(|(name, data)| (name.clone(), data.type_name().to_string()))
+            .collect()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.size.is_none() || self.size == Some(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.size.unwrap_or(0)
+    }
+}
+
+impl Default for ColumnSet {
+    fn default() -> Self {
+        Self {
+            columns: Default::default(),
+            size: None,
+        }
+    }
+}
+
+impl From<HashMap<String, ColVec>> for ColumnSet {
+    fn from(columns: HashMap<String, ColVec>) -> Self {
+        Self::from_columns(columns)
     }
 }

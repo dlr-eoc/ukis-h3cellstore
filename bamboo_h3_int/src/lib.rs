@@ -2,6 +2,7 @@
 extern crate lazy_static;
 
 pub use crate::colvec::ColVec;
+pub use crate::colvec::ColumnSet;
 
 pub mod algorithm;
 pub mod clickhouse;

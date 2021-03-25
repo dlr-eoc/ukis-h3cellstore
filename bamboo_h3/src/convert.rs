@@ -67,103 +67,33 @@ impl Into<ColVec> for DataFrameColumnData<'_> {
     }
 }
 
-///
-/// a set of columns with their values
-///
-/// This can be seen as the equivalent to the pandas DateFrame but limited
-/// to storage only.
 #[pyclass]
 pub struct ColumnSet {
-    pub columns: HashMap<String, ColVec>,
-
-    /// length of all of the columns in the dataframe
-    size: Option<usize>,
+    inner: bamboo_h3_int::ColumnSet
 }
-
-impl ColumnSet {
-    /// create without validating the lenghts of the columns
-    pub fn from_columns(columns: HashMap<String, ColVec>) -> Self {
-        let size = columns
-            .iter()
-            .next()
-            .map_or(None, |(_, colvec)| Some(colvec.len()));
-        Self { columns, size }
-    }
-
-    pub fn add_column(&mut self, column_name: String, colvec: ColVec) -> PyResult<()> {
-        // enforce all colvecs having the same length
-        if let Some(size) = self.size {
-            if colvec.len() != size {
-                return Err(PyValueError::new_err(format!(
-                    "column has the wrong length, expected: {}, found: {}",
-                    size,
-                    colvec.len()
-                )));
-            }
-        } else {
-            self.size = Some(colvec.len())
-        }
-        self.columns.insert(column_name, colvec);
-        Ok(())
-    }
-
-    pub fn column_type_names(&self) -> PyResult<HashMap<String, String>> {
-        Ok(self
-            .columns
-            .iter()
-            .map(|(name, data)| (name.clone(), data.type_name().to_string()))
-            .collect())
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.size.is_none() || self.size == Some(0)
-    }
-
-    pub fn len(&self) -> usize {
-        self.size.unwrap_or(0)
-    }
-}
-
-impl Default for ColumnSet {
-    fn default() -> Self {
-        Self {
-            columns: Default::default(),
-            size: None,
-        }
-    }
-}
-
-impl From<HashMap<String, ColVec>> for ColumnSet {
-    fn from(columns: HashMap<String, ColVec>) -> Self {
-        Self::from_columns(columns)
-    }
-}
-
-
 
 #[pymethods]
 impl ColumnSet {
     #[new]
     fn new() -> Self {
         Self {
-            columns: Default::default(),
-            size: None,
+            inner: Default::default()
         }
     }
 
     fn add_numpy_column(&mut self, column_name: String, data: DataFrameColumnData) -> PyResult<()> {
-        self.add_column(column_name, data.into())
+        intresult_to_pyresult(self.inner.add_column(column_name, data.into()))
     }
 
     #[getter]
     /// get the names and types of the columns in the df
     fn get_column_types(&self) -> PyResult<HashMap<String, String>> {
-        self.column_type_names()
+        Ok(self.inner.column_type_names())
     }
 
     #[getter]
     fn get_empty(&self) -> PyResult<bool> {
-        Ok(self.is_empty())
+        Ok(self.inner.is_empty())
     }
 }
 
@@ -174,14 +104,14 @@ macro_rules! columnset_drain_column_fn {
         #[pymethods]
         impl ColumnSet {
             fn $fnname(&mut self, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
-                if let Some(cv) = self.columns.get_mut(column_name) {
+                if let Some(cv) = self.inner.columns.get_mut(column_name) {
                     if let ColVec::$cvtype(v) = cv {
                         let data = std::mem::take(v);
 
                         // remove new completely as the type matches
-                        self.columns.remove(column_name);
-                        if self.columns.is_empty() {
-                            self.size = None;
+                        self.inner.columns.remove(column_name);
+                        if self.inner.columns.is_empty() {
+                            self.inner.size = None;
                         }
 
                         Ok(crate::convert::vec_to_numpy_owned(data))
@@ -216,11 +146,17 @@ columnset_drain_column_fn!(drain_column_f64, f64, F64);
 columnset_drain_column_fn!(drain_column_date, i64, Date);
 columnset_drain_column_fn!(drain_column_datetime, i64, DateTime);
 
-
-
 #[pyproto]
 impl PyMappingProtocol for ColumnSet {
     fn __len__(&self) -> usize {
-        self.len()
+        self.inner.len()
+    }
+}
+
+impl From<HashMap<String, ColVec>> for ColumnSet {
+    fn from(columns: HashMap<String, ColVec>) -> Self {
+        Self {
+            inner: columns.into()
+        }
     }
 }
