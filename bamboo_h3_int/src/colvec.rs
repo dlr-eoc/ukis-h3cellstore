@@ -144,7 +144,7 @@ impl ColumnSet {
         let size = columns
             .iter()
             .next()
-            .map_or(None, |(_, colvec)| Some(colvec.len()));
+            .map(|(_, colvec)| colvec.len());
         Self { columns, size }
     }
 

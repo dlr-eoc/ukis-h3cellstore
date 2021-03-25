@@ -52,8 +52,8 @@ impl Polygon {
     }
 
     /// convert the object to a geojson string
-    fn to_geojson_str(&self) -> PyResult<String> {
-        Ok(geojson::Value::from(&self.inner).to_string())
+    fn to_geojson_str(&self) -> String {
+        geojson::Value::from(&self.inner).to_string()
     }
 
     /// convert to WKB bytes

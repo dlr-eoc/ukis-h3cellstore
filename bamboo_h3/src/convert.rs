@@ -89,13 +89,13 @@ impl ColumnSet {
 
     #[getter]
     /// get the names and types of the columns in the df
-    fn get_column_types(&self) -> PyResult<HashMap<String, String>> {
-        Ok(self.inner.column_type_names())
+    fn get_column_types(&self) -> HashMap<String, String> {
+        self.inner.column_type_names()
     }
 
     #[getter]
-    fn get_empty(&self) -> PyResult<bool> {
-        Ok(self.inner.is_empty())
+    fn get_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 
     fn write_to(&self, filename: String) -> PyResult<()> {

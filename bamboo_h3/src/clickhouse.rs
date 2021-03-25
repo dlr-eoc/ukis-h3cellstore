@@ -9,6 +9,7 @@ use pyo3::{prelude::*, PyResult, Python};
 use bamboo_h3_int::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
+use crate::convert::ColumnSet;
 use crate::{
     convert::{check_index_valid, intresult_to_pyresult},
     geo::Polygon,
@@ -20,7 +21,6 @@ use either::Either;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle as TaskJoinHandle;
-use crate::convert::ColumnSet;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -70,10 +70,8 @@ impl ClickhouseConnection {
             .collect())
     }
 
-    fn query_fetch(&mut self, query_string: String) -> PyResult<ResultSet> {
-        let awrs =
-            AwaitableResultSet::new(self.clickhouse_pool.clone(), Query::Plain(query_string));
-        Ok(awrs.into())
+    fn query_fetch(&mut self, query_string: String) -> ResultSet {
+        AwaitableResultSet::new(self.clickhouse_pool.clone(), Query::Plain(query_string)).into()
     }
 
     #[args(query_template = "None")]
@@ -146,7 +144,7 @@ impl AwaitableResultSet {
 
     pub fn wait_until_finished(&mut self) -> PyResult<(ColumnSet, Duration)> {
         if let Some(handle) = self.handle.take() {
-            let resultmap = self.clickhouse_pool.await_query(handle)?.into();
+            let resultmap = self.clickhouse_pool.await_query(handle)?;
             Ok((resultmap, self.t_query_start.elapsed()))
         } else {
             Err(PyRuntimeError::new_err(
@@ -171,8 +169,8 @@ impl ResultSet {
     pub(crate) fn await_column_data(&mut self) -> PyResult<()> {
         if let Either::Right(maybe_awaitable) = &mut self.column_data {
             if let Some(mut awaitable) = maybe_awaitable.take() {
-                let (columns_hashmap, query_duration) = awaitable.wait_until_finished()?;
-                self.column_data = Either::Left(Some(columns_hashmap.into()));
+                let (columnset, query_duration) = awaitable.wait_until_finished()?;
+                self.column_data = Either::Left(Some(columnset));
                 self.query_duration = Some(query_duration);
             }
         }
@@ -226,10 +224,9 @@ impl ResultSet {
     /// get the h3index of the window in case this resultset was fetched in a
     /// sliding window
     #[getter]
-    fn get_window_index(&self) -> PyResult<Option<u64>> {
-        Ok(self.window_h3index)
+    fn get_window_index(&self) -> Option<u64> {
+        self.window_h3index
     }
-
 
     #[getter]
     /// get the contents fetched in resultset

@@ -22,8 +22,8 @@ mod window;
 
 /// version of the module
 #[pyfunction]
-fn version() -> PyResult<String> {
-    Ok(env!("CARGO_PKG_VERSION").to_string())
+fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 /// open a connection to clickhouse
@@ -38,9 +38,9 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
 
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
-fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo::Polygon> {
+fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> crate::geo::Polygon {
     let view = np_array.as_array();
-    Ok(bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into())
+    bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into()
 }
 
 /// A Python module implemented in Rust.
