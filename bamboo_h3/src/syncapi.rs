@@ -11,7 +11,6 @@ use bamboo_h3_int::clickhouse::query::{
 };
 use bamboo_h3_int::clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, Pool};
 use bamboo_h3_int::compacted_tables::TableSet;
-use bamboo_h3_int::ColVec;
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
@@ -61,7 +60,7 @@ impl ClickhousePool {
         })
     }
 
-    pub fn query(&self, query: Query) -> PyResult<HashMap<String, ColVec>> {
+    pub fn query(&self, query: Query) -> PyResult<bamboo_h3_int::ColumnSet> {
         let p = &self.pool;
         self.runtime.block_on(async {
             let client = match p.get_handle().await {

@@ -126,11 +126,15 @@ class ColumnSet:
         >>> import numpy as np
         >>> df = pd.DataFrame({"x": np.random.rand(2000)})
         >>> column_set = ColumnSet.from_dataframe(df)
+        >>> column_set.column_types
+        {'x': 'f64'}
         >>> filename = f"{gettempdir()}/columnset.cbor.zstd"
         >>> column_set.write_to(filename)
         >>> column_set2 = ColumnSet.read_from(filename)
         >>> len(column_set2)
         2000
+        >>> column_set2.column_types
+        {'x': 'f64'}
         """
         inner = lib.ColumnSet.read_from(filename)
         return ColumnSet(inner)

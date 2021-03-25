@@ -176,3 +176,11 @@ impl From<HashMap<String, ColVec>> for ColumnSet {
         }
     }
 }
+
+impl From<bamboo_h3_int::ColumnSet> for ColumnSet {
+    fn from(cs: bamboo_h3_int::ColumnSet) -> Self {
+        Self {
+            inner: cs,
+        }
+    }
+}

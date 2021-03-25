@@ -228,7 +228,7 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
         };
 
         let query_data = sliding_window.clickhouse_pool.query(query)?;
-        if let Some(colvec) = query_data.get(COL_NAME_H3INDEX) {
+        if let Some(colvec) = query_data.columns.get(COL_NAME_H3INDEX) {
             if colvec.is_empty() {
                 continue;
             }

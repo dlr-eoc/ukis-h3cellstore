@@ -14,7 +14,7 @@ use h3ron::Index;
 use log::{error, warn};
 
 use crate::compacted_tables::{find_tablesets, TableSet};
-use crate::{ColVec, COL_NAME_H3INDEX};
+use crate::{ColVec, COL_NAME_H3INDEX, ColumnSet};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -93,14 +93,14 @@ pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> R
 pub async fn query_all(
     mut ch: ClientHandle,
     query_string: String,
-) -> Result<HashMap<String, ColVec>> {
+) -> Result<ColumnSet> {
     let block = ch.query(query_string).fetch_all().await?;
 
     let mut out_rows = HashMap::new();
     for column in block.columns() {
         out_rows.insert(column.name().to_string(), read_column(column, None)?);
     }
-    Ok(out_rows)
+    Ok(out_rows.into())
 }
 
 /// return all rows from the query and uncompact the h3index in the h3index column, all other columns get duplicated accordingly
@@ -108,7 +108,7 @@ pub async fn query_all_with_uncompacting(
     mut ch: ClientHandle,
     query_string: String,
     h3index_set: HashSet<u64>,
-) -> Result<HashMap<String, ColVec>> {
+) -> Result<ColumnSet> {
     let h3_res = if let Some(first) = h3index_set.iter().next() {
         Index::from(*first).resolution()
     } else {
@@ -174,7 +174,7 @@ pub async fn query_all_with_uncompacting(
         );
     }
     out_rows.insert(COL_NAME_H3INDEX.to_string(), h3_vec);
-    Ok(out_rows)
+    Ok(out_rows.into())
 }
 
 fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
