@@ -1,20 +1,21 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
-use clickhouse_rs::types::{Column, Complex};
 use clickhouse_rs::{
+    ClientHandle,
     errors::{Error, Result},
     types::SqlType,
-    ClientHandle,
 };
+use clickhouse_rs::types::{Column, Complex};
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
+use crate::{COL_NAME_H3INDEX, ColumnSet, ColVec};
 use crate::compacted_tables::{find_tablesets, TableSet};
-use crate::{ColVec, COL_NAME_H3INDEX, ColumnSet};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -90,10 +91,7 @@ pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> R
     }
 }
 
-pub async fn query_all(
-    mut ch: ClientHandle,
-    query_string: String,
-) -> Result<ColumnSet> {
+pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<ColumnSet> {
     let block = ch.query(query_string).fetch_all().await?;
 
     let mut out_rows = HashMap::new();
@@ -138,23 +136,27 @@ pub async fn query_all_with_uncompacting(
         let mut h3_vec = Vec::new();
         for h3index in h3index_column.iter::<u64>()? {
             let idx = Index::from(*h3index);
-            let m = if idx.resolution() < h3_res {
-                let mut valid_children = idx
-                    .get_children(h3_res)
-                    .drain(..)
-                    .map(|i| i.h3index())
-                    .filter(|hi| h3index_set.contains(hi))
-                    .collect::<Vec<_>>();
-                let m = valid_children.len();
-                h3_vec.append(&mut valid_children);
-                m
-            } else if idx.resolution() == h3_res {
-                h3_vec.push(idx.h3index());
-                1
-            } else {
-                return Err(Error::Other(Cow::from(
-                    "too small resolution during uncompacting",
-                )));
+            let m = match idx.resolution().cmp(&h3_res) {
+                Ordering::Less => {
+                    let mut valid_children = idx
+                        .get_children(h3_res)
+                        .drain(..)
+                        .map(|i| i.h3index())
+                        .filter(|hi| h3index_set.contains(hi))
+                        .collect::<Vec<_>>();
+                    let m = valid_children.len();
+                    h3_vec.append(&mut valid_children);
+                    m
+                }
+                Ordering::Equal => {
+                    h3_vec.push(idx.h3index());
+                    1
+                }
+                _ => {
+                    return Err(Error::Other(Cow::from(
+                        "too small resolution during uncompacting",
+                    )));
+                }
             };
             row_repetitions.push(m);
         }
