@@ -21,6 +21,7 @@ h3ron-h3-sys = "0.7.2"
 svgbobdoc = "^0.2"
 either = "^1.6"
 url = "^1"
+serde = "^1"
 
 [dependencies.geojson]
 version = "^0.21"

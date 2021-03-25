@@ -1,10 +1,12 @@
+use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
 use bamboo_h3_int::ColVec;
 use h3ron::Index;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
-use pyo3::exceptions::{PyValueError, PyIndexError};
+use pyo3::exceptions::{PyIOError, PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::PyMappingProtocol;
 use std::collections::HashMap;
+use std::fs::File;
 
 pub fn check_index_valid(index: &Index) -> PyResult<()> {
     if !index.is_valid() {
@@ -69,7 +71,7 @@ impl Into<ColVec> for DataFrameColumnData<'_> {
 
 #[pyclass]
 pub struct ColumnSet {
-    inner: bamboo_h3_int::ColumnSet
+    inner: bamboo_h3_int::ColumnSet,
 }
 
 #[pymethods]
@@ -77,7 +79,7 @@ impl ColumnSet {
     #[new]
     fn new() -> Self {
         Self {
-            inner: Default::default()
+            inner: Default::default(),
         }
     }
 
@@ -95,12 +97,26 @@ impl ColumnSet {
     fn get_empty(&self) -> PyResult<bool> {
         Ok(self.inner.is_empty())
     }
+
+    fn write_to(&self, filename: String) -> PyResult<()> {
+        let outfile =
+            File::create(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
+        intresult_to_pyresult(serialize_into(outfile, &self.inner))?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    fn read_from(filename: String) -> PyResult<Self> {
+        let infile =
+            File::open(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
+        let inner: bamboo_h3_int::ColumnSet = intresult_to_pyresult(deserialize_from(infile))?;
+        Ok(Self { inner })
+    }
 }
 
 // creating multiple impls is ugly - replace this in the future
 macro_rules! columnset_drain_column_fn {
     ($fnname:ident, $dtype:ty, $cvtype:ident) => {
-
         #[pymethods]
         impl ColumnSet {
             fn $fnname(&mut self, column_name: &str) -> PyResult<Py<PyArray<$dtype, Ix1>>> {
@@ -129,7 +145,7 @@ macro_rules! columnset_drain_column_fn {
                     )))
                 }
             }
-            }
+        }
     };
 }
 
@@ -156,7 +172,7 @@ impl PyMappingProtocol for ColumnSet {
 impl From<HashMap<String, ColVec>> for ColumnSet {
     fn from(columns: HashMap<String, ColVec>) -> Self {
         Self {
-            inner: columns.into()
+            inner: columns.into(),
         }
     }
 }

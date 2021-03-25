@@ -17,6 +17,8 @@ chrono = "0.4"
 chrono-tz = "0.5"
 h3ron = "0.7.2"
 h3ron-h3-sys = "0.7.2"
+zstd = "^0.6"
+serde_cbor = "^0.11"
 
 [dependencies.clickhouse-rs]
 version = "1.0.0-alpha.1"

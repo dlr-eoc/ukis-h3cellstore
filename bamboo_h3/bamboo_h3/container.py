@@ -106,6 +106,34 @@ class ColumnSet:
             data[column_name] = array
         return pd.DataFrame(data)
 
+    def write_to(self, filename: str):
+        """
+        serialize to a file.
+
+        Uses CBOR serialization with ZSTD compression
+        """
+        self.inner.write_to(filename)
+
+    @staticmethod
+    def read_from(filename: str):
+        """
+        deserialize from a file.
+
+        expects CBOR serialization with ZSTD compression
+
+        >>> from tempfile import gettempdir
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> df = pd.DataFrame({"x": np.random.rand(2000)})
+        >>> column_set = ColumnSet.from_dataframe(df)
+        >>> filename = f"{gettempdir()}/columnset.cbor.zstd"
+        >>> column_set.write_to(filename)
+        >>> column_set2 = ColumnSet.read_from(filename)
+        >>> len(column_set2)
+        2000
+        """
+        inner = lib.ColumnSet.read_from(filename)
+        return ColumnSet(inner)
 
 if __name__ == "__main__":
     # run doctests

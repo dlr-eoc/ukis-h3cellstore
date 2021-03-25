@@ -10,6 +10,7 @@ pub enum Error {
     NoQueryableTables,
     MissingQueryPlaceholder(String),
     DifferentColumnLength(String, usize, usize),
+    CompressionError(String),
 }
 
 impl fmt::Display for Error {
@@ -24,7 +25,8 @@ impl fmt::Display for Error {
             },
             Error::DifferentColumnLength(column_name, expected_len, found_len) => {
                 write!(f, "column {} has the a differing length. Expected {}, found {}", column_name, expected_len, found_len)
-            }
+            },
+            Error::CompressionError(msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -37,5 +39,12 @@ pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error>
         Err(Error::InvalidH3Index(index.clone()))
     } else {
         Ok(())
+    }
+}
+
+
+impl From<serde_cbor::Error> for Error {
+    fn from(se: serde_cbor::Error) -> Self {
+        Error::CompressionError(format!("cbor compression failed: {:?}", se))
     }
 }

@@ -10,6 +10,7 @@ mod colvec;
 pub mod compacted_tables;
 pub mod error;
 pub mod window;
+pub mod fileio;
 
 // re-export some crates for downstream bamboo_h3 (and other crates) to ensure matching
 // versions
