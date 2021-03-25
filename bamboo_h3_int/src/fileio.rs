@@ -11,7 +11,7 @@ where
 {
     // level was chosen based on https://gitlab.dlr.de/gzs-processing/processing-results-to-h3/-/issues/15#note_650119
     let encoder = Encoder::new(writer, 6)
-        .map_err(|e| Error::CompressionError(format!("could not zstd endcode: {:?}", e)))?
+        .map_err(|e| Error::SerializationError(format!("could not zstd endcode: {:?}", e)))?
         .auto_finish();
     serde_cbor::to_writer(encoder, value).map_err(|e| e.into())
 }
@@ -22,6 +22,6 @@ where
     T: serde::de::DeserializeOwned + Sized,
 {
     let decoder = Decoder::new(reader)
-        .map_err(|e| Error::CompressionError(format!("could not zstd decode: {:?}", e)))?;
+        .map_err(|e| Error::SerializationError(format!("could not zstd decode: {:?}", e)))?;
     serde_cbor::from_reader(decoder).map_err(|e| e.into())
 }

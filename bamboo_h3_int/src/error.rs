@@ -10,7 +10,8 @@ pub enum Error {
     NoQueryableTables,
     MissingQueryPlaceholder(String),
     DifferentColumnLength(String, usize, usize),
-    CompressionError(String),
+    SchemaValidationError(&'static str, String),
+    SerializationError(String)
 }
 
 impl fmt::Display for Error {
@@ -26,7 +27,8 @@ impl fmt::Display for Error {
             Error::DifferentColumnLength(column_name, expected_len, found_len) => {
                 write!(f, "column {} has the a differing length. Expected {}, found {}", column_name, expected_len, found_len)
             },
-            Error::CompressionError(msg) => write!(f, "{}", msg),
+            Error::SchemaValidationError(location, msg) => write!(f, "failed to validate {}: {}", location, msg),
+            Error::SerializationError(msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -45,6 +47,12 @@ pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error>
 
 impl From<serde_cbor::Error> for Error {
     fn from(se: serde_cbor::Error) -> Self {
-        Error::CompressionError(format!("cbor compression failed: {:?}", se))
+        Error::SerializationError(format!("cbor serialization failed: {:?}", se))
+    }
+}
+
+impl From<serde_json::error::Error> for Error {
+    fn from(te: serde_json::error::Error) -> Self {
+        Error::SerializationError(format!("{:?}",te))
     }
 }
