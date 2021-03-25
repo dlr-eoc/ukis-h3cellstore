@@ -311,7 +311,7 @@ pub fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableS
 
 #[cfg(test)]
 mod tests {
-    use crate::compacted_tables::{find_tablesets, Table, TableSpec};
+    use crate::clickhouse::compacted_tables::{find_tablesets, Table, TableSpec};
 
     #[test]
     fn test_table_to_name() {

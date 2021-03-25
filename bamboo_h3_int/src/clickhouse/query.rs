@@ -15,7 +15,7 @@ use h3ron::Index;
 use log::{error, warn};
 
 use crate::{COL_NAME_H3INDEX, ColumnSet, ColVec};
-use crate::compacted_tables::{find_tablesets, TableSet};
+use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {

@@ -112,7 +112,7 @@ impl Default for TemporalResolution {
 #[cfg(test)]
 mod tests {
     use super::validate_table_name;
-    use crate::schema::{Schema, CompactedTableSchema};
+    use crate::clickhouse::schema::{Schema, CompactedTableSchema};
 
     #[test]
     fn test_validate_table_name() {

@@ -10,7 +10,7 @@ use bamboo_h3_int::clickhouse::query::{
     list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
 };
 use bamboo_h3_int::clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, Pool};
-use bamboo_h3_int::compacted_tables::TableSet;
+use bamboo_h3_int::clickhouse::compacted_tables::TableSet;
 
 fn ch_to_pyerr(ch_err: ChError) -> PyErr {
     PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))

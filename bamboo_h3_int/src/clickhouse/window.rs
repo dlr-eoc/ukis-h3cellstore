@@ -1,3 +1,9 @@
+///
+/// a h3 window iterator for rust
+///
+/// This currently lacks behind the implementation for python in the `bamboo_h3` crate as
+/// this here is currently not used.
+
 use std::collections::HashSet;
 
 use geo::algorithm::bounding_rect::BoundingRect;
@@ -6,7 +12,7 @@ use geo_types::Polygon;
 use h3ron::{polyfill, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 
-use crate::compacted_tables::TableSet;
+use crate::clickhouse::compacted_tables::TableSet;
 
 /// find the resolution generate coarser h3-indexes to access the tableset without needing to fetch more
 /// than window_max_size indexes per batch.
@@ -137,8 +143,8 @@ mod tests {
     use geo_types::{LineString, Polygon};
     use h3ron::Index;
 
-    use crate::compacted_tables::{TableSet, TableSpec};
-    use crate::window::{window_index_resolution, WindowFilter, WindowIterator};
+    use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
+    use crate::clickhouse::window::{window_index_resolution, WindowFilter, WindowIterator};
 
     fn some_tableset() -> TableSet {
         TableSet {

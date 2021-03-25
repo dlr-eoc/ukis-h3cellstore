@@ -1,17 +1,18 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use h3ron::{polyfill, Index, ToPolygon};
+use h3ron::{Index, polyfill, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use bamboo_h3_int::{
-    compacted_tables::{TableSet, TableSetQuery},
+    COL_NAME_H3INDEX,
+    ColVec,
     geo::algorithm::{centroid::Centroid, intersects::Intersects},
     geo_types::Polygon,
-    window::window_index_resolution,
-    ColVec, COL_NAME_H3INDEX,
 };
+use bamboo_h3_int::clickhouse::compacted_tables::{TableSet, TableSetQuery};
+use bamboo_h3_int::clickhouse::window::window_index_resolution;
 
 use crate::clickhouse::{AwaitableResultSet, ResultSet};
 use crate::convert::intresult_to_pyresult;

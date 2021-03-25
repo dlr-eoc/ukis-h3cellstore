@@ -6,7 +6,7 @@ use log::warn;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::{prelude::*, PyResult, Python};
 
-use bamboo_h3_int::compacted_tables::TableSetQuery;
+use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::convert::ColumnSet;
