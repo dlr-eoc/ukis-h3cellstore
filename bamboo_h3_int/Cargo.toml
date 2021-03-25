@@ -24,3 +24,7 @@ version = "1.0.0-alpha.1"
 [dependencies.futures-util]
 version = "^0.3"
 features = ["sink"]
+
+[dependencies.serde]
+version = "1"
+features = [ "derive" ]

@@ -1,9 +1,11 @@
 use crate::error::Error;
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ColVec {
     U8(Vec<u8>),
     U8N(Vec<Option<u8>>),
@@ -128,6 +130,7 @@ impl ColVec {
 /// This can be seen as the equivalent to the pandas DateFrame but limited
 /// to storage only. Additionally, this would be the point where arrow support
 /// could be added (using arrows StructArray)
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
 
