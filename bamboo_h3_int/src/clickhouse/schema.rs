@@ -51,7 +51,7 @@ impl ToSqlStatements for Schema {
 pub struct CompactedTableSchema {
     pub name: String,
     pub table_engine: TableEngine,
-    pub compression_method: TableCompressionMethod,
+    pub compression_method: CompressionMethod,
     pub h3_base_resolutions: Vec<u8>,
     pub h3_compacted_resolutions: Vec<u8>,
     pub temporal_resolution: TemporalResolution,
@@ -176,12 +176,12 @@ impl Default for TableEngine {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub enum TableCompressionMethod {
+pub enum CompressionMethod {
     LZ4HC(u8),
     ZSTD(u8),
 }
 
-impl ValidateSchema for TableCompressionMethod {
+impl ValidateSchema for CompressionMethod {
     fn validate(&self) -> Result<(), Error> {
         // validate compression levels
         // https://clickhouse.tech/docs/en/sql-reference/statements/create/table/#create-query-general-purpose-codecs
@@ -206,7 +206,7 @@ fn compression_level_out_of_range(location: &'static str) -> Error {
     Error::SchemaValidationError(location, "compression level out of range".to_string())
 }
 
-impl Default for TableCompressionMethod {
+impl Default for CompressionMethod {
     fn default() -> Self {
         Self::ZSTD(6)
     }
@@ -313,16 +313,82 @@ pub struct SimpleColumn {
     datatype: Datatype,
 }
 
+pub struct CompactedTableSchemaBuilder {
+    schema: CompactedTableSchema,
+}
+
+impl CompactedTableSchemaBuilder {
+    pub fn new(table_name: &str) -> Self {
+        let mut columns = HashMap::new();
+        columns.insert(
+            COL_NAME_H3INDEX.to_string(),
+            ColumnDefinition::Simple(SimpleColumn {
+                datatype: Datatype::U64,
+            }),
+        );
+        Self {
+            schema: CompactedTableSchema {
+                name: table_name.to_string(),
+                table_engine: Default::default(),
+                compression_method: Default::default(),
+                h3_base_resolutions: vec![],
+                h3_compacted_resolutions: vec![],
+                temporal_resolution: Default::default(),
+                temporal_partitioning: Default::default(),
+                columns,
+            },
+        }
+    }
+
+    pub fn table_engine(mut self, table_engine: TableEngine) -> Self {
+        self.schema.table_engine = table_engine;
+        self
+    }
+
+    pub fn compression_method(mut self, compression_method: CompressionMethod) -> Self {
+        self.schema.compression_method = compression_method;
+        self
+    }
+
+    pub fn h3_base_resolutions(mut self, h3res: Vec<u8>) -> Self {
+        self.schema.h3_base_resolutions = h3res;
+        self
+    }
+
+    pub fn h3_compacted_resolutions(mut self, h3res: Vec<u8>) -> Self {
+        self.schema.h3_compacted_resolutions = h3res;
+        self
+    }
+
+    pub fn temporal_resolution(mut self, temporal_resolution: TemporalResolution) -> Self {
+        self.schema.temporal_resolution = temporal_resolution;
+        self
+    }
+
+    pub fn temporal_partitioning(mut self, temporal_partitioning: TemporalPartitioning) -> Self {
+        self.schema.temporal_partitioning = temporal_partitioning;
+        self
+    }
+
+    pub fn add_column(mut self, column_name: &str, def: ColumnDefinition) -> Self {
+        self.schema.columns.insert(column_name.to_string(), def);
+        self
+    }
+
+    pub fn build(self) -> Result<CompactedTableSchema, Error> {
+        self.schema.validate()?;
+        Ok(self.schema)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use crate::clickhouse::schema::{
-        AggregationMethod, ColumnDefinition, CompactedTableSchema, Schema, SimpleColumn,
-        ValidateSchema,
+        AggregationMethod, ColumnDefinition, CompactedTableSchemaBuilder,
+        Schema, SimpleColumn,
     };
     use crate::colvec::Datatype;
-    use crate::COL_NAME_H3INDEX;
 
     use super::validate_table_name;
 
@@ -337,35 +403,22 @@ mod tests {
 
     #[test]
     fn schema_to_json() {
-        let s = Schema::CompactedTable(CompactedTableSchema {
-            name: "my_little_table".to_string(),
-            table_engine: Default::default(),
-            compression_method: Default::default(),
-            h3_base_resolutions: vec![1, 2, 3, 4],
-            h3_compacted_resolutions: vec![2, 3],
-            temporal_resolution: Default::default(),
-            temporal_partitioning: Default::default(),
-            columns: {
-                let mut c = HashMap::new();
-                c.insert(
-                    COL_NAME_H3INDEX.to_string(),
-                    ColumnDefinition::Simple(SimpleColumn {
-                        datatype: Datatype::U64,
-                    }),
-                );
-                c.insert(
-                    "elephant_density".to_string(),
+        let s = Schema::CompactedTable(
+            CompactedTableSchemaBuilder::new("okavango_delta")
+                .h3_compacted_resolutions(vec![2, 3])
+                .h3_base_resolutions(vec![1, 2, 3, 4, 5])
+                .add_column(
+                    "elephant_density",
                     ColumnDefinition::WithAggregation(
                         SimpleColumn {
                             datatype: Datatype::F32,
                         },
                         AggregationMethod::Average,
                     ),
-                );
-                c
-            },
-        });
-        s.validate().unwrap();
+                )
+                .build()
+                .unwrap(),
+        );
         println!("{}", s.to_json_string().unwrap());
     }
 }
