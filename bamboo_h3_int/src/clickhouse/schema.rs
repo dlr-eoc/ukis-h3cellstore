@@ -4,12 +4,16 @@ use std::collections::HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::COL_NAME_H3INDEX;
 use crate::colvec::Datatype;
-use crate::common::Named;
+use crate::common::{ordered_h3_resolutions, Named};
 use crate::error::Error;
+use crate::COL_NAME_H3INDEX;
 
 // templating: https://github.com/djc/askama
+
+pub trait ToSqlStatements {
+    fn to_sql_statemnts(&self) -> Vec<String>;
+}
 
 pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
@@ -35,11 +39,23 @@ impl ValidateSchema for Schema {
     }
 }
 
+impl ToSqlStatements for Schema {
+    fn to_sql_statemnts(&self) -> Vec<String> {
+        match self {
+            Self::CompactedTable(ct) => ct.to_sql_statemnts(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CompactedTableSchema {
     pub name: String,
+    pub table_engine: TableEngine,
     pub compression_method: TableCompressionMethod,
+    pub h3_base_resolutions: Vec<u8>,
+    pub h3_compacted_resolutions: Vec<u8>,
     pub temporal_resolution: TemporalResolution,
+    pub temporal_partitioning: TemporalPartitioning,
     pub columns: HashMap<String, ColumnDefinition>,
 }
 
@@ -79,7 +95,55 @@ impl ValidateSchema for CompactedTableSchema {
                 ))
             }
         }
+
+        // validate table engine
+        if let TableEngine::SummingMergeTree(sum_columns) = &self.table_engine {
+            let missing_columns: Vec<_> = sum_columns
+                .iter()
+                .filter(|sum_column| !self.columns.contains_key(*sum_column))
+                .cloned()
+                .collect();
+            if !missing_columns.is_empty() {
+                return Err(Error::SchemaValidationError(
+                    type_name::<TableEngine>(),
+                    format!(
+                        "SummingMergeTree engine is missing columns: {}",
+                        missing_columns.join(", ")
+                    ),
+                ));
+            }
+        }
+
+        // validate h3 resolutions
+        let base_resolutions = ordered_h3_resolutions(&self.h3_base_resolutions)?;
+        if base_resolutions.is_empty() {
+            return Err(Error::SchemaValidationError(
+                type_name::<Self>(),
+                "at least one h3 base resolution is required".to_string(),
+            ));
+        }
+        let compacted_resolutions = ordered_h3_resolutions(&self.h3_compacted_resolutions)?;
+        if !compacted_resolutions.is_empty() {
+            if let (Some(base_max), Some(compacted_max)) = (
+                base_resolutions.iter().max(),
+                compacted_resolutions.iter().max(),
+            ) {
+                if compacted_max > base_max {
+                    return Err(Error::SchemaValidationError(
+                        type_name::<Self>(),
+                        "compacted h3 resolutions may not be greater than the max base resolution"
+                            .to_string(),
+                    ));
+                }
+            }
+        }
         Ok(())
+    }
+}
+
+impl ToSqlStatements for CompactedTableSchema {
+    fn to_sql_statemnts(&self) -> Vec<String> {
+        unimplemented!()
     }
 }
 
@@ -99,7 +163,19 @@ fn validate_table_name(location: &'static str, name: &str) -> Result<(), Error> 
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "lowercase")]
+pub enum TableEngine {
+    ReplacingMergeTree,
+    SummingMergeTree(Vec<String>),
+    AggregatingMergeTree,
+}
+
+impl Default for TableEngine {
+    fn default() -> Self {
+        TableEngine::ReplacingMergeTree
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum TableCompressionMethod {
     LZ4HC(u8),
     ZSTD(u8),
@@ -151,6 +227,19 @@ impl Default for TemporalResolution {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum TemporalPartitioning {
+    Year,
+    Month,
+}
+
+impl Default for TemporalPartitioning {
+    fn default() -> Self {
+        TemporalPartitioning::Month
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AggregationMethod {
     RelativeToArea,
     Sum,
@@ -192,6 +281,9 @@ pub enum ColumnDefinition {
 
     /// data stored in this column will be aggregated using the specified aggregation
     /// method when the coarser resolutions are generated
+    ///
+    /// Aggregation only happens **within** the batch written to
+    /// the tables.
     WithAggregation(SimpleColumn, AggregationMethod),
 }
 
@@ -225,9 +317,12 @@ pub struct SimpleColumn {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompactedTableSchema, Schema, SimpleColumn, ValidateSchema};
-    use crate::COL_NAME_H3INDEX;
+    use crate::clickhouse::schema::{
+        AggregationMethod, ColumnDefinition, CompactedTableSchema, Schema, SimpleColumn,
+        ValidateSchema,
+    };
     use crate::colvec::Datatype;
+    use crate::COL_NAME_H3INDEX;
 
     use super::validate_table_name;
 
@@ -244,8 +339,12 @@ mod tests {
     fn schema_to_json() {
         let s = Schema::CompactedTable(CompactedTableSchema {
             name: "my_little_table".to_string(),
+            table_engine: Default::default(),
             compression_method: Default::default(),
+            h3_base_resolutions: vec![1, 2, 3, 4],
+            h3_compacted_resolutions: vec![2, 3],
             temporal_resolution: Default::default(),
+            temporal_partitioning: Default::default(),
             columns: {
                 let mut c = HashMap::new();
                 c.insert(

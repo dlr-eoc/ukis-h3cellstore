@@ -11,7 +11,8 @@ pub enum Error {
     MissingQueryPlaceholder(String),
     DifferentColumnLength(String, usize, usize),
     SchemaValidationError(&'static str, String),
-    SerializationError(String)
+    SerializationError(String),
+    InvalidH3Resolution(u8),
 }
 
 impl fmt::Display for Error {
@@ -29,6 +30,7 @@ impl fmt::Display for Error {
             },
             Error::SchemaValidationError(location, msg) => write!(f, "failed to validate {}: {}", location, msg),
             Error::SerializationError(msg) => write!(f, "{}", msg),
+            Error::InvalidH3Resolution(res) => write!(f, "invalid h3 resolution: {}", res),
         }
     }
 }
