@@ -13,10 +13,6 @@ use itertools::Itertools;
 
 // templating: https://github.com/djc/askama
 
-pub trait ToSqlStatements {
-    fn to_sql_statements(&self) -> Vec<String>;
-}
-
 pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
 }
@@ -37,14 +33,6 @@ impl ValidateSchema for Schema {
     fn validate(&self) -> Result<(), Error> {
         match self {
             Self::CompactedTable(ct) => ct.validate(),
-        }
-    }
-}
-
-impl ToSqlStatements for Schema {
-    fn to_sql_statements(&self) -> Vec<String> {
-        match self {
-            Self::CompactedTable(ct) => ct.to_sql_statements(),
         }
     }
 }
@@ -180,12 +168,6 @@ impl ValidateSchema for CompactedTableSchema {
             }
         }
         Ok(())
-    }
-}
-
-impl ToSqlStatements for CompactedTableSchema {
-    fn to_sql_statements(&self) -> Vec<String> {
-        unimplemented!()
     }
 }
 
