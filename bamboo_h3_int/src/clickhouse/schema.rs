@@ -8,11 +8,12 @@ use crate::colvec::Datatype;
 use crate::common::{ordered_h3_resolutions, Named};
 use crate::error::Error;
 use crate::COL_NAME_H3INDEX;
+use itertools::Itertools;
 
 // templating: https://github.com/djc/askama
 
 pub trait ToSqlStatements {
-    fn to_sql_statemnts(&self) -> Vec<String>;
+    fn to_sql_statements(&self) -> Vec<String>;
 }
 
 pub trait ValidateSchema {
@@ -40,9 +41,9 @@ impl ValidateSchema for Schema {
 }
 
 impl ToSqlStatements for Schema {
-    fn to_sql_statemnts(&self) -> Vec<String> {
+    fn to_sql_statements(&self) -> Vec<String> {
         match self {
-            Self::CompactedTable(ct) => ct.to_sql_statemnts(),
+            Self::CompactedTable(ct) => ct.to_sql_statements(),
         }
     }
 }
@@ -57,6 +58,37 @@ pub struct CompactedTableSchema {
     pub temporal_resolution: TemporalResolution,
     pub temporal_partitioning: TemporalPartitioning,
     pub columns: HashMap<String, ColumnDefinition>,
+    // TODO: Partition by
+}
+
+impl CompactedTableSchema {
+    pub fn order_by_column_names(&self) -> Vec<String> {
+        self.columns
+            .iter()
+            .map(|(column_name, def)| match def {
+                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.clone()),
+                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.clone()),
+            })
+            .filter(|(column_name, sc)| {
+                sc.key_position.is_some() || column_name == COL_NAME_H3INDEX
+            })
+            .map(|(column_name, sc)| {
+                let key_pos = sc.key_position.unwrap_or(10) as i16;
+                // always have the h3index first as the location is most certainly the
+                // most important criteria for a fast lookup
+                let pos = key_pos
+                    - if column_name == COL_NAME_H3INDEX {
+                        100
+                    } else {
+                        0
+                    };
+
+                (pos, column_name)
+            })
+            .sorted_by_key(|(order, _)| *order)
+            .map(|(_, column_name)| column_name)
+            .collect()
+    }
 }
 
 impl ValidateSchema for CompactedTableSchema {
@@ -142,12 +174,14 @@ impl ValidateSchema for CompactedTableSchema {
 }
 
 impl ToSqlStatements for CompactedTableSchema {
-    fn to_sql_statemnts(&self) -> Vec<String> {
+    fn to_sql_statements(&self) -> Vec<String> {
         unimplemented!()
     }
 }
 
 lazy_static! {
+    // validation does not include reserved SQL keywords, but Clickhouse will fail happily when
+    // encountering them as a table name anyways.
     static ref RE_VALID_NAME: Regex = Regex::new(r"^[a-zA-Z].[_a-zA-Z_0-9]+$").unwrap();
 }
 
@@ -246,6 +280,7 @@ pub enum AggregationMethod {
     Max,
     Min,
     Average,
+    // TODO: aggragation method to generate parent resolution for other h3index column
 }
 
 impl AggregationMethod {
@@ -255,7 +290,7 @@ impl AggregationMethod {
             Self::Sum => !(datatype.is_nullable() || datatype.is_temporal()),
             Self::Max => !datatype.is_nullable(),
             Self::Min => !datatype.is_nullable(),
-            Self::Average => !(datatype.is_nullable() || datatype.is_temporal()),
+            Self::Average => !datatype.is_nullable(),
         }
     }
 }
@@ -308,9 +343,14 @@ impl ValidateSchema for ColumnDefinition {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SimpleColumn {
     datatype: Datatype,
+    /// position in the sorting key (`ORDER BY`) in MergeTree tables
+    /// which can be unterstood as a form of a primary key. Please consult
+    /// https://clickhouse.tech/docs/en/engines/table-engines/mergetree-family/mergetree/
+    /// for more
+    key_position: Option<u8>,
 }
 
 pub struct CompactedTableSchemaBuilder {
@@ -324,6 +364,7 @@ impl CompactedTableSchemaBuilder {
             COL_NAME_H3INDEX.to_string(),
             ColumnDefinition::Simple(SimpleColumn {
                 datatype: Datatype::U64,
+                key_position: Some(0), // always the first anyways
             }),
         );
         Self {
@@ -377,6 +418,7 @@ impl CompactedTableSchemaBuilder {
 
     pub fn build(self) -> Result<CompactedTableSchema, Error> {
         self.schema.validate()?;
+        dbg!(self.schema.order_by_column_names());
         Ok(self.schema)
     }
 }
@@ -385,8 +427,7 @@ impl CompactedTableSchemaBuilder {
 mod tests {
 
     use crate::clickhouse::schema::{
-        AggregationMethod, ColumnDefinition, CompactedTableSchemaBuilder,
-        Schema, SimpleColumn,
+        AggregationMethod, ColumnDefinition, CompactedTableSchemaBuilder, Schema, SimpleColumn,
     };
     use crate::colvec::Datatype;
 
@@ -412,9 +453,17 @@ mod tests {
                     ColumnDefinition::WithAggregation(
                         SimpleColumn {
                             datatype: Datatype::F32,
+                            key_position: None,
                         },
                         AggregationMethod::Average,
                     ),
+                )
+                .add_column(
+                    "observed_on",
+                    ColumnDefinition::Simple(SimpleColumn {
+                        datatype: Datatype::Date,
+                        key_position: Some(0),
+                    }),
                 )
                 .build()
                 .unwrap(),
