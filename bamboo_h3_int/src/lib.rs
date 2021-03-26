@@ -13,6 +13,7 @@ pub use crate::colvec::ColVec;
 pub mod algorithm;
 pub mod clickhouse;
 mod colvec;
+mod common;
 pub mod error;
 pub mod fileio;
 

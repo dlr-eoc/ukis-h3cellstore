@@ -1,6 +1,108 @@
 use crate::error::Error;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use crate::common::Named;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Datatype {
+    U8,
+    U8N,
+    I8,
+    I8N,
+    U16,
+    U16N,
+    U32,
+    U32N,
+    I32,
+    I32N,
+    U64,
+    U64N,
+    I64,
+    I64N,
+    F32,
+    F32N,
+    F64,
+    F64N,
+    Date,
+    DateN,
+    DateTime,
+    DateTimeN,
+}
+
+impl Datatype {
+    pub fn is_nullable(&self) -> bool {
+        // always list all variants of the enum to have the benefit of the compiler errors
+        // when missing something
+        match self {
+            Datatype::U8
+            | Datatype::I8
+            | Datatype::U16
+            | Datatype::U32
+            | Datatype::I32
+            | Datatype::U64
+            | Datatype::I64
+            | Datatype::F32
+            | Datatype::F64
+            | Datatype::Date
+            | Datatype::DateTime => false,
+
+            Datatype::U8N
+            | Datatype::I8N
+            | Datatype::U16N
+            | Datatype::U32N
+            | Datatype::I32N
+            | Datatype::U64N
+            | Datatype::I64N
+            | Datatype::F32N
+            | Datatype::F64N
+            | Datatype::DateN
+            | Datatype::DateTimeN => true,
+        }
+    }
+
+    pub fn is_temporal(&self) -> bool {
+        match self {
+            Datatype::Date | Datatype::DateTime | Datatype::DateN | Datatype::DateTimeN => true,
+            _ => false,
+        }
+    }
+}
+
+impl Named for Datatype {
+    fn name(&self) -> &'static str {
+        match self {
+            Datatype::U8 => "u8",
+            Datatype::U8N => "u8n",
+            Datatype::I8 => "i8",
+            Datatype::I8N => "i8n",
+            Datatype::U16 => "u16",
+            Datatype::U16N => "u16n",
+            Datatype::U32 => "u32",
+            Datatype::U32N => "u32n",
+            Datatype::I32 => "i32",
+            Datatype::I32N => "i32n",
+            Datatype::U64 => "u64",
+            Datatype::U64N => "u64n",
+            Datatype::I64 => "i64",
+            Datatype::I64N => "i64n",
+            Datatype::F32 => "f32",
+            Datatype::F32N => "f32n",
+            Datatype::F64 => "f64",
+            Datatype::F64N => "f64n",
+            Datatype::Date => "date",
+            Datatype::DateN => "date_n",
+            Datatype::DateTime => "datetime",
+            Datatype::DateTimeN => "datetime_n",
+        }
+    }
+}
+
+impl std::fmt::Display for Datatype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
 
 /// a vector of column values
 ///
@@ -36,32 +138,32 @@ pub enum ColVec {
 }
 
 impl ColVec {
-    pub fn type_name(&self) -> &'static str {
+    pub fn datatype(&self) -> Datatype {
         match self {
-            ColVec::U8(_) => "u8",
-            ColVec::U8N(_) => "u8n",
-            ColVec::I8(_) => "i8",
-            ColVec::I8N(_) => "i8n",
-            ColVec::U16(_) => "u16",
-            ColVec::U16N(_) => "u16n",
-            ColVec::I16(_) => "i16",
-            ColVec::I16N(_) => "i16n",
-            ColVec::U32(_) => "u32",
-            ColVec::U32N(_) => "u32n",
-            ColVec::I32(_) => "i32",
-            ColVec::I32N(_) => "i32n",
-            ColVec::U64(_) => "u64",
-            ColVec::U64N(_) => "u64n",
-            ColVec::I64(_) => "i64",
-            ColVec::I64N(_) => "i64n",
-            ColVec::F32(_) => "f32",
-            ColVec::F32N(_) => "f32n",
-            ColVec::F64(_) => "f64",
-            ColVec::F64N(_) => "f64n",
-            ColVec::Date(_) => "date",
-            ColVec::DateN(_) => "date_n",
-            ColVec::DateTime(_) => "datetime",
-            ColVec::DateTimeN(_) => "datetime_n",
+            ColVec::U8(_) => Datatype::U8,
+            ColVec::U8N(_) => Datatype::U8N,
+            ColVec::I8(_) => Datatype::I8,
+            ColVec::I8N(_) => Datatype::I8N,
+            ColVec::U16(_) => Datatype::U16,
+            ColVec::U16N(_) => Datatype::U16N,
+            ColVec::I16(_) => Datatype::U16,
+            ColVec::I16N(_) => Datatype::U16N,
+            ColVec::U32(_) => Datatype::U32,
+            ColVec::U32N(_) => Datatype::U32N,
+            ColVec::I32(_) => Datatype::I32,
+            ColVec::I32N(_) => Datatype::I32N,
+            ColVec::U64(_) => Datatype::U64,
+            ColVec::U64N(_) => Datatype::U64N,
+            ColVec::I64(_) => Datatype::I64,
+            ColVec::I64N(_) => Datatype::I64N,
+            ColVec::F32(_) => Datatype::F32,
+            ColVec::F32N(_) => Datatype::F32N,
+            ColVec::F64(_) => Datatype::F64,
+            ColVec::F64N(_) => Datatype::F64N,
+            ColVec::Date(_) => Datatype::Date,
+            ColVec::DateN(_) => Datatype::DateN,
+            ColVec::DateTime(_) => Datatype::DateTime,
+            ColVec::DateTimeN(_) => Datatype::DateTimeN,
         }
     }
 
@@ -129,7 +231,7 @@ impl ColVec {
 ///
 /// This can be seen as the equivalent to the pandas DateFrame but limited
 /// to storage only. Additionally, this would be the point where arrow support
-/// could be added (using arrows StructArray)
+/// could be added (using arrows RecordBatch https://docs.rs/arrow/2.0.0/arrow/record_batch/struct.RecordBatch.html)
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
@@ -141,10 +243,7 @@ pub struct ColumnSet {
 impl ColumnSet {
     /// create without validating the lenghts of the columns
     pub fn from_columns(columns: HashMap<String, ColVec>) -> Self {
-        let size = columns
-            .iter()
-            .next()
-            .map(|(_, colvec)| colvec.len());
+        let size = columns.iter().next().map(|(_, colvec)| colvec.len());
         Self { columns, size }
     }
 
@@ -168,7 +267,7 @@ impl ColumnSet {
     pub fn column_type_names(&self) -> HashMap<String, String> {
         self.columns
             .iter()
-            .map(|(name, data)| (name.clone(), data.type_name().to_string()))
+            .map(|(name, data)| (name.clone(), data.datatype().name().to_string()))
             .collect()
     }
 

@@ -1,7 +1,13 @@
-use crate::error::Error;
+use std::any::type_name;
+use std::collections::HashMap;
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::any::type_name;
+
+use crate::COL_NAME_H3INDEX;
+use crate::colvec::Datatype;
+use crate::common::Named;
+use crate::error::Error;
 
 // templating: https://github.com/djc/askama
 
@@ -34,12 +40,46 @@ pub struct CompactedTableSchema {
     pub name: String,
     pub compression_method: TableCompressionMethod,
     pub temporal_resolution: TemporalResolution,
+    pub columns: HashMap<String, ColumnDefinition>,
 }
 
 impl ValidateSchema for CompactedTableSchema {
     fn validate(&self) -> Result<(), Error> {
         validate_table_name(type_name::<Self>(), &self.name)?;
-        self.compression_method.validate()
+        self.compression_method.validate()?;
+
+        // a h3index column must exist
+        match self.columns.get(COL_NAME_H3INDEX) {
+            Some(h3index_column) => {
+                if let ColumnDefinition::Simple(simple_column) = h3index_column {
+                    if simple_column.datatype != Datatype::U64 {
+                        return Err(Error::SchemaValidationError(
+                            type_name::<Self>(),
+                            format!(
+                                "mandatory column {} must be typed as {}",
+                                COL_NAME_H3INDEX,
+                                Datatype::U64
+                            ),
+                        ));
+                    }
+                } else {
+                    return Err(Error::SchemaValidationError(
+                        type_name::<Self>(),
+                        format!(
+                            "mandatory column {} is must be a simple column",
+                            COL_NAME_H3INDEX
+                        ),
+                    ));
+                }
+            }
+            None => {
+                return Err(Error::SchemaValidationError(
+                    type_name::<Self>(),
+                    format!("mandatory column {} is missing", COL_NAME_H3INDEX),
+                ))
+            }
+        }
+        Ok(())
     }
 }
 
@@ -109,10 +149,87 @@ impl Default for TemporalResolution {
     }
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregationMethod {
+    RelativeToArea,
+    Sum,
+    Max,
+    Min,
+    Average,
+}
+
+impl AggregationMethod {
+    pub fn is_applicable_to_datatype(&self, datatype: &Datatype) -> bool {
+        match self {
+            Self::RelativeToArea => !(datatype.is_nullable() || datatype.is_temporal()),
+            Self::Sum => !(datatype.is_nullable() || datatype.is_temporal()),
+            Self::Max => !datatype.is_nullable(),
+            Self::Min => !datatype.is_nullable(),
+            Self::Average => !(datatype.is_nullable() || datatype.is_temporal()),
+        }
+    }
+}
+
+impl Named for AggregationMethod {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::RelativeToArea => "relativetoarea",
+            Self::Max => "max",
+            Self::Min => "min",
+            Self::Sum => "sum",
+            Self::Average => "average",
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ColumnDefinition {
+    /// a simple column which just stores data.
+    /// The data will not get modified when the values get aggregated to coarser resolutions.
+    Simple(SimpleColumn),
+
+    /// data stored in this column will be aggregated using the specified aggregation
+    /// method when the coarser resolutions are generated
+    WithAggregation(SimpleColumn, AggregationMethod),
+}
+
+impl ValidateSchema for ColumnDefinition {
+    fn validate(&self) -> Result<(), Error> {
+        match self {
+            Self::WithAggregation(simple_column, aggregation_method) => {
+                if !(aggregation_method.is_applicable_to_datatype(&simple_column.datatype)) {
+                    return Err(Error::SchemaValidationError(
+                        type_name::<Self>(),
+                        format!(
+                            "aggregation {} can not be applied to datatype {}",
+                            aggregation_method.name(),
+                            simple_column.datatype.name()
+                        ),
+                    ));
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct SimpleColumn {
+    datatype: Datatype,
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use crate::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompactedTableSchema, Schema, SimpleColumn, ValidateSchema};
+    use crate::COL_NAME_H3INDEX;
+    use crate::colvec::Datatype;
+
     use super::validate_table_name;
-    use crate::clickhouse::schema::{Schema, CompactedTableSchema};
 
     #[test]
     fn test_validate_table_name() {
@@ -124,12 +241,32 @@ mod tests {
     }
 
     #[test]
-    fn schema_to_toml() {
+    fn schema_to_json() {
         let s = Schema::CompactedTable(CompactedTableSchema {
             name: "my_little_table".to_string(),
             compression_method: Default::default(),
-            temporal_resolution: Default::default()
+            temporal_resolution: Default::default(),
+            columns: {
+                let mut c = HashMap::new();
+                c.insert(
+                    COL_NAME_H3INDEX.to_string(),
+                    ColumnDefinition::Simple(SimpleColumn {
+                        datatype: Datatype::U64,
+                    }),
+                );
+                c.insert(
+                    "elephant_density".to_string(),
+                    ColumnDefinition::WithAggregation(
+                        SimpleColumn {
+                            datatype: Datatype::F32,
+                        },
+                        AggregationMethod::Average,
+                    ),
+                );
+                c
+            },
         });
+        s.validate().unwrap();
         println!("{}", s.to_json_string().unwrap());
     }
 }
