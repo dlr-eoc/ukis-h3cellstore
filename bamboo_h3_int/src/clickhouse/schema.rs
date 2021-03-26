@@ -1,5 +1,6 @@
 use std::any::type_name;
 use std::collections::HashMap;
+use std::cmp::Ordering;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -63,18 +64,20 @@ pub struct CompactedTableSchema {
 
 impl CompactedTableSchema {
     pub fn order_by_column_names(&self) -> Vec<String> {
+        let default_key_pos = 10;
         self.columns
             .iter()
             .map(|(column_name, def)| match def {
-                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.clone()),
-                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.clone()),
+                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.key_position.clone()),
+                ColumnDefinition::H3Index => (column_name.clone(), Some(10)),
+                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.key_position.clone()),
             })
-            .filter(|(column_name, sc)| {
-                sc.key_position.is_some() || column_name == COL_NAME_H3INDEX
+            .filter(|(column_name, key_position)| {
+                key_position.is_some() || column_name == COL_NAME_H3INDEX
             })
-            .map(|(column_name, sc)| {
-                let key_pos = sc.key_position.unwrap_or(10) as i16;
-                // always have the h3index first as the location is most certainly the
+            .map(|(column_name, key_position)| {
+                let key_pos = key_position.unwrap_or(default_key_pos) as i16;
+                // always have the mandatory h3index first as the location is most certainly the
                 // most important criteria for a fast lookup
                 let pos = key_pos
                     - if column_name == COL_NAME_H3INDEX {
@@ -85,7 +88,14 @@ impl CompactedTableSchema {
 
                 (pos, column_name)
             })
-            .sorted_by_key(|(order, _)| *order)
+            .sorted_by(|a, b| {
+                match a.0.cmp(&b.0) {
+                    Ordering::Less => Ordering::Less,
+                    // sort by column name as second criteria, to have a repeatable ordering
+                    Ordering::Equal => a.1.cmp(&b.1),
+                    Ordering::Greater => Ordering::Greater,
+                }
+            })
             .map(|(_, column_name)| column_name)
             .collect()
     }
@@ -313,6 +323,11 @@ pub enum ColumnDefinition {
     /// a simple column which just stores data.
     /// The data will not get modified when the values get aggregated to coarser resolutions.
     Simple(SimpleColumn),
+
+    /// a column storing an h3index
+    /// h3 indexes will always be brought the resolution of the coarser table when generating parent
+    /// resolutions
+    H3Index,
 
     /// data stored in this column will be aggregated using the specified aggregation
     /// method when the coarser resolutions are generated
