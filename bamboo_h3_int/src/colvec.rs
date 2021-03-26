@@ -62,10 +62,7 @@ impl Datatype {
     }
 
     pub fn is_temporal(&self) -> bool {
-        match self {
-            Datatype::Date | Datatype::DateTime | Datatype::DateN | Datatype::DateTimeN => true,
-            _ => false,
-        }
+        matches!(self, Datatype::Date | Datatype::DateTime | Datatype::DateN | Datatype::DateTimeN)
     }
 }
 
@@ -100,7 +97,7 @@ impl Named for Datatype {
 
 impl std::fmt::Display for Datatype {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.name())
     }
 }
 

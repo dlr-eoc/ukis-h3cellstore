@@ -68,9 +68,9 @@ impl CompactedTableSchema {
         self.columns
             .iter()
             .map(|(column_name, def)| match def {
-                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.key_position.clone()),
+                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.key_position),
                 ColumnDefinition::H3Index => (column_name.clone(), Some(10)),
-                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.key_position.clone()),
+                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.key_position),
             })
             .filter(|(column_name, key_position)| {
                 key_position.is_some() || column_name == COL_NAME_H3INDEX
@@ -220,6 +220,7 @@ impl Default for TableEngine {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum CompressionMethod {
     LZ4HC(u8),
     ZSTD(u8),
@@ -285,7 +286,7 @@ impl Default for TemporalPartitioning {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AggregationMethod {
-    RelativeToArea,
+    RelativeToResolutionArea,
     Sum,
     Max,
     Min,
@@ -296,7 +297,7 @@ pub enum AggregationMethod {
 impl AggregationMethod {
     pub fn is_applicable_to_datatype(&self, datatype: &Datatype) -> bool {
         match self {
-            Self::RelativeToArea => !(datatype.is_nullable() || datatype.is_temporal()),
+            Self::RelativeToResolutionArea => !(datatype.is_nullable() || datatype.is_temporal()),
             Self::Sum => !(datatype.is_nullable() || datatype.is_temporal()),
             Self::Max => !datatype.is_nullable(),
             Self::Min => !datatype.is_nullable(),
@@ -308,7 +309,7 @@ impl AggregationMethod {
 impl Named for AggregationMethod {
     fn name(&self) -> &'static str {
         match self {
-            Self::RelativeToArea => "relativetoarea",
+            Self::RelativeToResolutionArea => "relativetoresolutionarea",
             Self::Max => "max",
             Self::Min => "min",
             Self::Sum => "sum",

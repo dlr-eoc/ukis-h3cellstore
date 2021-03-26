@@ -51,19 +51,19 @@ pub enum DataFrameColumnData<'a> {
     // TODO: Date and DateTime
 }
 
-impl Into<ColVec> for DataFrameColumnData<'_> {
-    fn into(self) -> ColVec {
-        match self {
-            Self::U8(ra) => ColVec::U8(ra.as_array().to_vec()),
-            Self::U16(ra) => ColVec::U16(ra.as_array().to_vec()),
-            Self::U32(ra) => ColVec::U32(ra.as_array().to_vec()),
-            Self::U64(ra) => ColVec::U64(ra.as_array().to_vec()),
-            Self::I8(ra) => ColVec::I8(ra.as_array().to_vec()),
-            Self::I16(ra) => ColVec::I16(ra.as_array().to_vec()),
-            Self::I32(ra) => ColVec::I32(ra.as_array().to_vec()),
-            Self::I64(ra) => ColVec::I64(ra.as_array().to_vec()),
-            Self::F32(ra) => ColVec::F32(ra.as_array().to_vec()),
-            Self::F64(ra) => ColVec::F64(ra.as_array().to_vec()),
+impl From<DataFrameColumnData<'_>> for ColVec {
+    fn from(dfc: DataFrameColumnData<'_>) -> Self {
+        match dfc {
+            DataFrameColumnData::U8(ra) => ColVec::U8(ra.as_array().to_vec()),
+            DataFrameColumnData::U16(ra) => ColVec::U16(ra.as_array().to_vec()),
+            DataFrameColumnData::U32(ra) => ColVec::U32(ra.as_array().to_vec()),
+            DataFrameColumnData::U64(ra) => ColVec::U64(ra.as_array().to_vec()),
+            DataFrameColumnData::I8(ra) => ColVec::I8(ra.as_array().to_vec()),
+            DataFrameColumnData::I16(ra) => ColVec::I16(ra.as_array().to_vec()),
+            DataFrameColumnData::I32(ra) => ColVec::I32(ra.as_array().to_vec()),
+            DataFrameColumnData::I64(ra) => ColVec::I64(ra.as_array().to_vec()),
+            DataFrameColumnData::F32(ra) => ColVec::F32(ra.as_array().to_vec()),
+            DataFrameColumnData::F64(ra) => ColVec::F64(ra.as_array().to_vec()),
             // TODO: Date and DateTime
         }
     }
