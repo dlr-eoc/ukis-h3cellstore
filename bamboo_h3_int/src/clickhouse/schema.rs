@@ -495,7 +495,6 @@ impl CompactedTableSchemaBuilder {
 
     pub fn build(self) -> Result<CompactedTableSchema, Error> {
         self.schema.validate()?;
-        dbg!(self.schema.order_by_column_names());
         Ok(self.schema)
     }
 }
@@ -505,6 +504,7 @@ mod tests {
 
     use crate::clickhouse::schema::{
         AggregationMethod, ColumnDefinition, CompactedTableSchemaBuilder, Schema, SimpleColumn,
+        TemporalPartitioning,
     };
     use crate::colvec::Datatype;
 
@@ -546,5 +546,40 @@ mod tests {
                 .unwrap(),
         );
         println!("{}", s.to_json_string().unwrap());
+    }
+
+    #[test]
+    fn partitioning_columns_implicit() {
+        let ct = CompactedTableSchemaBuilder::new("okavango_delta")
+            .h3_compacted_resolutions(vec![2, 3])
+            .h3_base_resolutions(vec![1, 2, 3, 4, 5])
+            .temporal_partitioning(TemporalPartitioning::Month)
+            .add_column(
+                "elephant_density",
+                ColumnDefinition::WithAggregation(
+                    SimpleColumn {
+                        datatype: Datatype::F32,
+                        key_position: None,
+                    },
+                    AggregationMethod::Average,
+                ),
+            )
+            .add_column(
+                "observed_on",
+                ColumnDefinition::Simple(SimpleColumn {
+                    datatype: Datatype::Date,
+                    key_position: Some(0),
+                }),
+            )
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            ct.partition_by_expressions().unwrap(),
+            vec![
+                "h3GetBaseCell(h3index)".to_string(),
+                "toString(toMonth(observed_on))".to_string()
+            ]
+        );
     }
 }
