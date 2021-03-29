@@ -89,32 +89,9 @@ impl CompactedTableSchema {
             .collect()
     }
 
-    pub fn h3index_column(&self) -> Result<(String, SimpleColumn), Error> {
-        match self.columns.get(COL_NAME_H3INDEX) {
-            Some(h3index_column) => {
-                if let ColumnDefinition::Simple(simple_column) = h3index_column {
-                    if simple_column.datatype != Datatype::U64 {
-                        return Err(Error::SchemaValidationError(
-                            type_name::<Self>(),
-                            format!(
-                                "mandatory column {} must be typed as {}",
-                                COL_NAME_H3INDEX,
-                                Datatype::U64
-                            ),
-                        ));
-                    } else {
-                        Ok((COL_NAME_H3INDEX.to_string(), simple_column.clone()))
-                    }
-                } else {
-                    return Err(Error::SchemaValidationError(
-                        type_name::<Self>(),
-                        format!(
-                            "mandatory column {} is must be a simple column",
-                            COL_NAME_H3INDEX
-                        ),
-                    ));
-                }
-            }
+    fn get_column_def(&self, column_name: &str) -> Result<ColumnDefinition, Error> {
+        match self.columns.get(column_name) {
+            Some(def) => Ok(def.clone()),
             None => {
                 return Err(Error::SchemaValidationError(
                     type_name::<Self>(),
@@ -124,40 +101,88 @@ impl CompactedTableSchema {
         }
     }
 
-    /// columns to use the partitioning of the tables
-    pub fn partition_by_column_names(&self) -> Result<Vec<String>, Error> {
+    pub fn h3index_column(&self) -> Result<(String, ColumnDefinition), Error> {
+        let def = self.get_column_def(COL_NAME_H3INDEX)?;
+
+        if ColumnDefinition::H3Index == def {
+            Ok((COL_NAME_H3INDEX.to_string(), def))
+        } else {
+            return Err(Error::SchemaValidationError(
+                type_name::<Self>(),
+                format!(
+                    "mandatory column {} is must be a h3index column",
+                    COL_NAME_H3INDEX
+                ),
+            ));
+        }
+    }
+
+    /// columns expressions to use the partitioning of the tables
+    pub fn partition_by_expressions(&self) -> Result<Vec<String>, Error> {
+        let (h3index_col_name, h3index_col_def) = self.h3index_column()?;
+
         let mut partition_by = vec![
-            // h3index is always the first
-            self.h3index_column()?.0,
+            // h3index base cell is always the first
+            partition_by_expression(
+                &h3index_col_name,
+                &h3index_col_def,
+                &self.temporal_partitioning,
+            ),
         ];
 
         if self.partition_by_columns.is_empty() {
             // attempt to use a time column for partitioning if there is one
-            let mut new_columns = vec![];
+            let mut new_partition_by_entries = vec![];
             for (column_name, def) in self.columns.iter() {
-                if def.datatype().is_temporal()
-                    && !new_columns.contains(column_name)
-                    && !partition_by.contains(column_name)
-                {
-                    new_columns.push(column_name.clone());
+                if def.datatype().is_temporal() {
+                    let partition_expr =
+                        partition_by_expression(&column_name, &def, &self.temporal_partitioning);
+                    if !new_partition_by_entries.contains(&partition_expr)
+                        && !partition_by.contains(&partition_expr)
+                    {
+                        new_partition_by_entries.push(partition_expr);
+                    }
                 }
             }
-            if new_columns.len() > 1 {
+            if new_partition_by_entries.len() > 1 {
                 return Err(Error::SchemaValidationError(
                     type_name::<Self>(),
                     "found multiple temporal columns - explict specification of partitioning columns required".to_string()
                 ));
             }
-            partition_by.append(&mut new_columns);
+            partition_by.append(&mut new_partition_by_entries);
         } else {
             for column_name in self.partition_by_columns.iter() {
-                if !partition_by.contains(column_name) {
-                    partition_by.push(column_name.clone())
+                let def = self.get_column_def(&column_name)?;
+                let partition_expr =
+                    partition_by_expression(&column_name, &def, &self.temporal_partitioning);
+                if !partition_by.contains(&partition_expr) {
+                    partition_by.push(partition_expr);
                 }
             }
         }
-
         Ok(partition_by)
+    }
+}
+
+/// generate a single partition expression for a single column
+fn partition_by_expression(
+    column_name: &str,
+    def: &ColumnDefinition,
+    temporal_partitioning: &TemporalPartitioning,
+) -> String {
+    match def {
+        ColumnDefinition::H3Index => format!("h3GetBaseCell({})", column_name),
+        ColumnDefinition::Simple(_) | ColumnDefinition::WithAggregation(_, _) => {
+            if def.datatype().is_temporal() {
+                match temporal_partitioning {
+                    TemporalPartitioning::Year => format!("toString(toYear({}))", column_name),
+                    TemporalPartitioning::Month => format!("toString(toMonth({}))", column_name),
+                }
+            } else {
+                column_name.to_string()
+            }
+        }
     }
 }
 
@@ -212,7 +237,7 @@ impl ValidateSchema for CompactedTableSchema {
         }
 
         // a useful partitioning can be created
-        self.partition_by_column_names()?;
+        self.partition_by_expressions()?;
 
         Ok(())
     }
@@ -312,7 +337,7 @@ impl Default for TemporalPartitioning {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AggregationMethod {
     RelativeToResolutionArea,
@@ -347,7 +372,7 @@ impl Named for AggregationMethod {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ColumnDefinition {
     /// a simple column which just stores data.
@@ -412,13 +437,7 @@ pub struct CompactedTableSchemaBuilder {
 impl CompactedTableSchemaBuilder {
     pub fn new(table_name: &str) -> Self {
         let mut columns = HashMap::new();
-        columns.insert(
-            COL_NAME_H3INDEX.to_string(),
-            ColumnDefinition::Simple(SimpleColumn {
-                datatype: Datatype::U64,
-                key_position: Some(0), // always the first anyways
-            }),
-        );
+        columns.insert(COL_NAME_H3INDEX.to_string(), ColumnDefinition::H3Index);
         Self {
             schema: CompactedTableSchema {
                 name: table_name.to_string(),
