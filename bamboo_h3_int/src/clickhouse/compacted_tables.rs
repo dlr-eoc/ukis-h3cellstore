@@ -33,8 +33,10 @@ pub struct Table {
 }
 
 lazy_static! {
-    static ref RE_TABLE: Regex =
-        Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9]+))?$").unwrap();
+    static ref RE_TABLE: Regex = Regex::new(
+        r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9]+))?$"
+    )
+    .unwrap();
 }
 
 impl Table {
@@ -67,7 +69,6 @@ impl Table {
             "{}_{:02}{}{}",
             self.basename,
             self.spec.h3_resolution,
-
             // the suffix
             if self.spec.has_base_suffix {
                 if self.spec.is_compacted {
@@ -78,7 +79,6 @@ impl Table {
             } else {
                 ""
             },
-
             // the temporary key
             if let Some(temp_key) = &self.spec.temporary_key {
                 format!("_tmp{}", temp_key)
@@ -302,7 +302,6 @@ pub fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableS
 
     for tablename in tablenames.iter() {
         if let Some(table) = Table::parse(tablename.as_ref()) {
-
             if table.spec.is_temporary() {
                 // ignore temporary tables here for now
                 continue;
@@ -349,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_table_from_name() {
+    fn test_table_from_name_with_suffix() {
         let table = Table::parse("some_ta78ble_05_base");
         assert!(table.is_some());
         let table_u = table.unwrap();
@@ -357,32 +356,41 @@ mod tests {
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert_eq!(table_u.spec.is_compacted, false);
         assert_eq!(table_u.spec.is_temporary(), false);
+    }
 
-        let table2 = Table::parse("some_ta78ble_05");
-        assert!(table2.is_some());
-        let table2_u = table2.unwrap();
-        assert_eq!(table2_u.basename, "some_ta78ble".to_string());
-        assert_eq!(table2_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table2_u.spec.is_compacted, false);
-        assert_eq!(table2_u.spec.is_temporary(), false);
+    #[test]
+    fn test_table_from_name_without_suffix() {
+        let table = Table::parse("some_ta78ble_05");
+        assert!(table.is_some());
+        let table_u = table.unwrap();
+        assert_eq!(table_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table_u.spec.is_compacted, false);
+        assert_eq!(table_u.spec.is_temporary(), false);
+    }
 
-        let table3 = Table::parse("some_ta78ble_05_tmp5t");
-        assert!(table3.is_some());
-        let table3_u = table3.unwrap();
-        assert_eq!(table3_u.basename, "some_ta78ble".to_string());
-        assert_eq!(table3_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table3_u.spec.is_compacted, false);
-        assert_eq!(table3_u.spec.is_temporary(), true);
-        assert_eq!(table3_u.spec.temporary_key, Some("5t".to_string()));
+    #[test]
+    fn test_table_from_name_temporary_without_suffix() {
+        let table = Table::parse("some_ta78ble_05_tmp5t");
+        assert!(table.is_some());
+        let table_u = table.unwrap();
+        assert_eq!(table_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table_u.spec.is_compacted, false);
+        assert_eq!(table_u.spec.is_temporary(), true);
+        assert_eq!(table_u.spec.temporary_key, Some("5t".to_string()));
+    }
 
-        let table4 = Table::parse("some_ta78ble_05_base_tmp5t");
-        assert!(table4.is_some());
-        let table4_u = table4.unwrap();
-        assert_eq!(table4_u.basename, "some_ta78ble".to_string());
-        assert_eq!(table4_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table4_u.spec.is_compacted, false);
-        assert_eq!(table4_u.spec.is_temporary(), true);
-        assert_eq!(table4_u.spec.temporary_key, Some("5t".to_string()));
+    #[test]
+    fn test_table_from_name_temporary_with_suffix() {
+        let table = Table::parse("some_ta78ble_05_base_tmp5t");
+        assert!(table.is_some());
+        let table_u = table.unwrap();
+        assert_eq!(table_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table_u.spec.is_compacted, false);
+        assert_eq!(table_u.spec.is_temporary(), true);
+        assert_eq!(table_u.spec.temporary_key, Some("5t".to_string()));
     }
 
     #[test]
