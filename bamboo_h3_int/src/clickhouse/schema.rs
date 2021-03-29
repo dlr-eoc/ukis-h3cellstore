@@ -56,16 +56,11 @@ impl CompactedTableSchema {
         let default_key_pos = 10;
         self.columns
             .iter()
-            .map(|(column_name, def)| match def {
-                ColumnDefinition::Simple(sc) => (column_name.clone(), sc.key_position),
-                ColumnDefinition::H3Index => (column_name.clone(), Some(10)),
-                ColumnDefinition::WithAggregation(sc, _) => (column_name.clone(), sc.key_position),
+            .filter(|(column_name, def)| {
+                def.order_key_position().is_some() || COL_NAME_H3INDEX == column_name.as_str()
             })
-            .filter(|(column_name, key_position)| {
-                key_position.is_some() || column_name == COL_NAME_H3INDEX
-            })
-            .map(|(column_name, key_position)| {
-                let key_pos = key_position.unwrap_or(default_key_pos) as i16;
+            .map(|(column_name, def)| {
+                let key_pos = def.order_key_position().unwrap_or(default_key_pos) as i16;
                 // always have the mandatory h3index first as the location is most certainly the
                 // most important criteria for a fast lookup
                 let pos = key_pos
@@ -85,7 +80,7 @@ impl CompactedTableSchema {
                     Ordering::Greater => Ordering::Greater,
                 }
             })
-            .map(|(_, column_name)| column_name)
+            .map(|(_, column_name)| column_name.clone())
             .collect()
     }
 
@@ -400,6 +395,14 @@ impl ColumnDefinition {
             Self::WithAggregation(sc, _) => sc.datatype.clone(),
         }
     }
+
+    pub fn order_key_position(&self) -> Option<u8> {
+        match self {
+            Self::H3Index => Some(0),
+            Self::Simple(sc) => sc.order_key_position,
+            Self::WithAggregation(sc, _) => sc.order_key_position,
+        }
+    }
 }
 
 impl ValidateSchema for ColumnDefinition {
@@ -427,7 +430,7 @@ pub struct SimpleColumn {
     /// which can be unterstood as a form of a primary key. Please consult
     /// https://clickhouse.tech/docs/en/engines/table-engines/mergetree-family/mergetree/
     /// for more
-    key_position: Option<u8>,
+    order_key_position: Option<u8>,
 }
 
 pub struct CompactedTableSchemaBuilder {
@@ -503,8 +506,8 @@ impl CompactedTableSchemaBuilder {
 mod tests {
 
     use crate::clickhouse::schema::{
-        AggregationMethod, ColumnDefinition, CompactedTableSchemaBuilder, Schema, SimpleColumn,
-        TemporalPartitioning,
+        AggregationMethod, ColumnDefinition, CompactedTableSchema, CompactedTableSchemaBuilder,
+        Schema, SimpleColumn, TemporalPartitioning,
     };
     use crate::colvec::Datatype;
 
@@ -519,38 +522,8 @@ mod tests {
         assert!(validate_table_name("unittest", "some_thing").is_ok());
     }
 
-    #[test]
-    fn schema_to_json() {
-        let s = Schema::CompactedTable(
-            CompactedTableSchemaBuilder::new("okavango_delta")
-                .h3_compacted_resolutions(vec![2, 3])
-                .h3_base_resolutions(vec![1, 2, 3, 4, 5])
-                .add_column(
-                    "elephant_density",
-                    ColumnDefinition::WithAggregation(
-                        SimpleColumn {
-                            datatype: Datatype::F32,
-                            key_position: None,
-                        },
-                        AggregationMethod::Average,
-                    ),
-                )
-                .add_column(
-                    "observed_on",
-                    ColumnDefinition::Simple(SimpleColumn {
-                        datatype: Datatype::Date,
-                        key_position: Some(0),
-                    }),
-                )
-                .build()
-                .unwrap(),
-        );
-        println!("{}", s.to_json_string().unwrap());
-    }
-
-    #[test]
-    fn partitioning_columns_implicit() {
-        let ct = CompactedTableSchemaBuilder::new("okavango_delta")
+    fn data_okavango_delta() -> CompactedTableSchema {
+        CompactedTableSchemaBuilder::new("okavango_delta")
             .h3_compacted_resolutions(vec![2, 3])
             .h3_base_resolutions(vec![1, 2, 3, 4, 5])
             .temporal_partitioning(TemporalPartitioning::Month)
@@ -559,7 +532,7 @@ mod tests {
                 ColumnDefinition::WithAggregation(
                     SimpleColumn {
                         datatype: Datatype::F32,
-                        key_position: None,
+                        order_key_position: None,
                     },
                     AggregationMethod::Average,
                 ),
@@ -568,14 +541,23 @@ mod tests {
                 "observed_on",
                 ColumnDefinition::Simple(SimpleColumn {
                     datatype: Datatype::Date,
-                    key_position: Some(0),
+                    order_key_position: Some(0),
                 }),
             )
             .build()
-            .unwrap();
+            .unwrap()
+    }
 
+    #[test]
+    fn schema_to_json() {
+        let s = Schema::CompactedTable(data_okavango_delta());
+        println!("{}", s.to_json_string().unwrap());
+    }
+
+    #[test]
+    fn partitioning_columns_implicit() {
         assert_eq!(
-            ct.partition_by_expressions().unwrap(),
+            data_okavango_delta().partition_by_expressions().unwrap(),
             vec![
                 "h3GetBaseCell(h3index)".to_string(),
                 "toString(toMonth(observed_on))".to_string()
