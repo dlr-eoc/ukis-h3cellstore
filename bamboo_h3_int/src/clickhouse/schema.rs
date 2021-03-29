@@ -126,19 +126,20 @@ impl CompactedTableSchema {
 
     /// columns to use the partitioning of the tables
     pub fn partition_by_column_names(&self) -> Result<Vec<String>, Error> {
-        let mut partition_by = vec![];
-
-        // h3index is always the first
-        partition_by.push(self.h3index_column()?.0);
+        let mut partition_by = vec![
+            // h3index is always the first
+            self.h3index_column()?.0,
+        ];
 
         if self.partition_by_columns.is_empty() {
             // attempt to use a time column for partitioning if there is one
             let mut new_columns = vec![];
             for (column_name, def) in self.columns.iter() {
-                if def.datatype().is_temporal() {
-                    if !new_columns.contains(column_name) && !partition_by.contains(column_name) {
-                        new_columns.push(column_name.clone());
-                    }
+                if def.datatype().is_temporal()
+                    && !new_columns.contains(column_name)
+                    && !partition_by.contains(column_name)
+                {
+                    new_columns.push(column_name.clone());
                 }
             }
             if new_columns.len() > 1 {
@@ -378,20 +379,17 @@ impl ColumnDefinition {
 
 impl ValidateSchema for ColumnDefinition {
     fn validate(&self) -> Result<(), Error> {
-        match self {
-            Self::WithAggregation(simple_column, aggregation_method) => {
-                if !(aggregation_method.is_applicable_to_datatype(&simple_column.datatype)) {
-                    return Err(Error::SchemaValidationError(
-                        type_name::<Self>(),
-                        format!(
-                            "aggregation {} can not be applied to datatype {}",
-                            aggregation_method.name(),
-                            simple_column.datatype.name()
-                        ),
-                    ));
-                }
+        if let Self::WithAggregation(simple_column, aggregation_method) = self {
+            if !(aggregation_method.is_applicable_to_datatype(&simple_column.datatype)) {
+                return Err(Error::SchemaValidationError(
+                    type_name::<Self>(),
+                    format!(
+                        "aggregation {} can not be applied to datatype {}",
+                        aggregation_method.name(),
+                        simple_column.datatype.name()
+                    ),
+                ));
             }
-            _ => (),
         }
         Ok(())
     }
