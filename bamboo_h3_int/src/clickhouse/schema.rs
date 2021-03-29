@@ -1,6 +1,6 @@
 use std::any::type_name;
-use std::collections::HashMap;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -39,18 +39,19 @@ impl ValidateSchema for Schema {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CompactedTableSchema {
-    pub name: String,
-    pub table_engine: TableEngine,
-    pub compression_method: CompressionMethod,
-    pub h3_base_resolutions: Vec<u8>,
-    pub h3_compacted_resolutions: Vec<u8>,
-    pub temporal_resolution: TemporalResolution,
-    pub temporal_partitioning: TemporalPartitioning,
-    pub columns: HashMap<String, ColumnDefinition>,
-    // TODO: Partition by
+    name: String,
+    table_engine: TableEngine,
+    compression_method: CompressionMethod,
+    h3_base_resolutions: Vec<u8>,
+    h3_compacted_resolutions: Vec<u8>,
+    temporal_resolution: TemporalResolution,
+    temporal_partitioning: TemporalPartitioning,
+    columns: HashMap<String, ColumnDefinition>,
+    partition_by_columns: Vec<String>,
 }
 
 impl CompactedTableSchema {
+    /// columns to use for the order-by of the table
     pub fn order_by_column_names(&self) -> Vec<String> {
         let default_key_pos = 10;
         self.columns
@@ -87,14 +88,8 @@ impl CompactedTableSchema {
             .map(|(_, column_name)| column_name)
             .collect()
     }
-}
 
-impl ValidateSchema for CompactedTableSchema {
-    fn validate(&self) -> Result<(), Error> {
-        validate_table_name(type_name::<Self>(), &self.name)?;
-        self.compression_method.validate()?;
-
-        // a h3index column must exist
+    pub fn h3index_column(&self) -> Result<(String, SimpleColumn), Error> {
         match self.columns.get(COL_NAME_H3INDEX) {
             Some(h3index_column) => {
                 if let ColumnDefinition::Simple(simple_column) = h3index_column {
@@ -107,6 +102,8 @@ impl ValidateSchema for CompactedTableSchema {
                                 Datatype::U64
                             ),
                         ));
+                    } else {
+                        Ok((COL_NAME_H3INDEX.to_string(), simple_column.clone()))
                     }
                 } else {
                     return Err(Error::SchemaValidationError(
@@ -125,6 +122,51 @@ impl ValidateSchema for CompactedTableSchema {
                 ))
             }
         }
+    }
+
+    /// columns to use the partitioning of the tables
+    pub fn partition_by_column_names(&self) -> Result<Vec<String>, Error> {
+        let mut partition_by = vec![];
+
+        // h3index is always the first
+        partition_by.push(self.h3index_column()?.0);
+
+        if self.partition_by_columns.is_empty() {
+            // attempt to use a time column for partitioning if there is one
+            let mut new_columns = vec![];
+            for (column_name, def) in self.columns.iter() {
+                if def.datatype().is_temporal() {
+                    if !new_columns.contains(column_name) && !partition_by.contains(column_name) {
+                        new_columns.push(column_name.clone());
+                    }
+                }
+            }
+            if new_columns.len() > 1 {
+                return Err(Error::SchemaValidationError(
+                    type_name::<Self>(),
+                    "found multiple temporal columns - explict specification of partitioning columns required".to_string()
+                ));
+            }
+            partition_by.append(&mut new_columns);
+        } else {
+            for column_name in self.partition_by_columns.iter() {
+                if !partition_by.contains(column_name) {
+                    partition_by.push(column_name.clone())
+                }
+            }
+        }
+
+        Ok(partition_by)
+    }
+}
+
+impl ValidateSchema for CompactedTableSchema {
+    fn validate(&self) -> Result<(), Error> {
+        validate_table_name(type_name::<Self>(), &self.name)?;
+        self.compression_method.validate()?;
+
+        // a h3index column must exist
+        self.h3index_column()?;
 
         // validate table engine
         if let TableEngine::SummingMergeTree(sum_columns) = &self.table_engine {
@@ -167,6 +209,10 @@ impl ValidateSchema for CompactedTableSchema {
                 }
             }
         }
+
+        // a useful partitioning can be created
+        self.partition_by_column_names()?;
+
         Ok(())
     }
 }
@@ -320,6 +366,16 @@ pub enum ColumnDefinition {
     WithAggregation(SimpleColumn, AggregationMethod),
 }
 
+impl ColumnDefinition {
+    pub fn datatype(&self) -> Datatype {
+        match self {
+            Self::H3Index => Datatype::U64,
+            Self::Simple(sc) => sc.datatype.clone(),
+            Self::WithAggregation(sc, _) => sc.datatype.clone(),
+        }
+    }
+}
+
 impl ValidateSchema for ColumnDefinition {
     fn validate(&self) -> Result<(), Error> {
         match self {
@@ -374,6 +430,7 @@ impl CompactedTableSchemaBuilder {
                 h3_compacted_resolutions: vec![],
                 temporal_resolution: Default::default(),
                 temporal_partitioning: Default::default(),
+                partition_by_columns: Default::default(),
                 columns,
             },
         }
@@ -411,6 +468,11 @@ impl CompactedTableSchemaBuilder {
 
     pub fn add_column(mut self, column_name: &str, def: ColumnDefinition) -> Self {
         self.schema.columns.insert(column_name.to_string(), def);
+        self
+    }
+
+    pub fn partition_by(mut self, columns: Vec<String>) -> Self {
+        self.schema.partition_by_columns = columns;
         self
     }
 
