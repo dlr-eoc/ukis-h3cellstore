@@ -12,12 +12,18 @@ pub struct TableSpec {
     pub h3_resolution: u8,
     pub is_compacted: bool,
 
-    /// intermediate tables are just used during ingestion of new data
+    /// temporary tables are just used during ingestion of new data
     /// into the clickhouse db
-    pub is_intermediate: bool,
+    pub temporary_key: Option<String>,
 
     /// describes if the tables use the _base suffix
-    pub has_suffix: bool,
+    pub has_base_suffix: bool,
+}
+
+impl TableSpec {
+    pub fn is_temporary(&self) -> bool {
+        self.temporary_key.is_some()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -28,7 +34,7 @@ pub struct Table {
 
 lazy_static! {
     static ref RE_TABLE: Regex =
-        Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?$").unwrap();
+        Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9]+))?$").unwrap();
 }
 
 impl Table {
@@ -43,8 +49,12 @@ impl Table {
                     } else {
                         false
                     },
-                    is_intermediate: false,
-                    has_suffix: captures.get(4).is_some(),
+                    temporary_key: if let Some(temp_key) = captures.get(6) {
+                        Some(temp_key.as_str().to_string())
+                    } else {
+                        None
+                    },
+                    has_base_suffix: captures.get(4).is_some(),
                 },
             })
         } else {
@@ -54,10 +64,12 @@ impl Table {
 
     pub fn to_table_name(&self) -> String {
         format!(
-            "{}_{:02}{}",
+            "{}_{:02}{}{}",
             self.basename,
             self.spec.h3_resolution,
-            if self.spec.has_suffix {
+
+            // the suffix
+            if self.spec.has_base_suffix {
                 if self.spec.is_compacted {
                     "_compacted"
                 } else {
@@ -65,6 +77,13 @@ impl Table {
                 }
             } else {
                 ""
+            },
+
+            // the temporary key
+            if let Some(temp_key) = &self.spec.temporary_key {
+                format!("_tmp{}", temp_key)
+            } else {
+                "".to_string()
             }
         )
     }
@@ -241,14 +260,14 @@ impl TableSet {
                         spec: TableSpec {
                             h3_resolution: r,
                             is_compacted: r != h3_resolution,
-                            is_intermediate: false,
-                            has_suffix: if r != h3_resolution {
+                            temporary_key: None,
+                            has_base_suffix: if r != h3_resolution {
                                 &self.compacted_tables
                             } else {
                                 &self.base_tables
                             }
                             .get(&r)
-                            .map_or_else(|| true, |table_spec| table_spec.has_suffix),
+                            .map_or_else(|| true, |table_spec| table_spec.has_base_suffix),
                         },
                     }
                     .to_table_name();
@@ -283,6 +302,12 @@ pub fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableS
 
     for tablename in tablenames.iter() {
         if let Some(table) = Table::parse(tablename.as_ref()) {
+
+            if table.spec.is_temporary() {
+                // ignore temporary tables here for now
+                continue;
+            }
+
             let tableset = tablesets
                 .entry(table.basename.to_string())
                 .or_insert_with(|| TableSet::new(&table.basename));
@@ -311,15 +336,15 @@ mod tests {
             spec: TableSpec {
                 h3_resolution: 5,
                 is_compacted: false,
-                is_intermediate: false,
-                has_suffix: true,
+                temporary_key: None,
+                has_base_suffix: true,
             },
         };
 
         assert_eq!(table.to_table_name(), "some_table_05_base");
 
         let mut table2 = table.clone();
-        table2.spec.has_suffix = false;
+        table2.spec.has_base_suffix = false;
         assert_eq!(table2.to_table_name(), "some_table_05");
     }
 
@@ -331,6 +356,7 @@ mod tests {
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert_eq!(table_u.spec.is_compacted, false);
+        assert_eq!(table_u.spec.is_temporary(), false);
 
         let table2 = Table::parse("some_ta78ble_05");
         assert!(table2.is_some());
@@ -338,6 +364,25 @@ mod tests {
         assert_eq!(table2_u.basename, "some_ta78ble".to_string());
         assert_eq!(table2_u.spec.h3_resolution, 5_u8);
         assert_eq!(table2_u.spec.is_compacted, false);
+        assert_eq!(table2_u.spec.is_temporary(), false);
+
+        let table3 = Table::parse("some_ta78ble_05_tmp5t");
+        assert!(table3.is_some());
+        let table3_u = table3.unwrap();
+        assert_eq!(table3_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table3_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table3_u.spec.is_compacted, false);
+        assert_eq!(table3_u.spec.is_temporary(), true);
+        assert_eq!(table3_u.spec.temporary_key, Some("5t".to_string()));
+
+        let table4 = Table::parse("some_ta78ble_05_base_tmp5t");
+        assert!(table4.is_some());
+        let table4_u = table4.unwrap();
+        assert_eq!(table4_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table4_u.spec.h3_resolution, 5_u8);
+        assert_eq!(table4_u.spec.is_compacted, false);
+        assert_eq!(table4_u.spec.is_temporary(), true);
+        assert_eq!(table4_u.spec.temporary_key, Some("5t".to_string()));
     }
 
     #[test]

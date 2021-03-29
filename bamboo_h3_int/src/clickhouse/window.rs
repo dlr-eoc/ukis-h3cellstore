@@ -157,8 +157,8 @@ mod tests {
                         TableSpec {
                             h3_resolution: r,
                             is_compacted: false,
-                            is_intermediate: false,
-                            has_suffix: true,
+                            temporary_key: None,
+                            has_base_suffix: true,
                         },
                     );
                 }
