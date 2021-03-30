@@ -5,16 +5,23 @@ use std::collections::HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::clickhouse::compacted_tables::{Table, TableSpec};
 use crate::colvec::Datatype;
 use crate::common::{ordered_h3_resolutions, Named};
 use crate::error::Error;
 use crate::COL_NAME_H3INDEX;
+use clickhouse_rs::types::{DateTimeType, SqlType};
 use itertools::Itertools;
 
 // templating: https://github.com/djc/askama
 
 pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
+}
+
+pub trait CreateSchema {
+    /// generate the SQL statements to create the schema
+    fn create_statements(&self) -> Result<Vec<String>, Error>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -33,6 +40,14 @@ impl ValidateSchema for Schema {
     fn validate(&self) -> Result<(), Error> {
         match self {
             Self::CompactedTable(ct) => ct.validate(),
+        }
+    }
+}
+
+impl CreateSchema for Schema {
+    fn create_statements(&self) -> Result<Vec<String>, Error> {
+        match self {
+            Schema::CompactedTable(ct) => ct.create_statements()
         }
     }
 }
@@ -157,6 +172,70 @@ impl CompactedTableSchema {
             }
         }
         Ok(partition_by)
+    }
+}
+
+impl CreateSchema for CompactedTableSchema {
+    fn create_statements(&self) -> Result<Vec<String>, Error> {
+        let partition_by = self.partition_by_expressions()?.join(", ");
+        let order_by = self.order_by_column_names().join(", ");
+        let engine = match &self.table_engine {
+            TableEngine::ReplacingMergeTree => "ReplacingMergeTree".to_string(),
+            TableEngine::SummingMergeTree(smt_columns) => {
+                format!("SummingMergeTree({})", smt_columns.join(", "))
+            }
+            TableEngine::AggregatingMergeTree => "AggregatingMergeTree".to_string(),
+        };
+        let codec = match &self.compression_method {
+            CompressionMethod::LZ4HC(level) => format!("LZ4HC({})", level),
+            CompressionMethod::ZSTD(level) => format!("ZSTD({})", level),
+        };
+        let columns = &self
+            .columns
+            .iter()
+            .map(|(col_name, def)| {
+                format!(
+                    " {} {} CODEC({})",
+                    col_name,
+                    def.datatype().sqltype().to_string(),
+                    codec
+                )
+            })
+            .join(",\n");
+
+        Ok(self
+            .h3_base_resolutions
+            .iter()
+            .map(|r| (*r, false))
+            .chain(self.h3_compacted_resolutions.iter().map(|r| (*r, true)))
+            .map(|(h3_resolution, is_compacted)| {
+                let table = Table {
+                    basename: self.name.clone(),
+                    spec: TableSpec {
+                        h3_resolution,
+                        is_compacted,
+                        temporary_key: None,
+                        has_base_suffix: true,
+                    },
+                };
+
+                format!(
+                    "
+CREATE TABLE IF NOT EXISTS {} (
+    {}
+)
+ENGINE {}
+PARTITION BY ({})
+ORDER BY ({});
+",
+                    table.to_table_name(),
+                    columns,
+                    engine,
+                    partition_by,
+                    order_by
+                )
+            })
+            .collect())
     }
 }
 
@@ -367,6 +446,39 @@ impl Named for AggregationMethod {
     }
 }
 
+trait GetSqlType {
+    fn sqltype(&self) -> SqlType;
+}
+
+impl GetSqlType for Datatype {
+    fn sqltype(&self) -> SqlType {
+        match self {
+            Datatype::U8 => SqlType::UInt8,
+            Datatype::U8N => SqlType::Nullable(&SqlType::UInt8),
+            Datatype::I8 => SqlType::Int8,
+            Datatype::I8N => SqlType::Nullable(&SqlType::Int8),
+            Datatype::U16 => SqlType::UInt16,
+            Datatype::U16N => SqlType::Nullable(&SqlType::UInt16),
+            Datatype::U32 => SqlType::UInt32,
+            Datatype::U32N => SqlType::Nullable(&SqlType::UInt32),
+            Datatype::I32 => SqlType::Int32,
+            Datatype::I32N => SqlType::Nullable(&SqlType::Int32),
+            Datatype::U64 => SqlType::UInt64,
+            Datatype::U64N => SqlType::Nullable(&SqlType::UInt64),
+            Datatype::I64 => SqlType::Int64,
+            Datatype::I64N => SqlType::Nullable(&SqlType::Int64),
+            Datatype::F32 => SqlType::Float32,
+            Datatype::F32N => SqlType::Nullable(&SqlType::Float32),
+            Datatype::F64 => SqlType::Float64,
+            Datatype::F64N => SqlType::Nullable(&SqlType::Float64),
+            Datatype::Date => SqlType::Date,
+            Datatype::DateN => SqlType::Nullable(&SqlType::Date),
+            Datatype::DateTime => SqlType::DateTime(DateTimeType::Chrono),
+            Datatype::DateTimeN => SqlType::Nullable(&SqlType::DateTime(DateTimeType::Chrono)),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum ColumnDefinition {
@@ -396,6 +508,10 @@ impl ColumnDefinition {
         }
     }
 
+    /// position in the sorting key (`ORDER BY`) in MergeTree tables
+    /// which can be unterstood as a form of a primary key. Please consult
+    /// https://clickhouse.tech/docs/en/engines/table-engines/mergetree-family/mergetree/
+    /// for more
     pub fn order_key_position(&self) -> Option<u8> {
         match self {
             Self::H3Index => Some(0),
@@ -505,10 +621,7 @@ impl CompactedTableSchemaBuilder {
 #[cfg(test)]
 mod tests {
 
-    use crate::clickhouse::schema::{
-        AggregationMethod, ColumnDefinition, CompactedTableSchema, CompactedTableSchemaBuilder,
-        Schema, SimpleColumn, TemporalPartitioning,
-    };
+    use crate::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompactedTableSchema, CompactedTableSchemaBuilder, Schema, SimpleColumn, TemporalPartitioning, CreateSchema};
     use crate::colvec::Datatype;
 
     use super::validate_table_name;
@@ -524,7 +637,7 @@ mod tests {
 
     fn data_okavango_delta() -> CompactedTableSchema {
         CompactedTableSchemaBuilder::new("okavango_delta")
-            .h3_compacted_resolutions(vec![2, 3])
+            .h3_compacted_resolutions(vec![1, 2, 3, 4])
             .h3_base_resolutions(vec![1, 2, 3, 4, 5])
             .temporal_partitioning(TemporalPartitioning::Month)
             .add_column(
@@ -540,7 +653,7 @@ mod tests {
             .add_column(
                 "observed_on",
                 ColumnDefinition::Simple(SimpleColumn {
-                    datatype: Datatype::Date,
+                    datatype: Datatype::DateTime,
                     order_key_position: Some(0),
                 }),
             )
@@ -552,6 +665,7 @@ mod tests {
     fn schema_to_json() {
         let s = Schema::CompactedTable(data_okavango_delta());
         println!("{}", s.to_json_string().unwrap());
+        dbg!(s.create_statements());
     }
 
     #[test]
