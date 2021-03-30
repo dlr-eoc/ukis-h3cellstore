@@ -1,21 +1,22 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::iter::Zip;
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
+use clickhouse_rs::types::{Column, Complex};
 use clickhouse_rs::{
-    ClientHandle,
     errors::{Error, Result},
     types::SqlType,
+    ClientHandle,
 };
-use clickhouse_rs::types::{Column, Complex};
 use futures_util::StreamExt;
 use h3ron::Index;
 use log::{error, warn};
 
-use crate::{COL_NAME_H3INDEX, ColumnSet, ColVec};
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
+use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -179,73 +180,144 @@ pub async fn query_all_with_uncompacting(
     Ok(out_rows.into())
 }
 
-fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
-    macro_rules! column_values {
-        ($cvtype:ident, $itertype:ty, $conv_closure:expr) => {{
-            let values = if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
-                // repeat columns values according to the counts of the row_repetitions vec
-                // to create a "flat" table.
-                let mut values = Vec::with_capacity(num_uncompacted_rows);
-                let mut pos = 0_usize;
-                for v in column.iter::<$itertype>()?.map($conv_closure) {
-                    for _ in 0..row_repetitions[pos] {
-                        values.push(v)
+struct RowRepeatingIterator<'a, I, T>
+where
+    I: Iterator<Item = T>,
+    T: Clone,
+{
+    num_uncompacted_rows: usize,
+    zipped_iterator: Zip<I, std::slice::Iter<'a, usize>>,
+
+    current_element: Option<I::Item>,
+    repetitions_left: usize,
+}
+
+impl<'a, I, T> RowRepeatingIterator<'a, I, T>
+where
+    I: Iterator<Item = T>,
+    T: Clone,
+{
+    pub fn new(num_uncompacted_rows: usize, repetitions: &'a [usize], iter: I) -> Self {
+        Self {
+            num_uncompacted_rows,
+            zipped_iterator: iter.zip(repetitions.iter()),
+            current_element: None,
+            repetitions_left: 0,
+        }
+    }
+}
+
+impl<'a, I, T> Iterator for RowRepeatingIterator<'a, I, T>
+where
+    I: Iterator<Item = T>,
+    T: Clone,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.repetitions_left > 0 {
+            self.repetitions_left -= 1;
+            self.current_element.clone()
+        } else {
+            loop {
+                if let Some((current_element, repetitions_left)) = self.zipped_iterator.next() {
+                    if repetitions_left == &0 {
+                        continue;
                     }
-                    pos += 1;
+                    self.current_element = Some(current_element);
+                    self.repetitions_left = repetitions_left - 1;
+                    return self.current_element.clone();
+                } else {
+                    return None;
                 }
-                values
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.num_uncompacted_rows, None)
+    }
+}
+
+fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
+
+    macro_rules! column_values {
+        ($iter:expr) => {
+            if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
+                RowRepeatingIterator::new(
+                    num_uncompacted_rows,
+                    &row_repetitions,
+                    $iter,
+                )
+                .collect()
             } else {
-                // just copy everything
-                column.iter::<$itertype>()?.map($conv_closure).collect()
-            };
-            ColVec::$cvtype(values)
-        }};
-        ($cvtype:ident, $itertype:ty) => {
-            if row_reps.is_some() {
-                column_values!($cvtype, $itertype, |v| v.clone())
-            } else {
-                let values = column.iter::<$itertype>()?.cloned().collect::<Vec<_>>();
-                ColVec::$cvtype(values)
+                $iter.collect()
             }
         };
     }
 
-    let values = match column.sql_type() {
-        SqlType::UInt8 => column_values!(U8, u8),
-        SqlType::UInt16 => column_values!(U16, u16),
-        SqlType::UInt32 => column_values!(U32, u32),
-        SqlType::UInt64 => column_values!(U64, u64),
-        SqlType::Int8 => column_values!(I8, i8),
-        SqlType::Int16 => column_values!(I16, i16),
-        SqlType::Int32 => column_values!(I32, i32),
-        SqlType::Int64 => column_values!(I64, i64),
-        SqlType::Float32 => column_values!(F32, f32),
-        SqlType::Float64 => column_values!(F64, f64),
-        SqlType::Date => {
-            column_values!(Date, Date<Tz>, |d| to_datetime(&d).timestamp())
-        }
-        SqlType::DateTime(_) => {
-            column_values!(DateTime, DateTime<Tz>, |d| d.timestamp())
-        }
+    let values: ColVec = match column.sql_type() {
+        SqlType::UInt8 => column_values!(column.iter::<u8>()?.copied()),
+        SqlType::UInt16 => column_values!(column.iter::<u16>()?.copied()),
+        SqlType::UInt32 => column_values!(column.iter::<u32>()?.copied()),
+        SqlType::UInt64 => column_values!(column.iter::<u64>()?.copied()),
+        SqlType::Int8 => column_values!(column.iter::<i8>()?.copied()),
+        SqlType::Int16 => column_values!(column.iter::<i16>()?.copied()),
+        SqlType::Int32 => column_values!(column.iter::<i32>()?.copied()),
+        SqlType::Int64 => column_values!(column.iter::<i64>()?.copied()),
+        SqlType::Float32 => column_values!(column.iter::<f32>()?.copied()),
+        SqlType::Float64 => column_values!(column.iter::<f64>()?.copied()),
+        SqlType::Date => column_values!(column.iter::<Date<Tz>>()?),
+        SqlType::DateTime(_) => column_values!(column.iter::<DateTime<Tz>>()?),
         SqlType::Nullable(inner_sqltype) => match inner_sqltype {
-            SqlType::UInt8 => column_values!(U8N, Option<u8>, |v| v.copied()),
-            SqlType::UInt16 => column_values!(U16N, Option<u16>, |v| v.copied()),
-            SqlType::UInt32 => column_values!(U32N, Option<u32>, |v| v.copied()),
-            SqlType::UInt64 => column_values!(U64N, Option<u64>, |v| v.copied()),
-            SqlType::Int8 => column_values!(I8N, Option<i8>, |v| v.copied()),
-            SqlType::Int16 => column_values!(I16N, Option<i16>, |v| v.copied()),
-            SqlType::Int32 => column_values!(I32N, Option<i32>, |v| v.copied()),
-            SqlType::Int64 => column_values!(I64N, Option<i64>, |v| v.copied()),
-            SqlType::Float32 => column_values!(F32N, Option<f32>, |v| v.copied()),
-            SqlType::Float64 => column_values!(F64N, Option<f64>, |v| v.copied()),
+            SqlType::UInt8 => {
+                let iter = column.iter::<Option<u8>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::UInt16 => {
+                let iter = column.iter::<Option<u16>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::UInt32 => {
+                let iter = column.iter::<Option<u32>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::UInt64 => {
+                let iter = column.iter::<Option<u64>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Int8 => {
+                let iter = column.iter::<Option<i8>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Int16 => {
+                let iter = column.iter::<Option<i16>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Int32 => {
+                let iter = column.iter::<Option<i32>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Int64 => {
+                let iter = column.iter::<Option<i64>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Float32 => {
+                let iter = column.iter::<Option<f32>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
+            SqlType::Float64 => {
+                let iter = column.iter::<Option<f64>>()?.map(|v| v.copied());
+                column_values!(iter)
+            },
             SqlType::Date => {
-                column_values!(DateN, Option<Date<Tz>>, |d| d
-                    .map(|inner| to_datetime(&inner).timestamp()))
-            }
+                let iter = column.iter::<Option<Date<Tz>>>()?;
+                column_values!(iter)
+            },
             SqlType::DateTime(_) => {
-                column_values!(DateTimeN, Option<DateTime<Tz>>, |d| d
-                    .map(|inner| inner.timestamp()))
-            }
+                let iter = column.iter::<Option<DateTime<Tz>>>()?;
+                column_values!(iter)
+            },
             _ => {
                 error!(
                     "unsupported nullable column type {} for column {}",
@@ -267,7 +339,21 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
     Ok(values)
 }
 
-#[inline]
-fn to_datetime(date: &Date<Tz>) -> DateTime<Tz> {
-    date.and_hms(12, 0, 0)
+#[cfg(test)]
+mod tests {
+    use crate::clickhouse::query::RowRepeatingIterator;
+
+    #[test]
+    fn repeating_iterator() {
+        let some_data = vec![1, 2, 3];
+        let repetitions = vec![2, 1, 3];
+        let mut iter = RowRepeatingIterator::new(6, &repetitions, some_data.iter());
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), None);
+    }
 }

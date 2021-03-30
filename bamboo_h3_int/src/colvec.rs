@@ -1,7 +1,12 @@
-use crate::error::Error;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use chrono::{Date, DateTime};
+use chrono_tz::Tz;
+use serde::{Deserialize, Serialize};
+
 use crate::common::Named;
+use crate::error::Error;
+use std::iter::FromIterator;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -62,7 +67,10 @@ impl Datatype {
     }
 
     pub fn is_temporal(&self) -> bool {
-        matches!(self, Datatype::Date | Datatype::DateTime | Datatype::DateN | Datatype::DateTimeN)
+        matches!(
+            self,
+            Datatype::Date | Datatype::DateTime | Datatype::DateN | Datatype::DateTimeN
+        )
     }
 }
 
@@ -222,6 +230,104 @@ impl ColVec {
         }
     }
 }
+
+#[inline]
+fn datetime_to_timestamp(dt: &DateTime<Tz>) -> i64 {
+    dt.timestamp()
+}
+
+#[inline]
+fn date_to_timestamp(d: &Date<Tz>) -> i64 {
+    d.and_hms(12, 0, 0).timestamp()
+}
+
+macro_rules! vec_to_colvec_from_impl {
+    ($vt:ty, $cvtype:ident) => {
+        impl From<Vec<$vt>> for ColVec {
+            fn from(v: Vec<$vt>) -> Self {
+                ColVec::$cvtype(v)
+            }
+        }
+    };
+    ($vt:ty, $cvtype:ident, $converter_closure:expr) => {
+        impl From<Vec<$vt>> for ColVec {
+            fn from(mut v: Vec<$vt>) -> Self {
+                ColVec::$cvtype(v.drain(..).map($converter_closure).collect())
+            }
+        }
+    };
+}
+
+vec_to_colvec_from_impl!(u8, U8);
+vec_to_colvec_from_impl!(i8, I8);
+vec_to_colvec_from_impl!(u16, U16);
+vec_to_colvec_from_impl!(i16, I16);
+vec_to_colvec_from_impl!(u32, U32);
+vec_to_colvec_from_impl!(i32, I32);
+vec_to_colvec_from_impl!(u64, U64);
+vec_to_colvec_from_impl!(i64, I64);
+vec_to_colvec_from_impl!(f32, F32);
+vec_to_colvec_from_impl!(f64, F64);
+vec_to_colvec_from_impl!(Option<u8>, U8N);
+vec_to_colvec_from_impl!(Option<i8>, I8N);
+vec_to_colvec_from_impl!(Option<u16>, U16N);
+vec_to_colvec_from_impl!(Option<i16>, I16N);
+vec_to_colvec_from_impl!(Option<u32>, U32N);
+vec_to_colvec_from_impl!(Option<i32>, I32N);
+vec_to_colvec_from_impl!(Option<u64>, U64N);
+vec_to_colvec_from_impl!(Option<i64>, I64N);
+vec_to_colvec_from_impl!(Option<f32>, F32N);
+vec_to_colvec_from_impl!(Option<f64>, F64N);
+vec_to_colvec_from_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
+vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN, |d| d.map(|inner| date_to_timestamp(&inner)));
+vec_to_colvec_from_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
+vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d.map(|inner| datetime_to_timestamp(&inner)));
+
+
+macro_rules! iter_to_colvec_fromiterator_impl {
+    ($vt:ty, $cvtype:ident) => {
+        impl FromIterator<$vt> for ColVec {
+            fn from_iter<T: IntoIterator<Item=$vt>>(iter: T) -> Self {
+                ColVec::$cvtype(iter.into_iter().collect())
+            }
+        }
+    };
+    ($vt:ty, $cvtype:ident, $converter_closure:expr) => {
+        impl FromIterator<$vt> for ColVec {
+            fn from_iter<T: IntoIterator<Item=$vt>>(iter: T) -> Self {
+                ColVec::$cvtype(iter.into_iter().map($converter_closure).collect())
+            }
+        }
+    };
+}
+
+iter_to_colvec_fromiterator_impl!(u8, U8);
+iter_to_colvec_fromiterator_impl!(i8, I8);
+iter_to_colvec_fromiterator_impl!(u16, U16);
+iter_to_colvec_fromiterator_impl!(i16, I16);
+iter_to_colvec_fromiterator_impl!(u32, U32);
+iter_to_colvec_fromiterator_impl!(i32, I32);
+iter_to_colvec_fromiterator_impl!(u64, U64);
+iter_to_colvec_fromiterator_impl!(i64, I64);
+iter_to_colvec_fromiterator_impl!(f32, F32);
+iter_to_colvec_fromiterator_impl!(f64, F64);
+iter_to_colvec_fromiterator_impl!(Option<u8>, U8N);
+iter_to_colvec_fromiterator_impl!(Option<i8>, I8N);
+iter_to_colvec_fromiterator_impl!(Option<u16>, U16N);
+iter_to_colvec_fromiterator_impl!(Option<i16>, I16N);
+iter_to_colvec_fromiterator_impl!(Option<u32>, U32N);
+iter_to_colvec_fromiterator_impl!(Option<i32>, I32N);
+iter_to_colvec_fromiterator_impl!(Option<u64>, U64N);
+iter_to_colvec_fromiterator_impl!(Option<i64>, I64N);
+iter_to_colvec_fromiterator_impl!(Option<f32>, F32N);
+iter_to_colvec_fromiterator_impl!(Option<f64>, F64N);
+iter_to_colvec_fromiterator_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
+iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN, |d| d.map(|inner| date_to_timestamp(&inner)));
+iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
+iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d.map(|inner| datetime_to_timestamp(&inner)));
+
+
+
 
 ///
 /// a set of columns with their values

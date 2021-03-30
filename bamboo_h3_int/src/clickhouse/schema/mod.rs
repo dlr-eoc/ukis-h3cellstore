@@ -120,7 +120,6 @@ impl Default for CompressionMethod {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum TemporalResolution {
     Second,
     Day,
@@ -133,7 +132,6 @@ impl Default for TemporalResolution {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum TemporalPartitioning {
     Year,
     Month,
@@ -146,7 +144,6 @@ impl Default for TemporalPartitioning {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
 pub enum AggregationMethod {
     RelativeToResolutionArea,
     Sum,
@@ -214,7 +211,6 @@ impl GetSqlType for Datatype {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
 pub enum ColumnDefinition {
     /// a simple column which just stores data.
     /// The data will not get modified when the values get aggregated to coarser resolutions.

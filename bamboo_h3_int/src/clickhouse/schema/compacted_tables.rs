@@ -181,7 +181,7 @@ impl CreateSchema for CompactedTableSchema {
                 format!(
                     "
 CREATE TABLE IF NOT EXISTS {} (
-    {}
+{}
 )
 ENGINE {}
 PARTITION BY ({})
@@ -392,7 +392,9 @@ mod tests {
     fn schema_to_json() {
         let s = Schema::CompactedTable(data_okavango_delta());
         println!("{}", s.to_json_string().unwrap());
-        dbg!(s.create_statements().unwrap());
+        for s in s.create_statements().unwrap().iter() {
+            println!("{}", s);
+        }
     }
 
     #[test]
