@@ -1,12 +1,11 @@
 from shapely import wkb
 from shapely.geometry import shape, Polygon as ShapelyPolygon
+from typing import Any
 
 from .bamboo_h3 import Polygon
 
-{ "type": "Polygon", "coordinates": [ [ [ 15.1, 49.3 ], [ 18.6, 49.3 ], [ 18.6, 51.1 ], [ 15.1, 51.17 ], [ 15.1, 49.3 ] ] ] }
 
-
-def to_polygon(input):
+def to_polygon(input: Any) -> Polygon:
     """
     convert ... something ... to a polygon.
 
@@ -40,4 +39,4 @@ if __name__ == "__main__":
     # run doctests
     import doctest
 
-    doctest.testmod()
+    doctest.testmod(verbose=True)

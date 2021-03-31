@@ -1,3 +1,5 @@
+from __future__ import annotations  # https://stackoverflow.com/a/33533514
+
 import pandas as pd
 import numpy as np
 
@@ -11,7 +13,7 @@ class ColumnSet:
         self.inner = inner
 
     @staticmethod
-    def from_dataframe(df: pd.DataFrame, drain=False):
+    def from_dataframe(df: pd.DataFrame, drain: bool = False):
         """
         convert an pandas dataframe to an ColumnSet class
 
@@ -22,14 +24,14 @@ class ColumnSet:
         >>> len(column_set)
         12
         """
-        inner = lib.ColumnSet()
+        cs = lib.ColumnSet()
         for column_name in df.columns:
             # TODO: convert numpy datetimes to datetime[s]
             # numpy uses uint64 for all datetimes, see https://docs.scipy.org/doc/numpy-1.13.0/reference/arrays.datetime.html#datetime-units
-            inner.add_numpy_column(column_name, df[column_name].to_numpy())
+            cs.add_numpy_column(column_name, df[column_name].to_numpy())
             if drain:
                 del df[column_name]
-        return ColumnSet(inner)
+        return ColumnSet(cs)
 
     @property
     def column_types(self):
@@ -115,7 +117,7 @@ class ColumnSet:
         self.inner.write_to(filename)
 
     @staticmethod
-    def read_from(filename: str):
+    def read_from(filename: str) -> ColumnSet:
         """
         deserialize from a file.
 
@@ -139,8 +141,9 @@ class ColumnSet:
         inner = lib.ColumnSet.read_from(filename)
         return ColumnSet(inner)
 
+
 if __name__ == "__main__":
     # run doctests
     import doctest
 
-    doctest.testmod()
+    doctest.testmod(verbose=True)

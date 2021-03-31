@@ -4,12 +4,12 @@ helpers for multiprocessing
 import concurrent.futures
 import math
 import random
-from typing import Callable
+from typing import Callable, List, Any
 
 from shapely.geometry import box, Polygon
 
 
-def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
+def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygon]:
     """cut a shapely geometry into chunks to distribute it across multiple processes
 
     :returns: list of shapely polygons
@@ -49,7 +49,7 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx=10):
 
 
 def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_callback: Callable,
-                    num_chunks_per_proccess_approx=2):
+                    num_chunks_per_proccess_approx: int = 2) -> List[Any]:
     """cut the `polygon` into chunks and concurrently apply the `processing_callback`
         to each of the chunks using `n_concurrent_processes` subprocesses.
 

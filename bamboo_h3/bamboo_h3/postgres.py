@@ -11,7 +11,7 @@ import pandas as pd
 from . import Polygon, H3IndexesContainedIn
 
 
-def as_bytes(in_val):
+def as_bytes(in_val) -> bytes:
     if type(in_val) == bytes:
         return in_val
     if type(in_val) == memoryview:
@@ -19,7 +19,7 @@ def as_bytes(in_val):
     raise ValueError("unable to convert to bytes")
 
 
-def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name: str, query_str: str, *query_args):
+def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name: str, query_str: str, *query_args) -> pd.DataFrame:
     """
     execute a sql query and return the rows for all results intersecting with a h3index of the
      given numpy array
