@@ -53,8 +53,13 @@ class ColumnSet:
         return len(self.inner)
 
     @property
-    def is_empty(self) -> bool:
-        return self.inner.is_empty
+    def size(self) -> bool:
+        """size property, equally to the one provided by pandas"""
+        return len(self.inner)
+
+    @property
+    def empty(self) -> bool:
+        return self.inner.empty
 
     def to_dataframe(self) -> pd.DataFrame:
         """

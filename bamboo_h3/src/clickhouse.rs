@@ -19,7 +19,7 @@ use crate::{
     window::SlidingH3Window,
 };
 use either::Either;
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::PyRuntimeError;
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
@@ -227,17 +227,26 @@ impl ResultSet {
         self.window_h3index
     }
 
-    #[getter]
     /// get the contents fetched in resultset
     ///
     /// This can be done only once as the ownership get passed to python.
     ///
     /// Calling this results in waiting until the results are available.
-    fn get_columnset(&mut self) -> PyResult<Option<ColumnSet>> {
+    fn to_columnset(&mut self) -> PyResult<Option<ColumnSet>> {
         self.await_column_data()?;
         match self.column_data.as_mut() {
             Either::Left(cd) => Ok(cd.take()),
             Either::Right(_) => Ok(None),
+        }
+    }
+
+    #[getter]
+    /// Calling this results in waiting until the results are available.
+    fn get_empty(&mut self) -> PyResult<bool> {
+        self.await_column_data()?;
+        match &self.column_data {
+            Either::Left(cd) => Ok(cd.as_ref().map_or_else(|| true, |cs| cs.inner.is_empty())),
+            Either::Right(_) => Err(PyRuntimeError::new_err("awaiting failed")),
         }
     }
 

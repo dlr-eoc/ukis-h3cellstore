@@ -75,7 +75,7 @@ class ClickhouseResultSet:
 
         This method will wait for asynchronous queries to be finished executing.
         """
-        inner_cs = self.resultset.columnset()
+        inner_cs = self.resultset.to_columnset()
         if inner_cs is not None:
             return ColumnSet(inner_cs)
         return None
@@ -93,6 +93,13 @@ class ClickhouseResultSet:
         if cs:
             return cs.to_dataframe()
         return None
+
+    @property
+    def empty(self) -> bool:
+        """
+        Calling this results in waiting until the results are available.
+        """
+        return self.resultset.empty
 
 
 class ClickhouseConnection:
@@ -185,7 +192,7 @@ class ClickhouseConnection:
             window_data = sliding_window.fetch_next_window()
             if window_data is None:
                 break  # reached end of iteration
-            if window_data.is_empty():
+            if window_data.empty:
                 continue
             yield ClickhouseResultSet(window_data)
 

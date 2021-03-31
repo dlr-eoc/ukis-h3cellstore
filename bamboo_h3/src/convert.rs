@@ -63,7 +63,7 @@ impl From<DataFrameColumnData<'_>> for ColVec {
 
 #[pyclass]
 pub struct ColumnSet {
-    inner: bamboo_h3_int::ColumnSet,
+    pub(crate) inner: bamboo_h3_int::ColumnSet,
 }
 
 #[pymethods]
