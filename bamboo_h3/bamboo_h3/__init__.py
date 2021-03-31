@@ -1,7 +1,7 @@
 from __future__ import annotations  # https://stackoverflow.com/a/33533514
 
 # import from rust library
-from typing import Dict, Optional
+from typing import Dict, Optional, Generator
 import pandas as pd
 import numpy as np
 from .bamboo_h3 import create_connection, \
@@ -154,7 +154,7 @@ class ClickhouseConnection:
 
     def window_iter(self, window_polygon: Polygon, tableset: TableSet, h3_resolution: int, window_max_size: int = 16000,
                     querystring_template: str = None,
-                    prefetch_querystring_template: str = None):
+                    prefetch_querystring_template: str = None) -> Generator[ClickhouseResultSet, None, None]:
         """
         iterate in a sliding window over a tableset.
 

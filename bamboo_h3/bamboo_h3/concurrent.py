@@ -8,9 +8,18 @@ from typing import Callable, List, Any
 
 from shapely.geometry import box, Polygon
 
+from . import ClickhouseResultSet
+
 
 def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygon]:
     """cut a shapely geometry into chunks to distribute it across multiple processes
+
+    >>> from bamboo_h3.testdata import WILD_POLYGON_GEOJSON
+    >>> from shapely.geometry import MultiPolygon, shape
+    >>> import json
+    >>> 15 < len(chunk_polygon(shape(json.loads(WILD_POLYGON_GEOJSON)), num_chunks_approx=20)) < 30
+    True
+    >>> # print(json.dumps(MultiPolygon(g).__geo_interface__))
 
     :returns: list of shapely polygons
     """
@@ -19,7 +28,7 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygo
     width = xmax - xmin
     height = ymax - ymin
 
-    cell_size = min(height, width) / max(height, width) / float(num_chunks_approx)
+    cell_size = min(height, width) / max(height, width) * float(math.sqrt(num_chunks_approx)) / 2.0
     chunks = []
     for i in range(math.ceil(width / cell_size)):
         for j in range(math.ceil(height / cell_size)):
@@ -48,7 +57,8 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygo
     return chunks
 
 
-def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_callback: Callable,
+def process_polygon(n_concurrent_processes: int, polygon: Polygon,
+                    processing_callback: Callable[[ClickhouseResultSet], Any],
                     num_chunks_per_proccess_approx: int = 2) -> List[Any]:
     """cut the `polygon` into chunks and concurrently apply the `processing_callback`
         to each of the chunks using `n_concurrent_processes` subprocesses.
@@ -89,113 +99,7 @@ def process_polygon(n_concurrent_processes: int, polygon: Polygon, processing_ca
 
 
 if __name__ == '__main__':
-    import json
-    from shapely.geometry import MultiPolygon, shape
+    # run doctests
+    import doctest
 
-    geom = """
-{
-        "type": "Polygon",
-        "coordinates": [
-          [
-            [
-              13.787841796875,
-              47.989921667414194
-            ],
-            [
-              13.82080078125,
-              47.85740289465826
-            ],
-            [
-              16.89697265625,
-              48.04870994288686
-            ],
-            [
-              16.80908203125,
-              48.55297816440071
-            ],
-            [
-              16.226806640625,
-              48.929717630629554
-            ],
-            [
-              15.281982421875002,
-              49.04506962208049
-            ],
-            [
-              13.458251953125,
-              49.160154652338015
-            ],
-            [
-              12.711181640625,
-              49.01625665778159
-            ],
-            [
-              12.755126953125,
-              48.7996273507997
-            ],
-            [
-              13.205566406249998,
-              48.76343113791796
-            ],
-            [
-              15.523681640625002,
-              48.79239019646406
-            ],
-            [
-              16.007080078125,
-              48.516604348867475
-            ],
-            [
-              15.303955078125,
-              48.52388120259336
-            ],
-            [
-              13.985595703125,
-              48.60385760823255
-            ],
-            [
-              12.7001953125,
-              48.58932584966975
-            ],
-            [
-              12.83203125,
-              48.31973404047173
-            ],
-            [
-              13.699951171875,
-              48.31242790407178
-            ],
-            [
-              15.029296875,
-              48.334343174592014
-            ],
-            [
-              16.226806640625,
-              48.334343174592014
-            ],
-            [
-              15.194091796874998,
-              48.151428143221224
-            ],
-            [
-              12.83203125,
-              48.1367666796927
-            ],
-            [
-              12.645263671875,
-              48.03401915864286
-            ],
-            [
-              13.0517578125,
-              47.97521412341618
-            ],
-            [
-              13.787841796875,
-              47.989921667414194
-            ]
-          ]
-        ]
-      }
-    """
-    g = chunk_polygon(shape(json.loads(geom)), num_chunks_approx=20)
-    print(json.dumps(MultiPolygon(g).__geo_interface__))
+    doctest.testmod(verbose=True)

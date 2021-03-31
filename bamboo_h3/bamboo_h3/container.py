@@ -1,4 +1,5 @@
 from __future__ import annotations  # https://stackoverflow.com/a/33533514
+from typing import Dict
 
 import pandas as pd
 import numpy as np
@@ -9,11 +10,11 @@ from . import bamboo_h3 as lib
 class ColumnSet:
     inner: lib.ColumnSet
 
-    def __init__(self, inner: lib.ColumnSet):
+    def __init__(self, inner: lib.ColumnSet) -> ColumnSet:
         self.inner = inner
 
     @staticmethod
-    def from_dataframe(df: pd.DataFrame, drain: bool = False):
+    def from_dataframe(df: pd.DataFrame, drain: bool = False) -> ColumnSet:
         """
         convert an pandas dataframe to an ColumnSet class
 
@@ -34,7 +35,7 @@ class ColumnSet:
         return ColumnSet(cs)
 
     @property
-    def column_types(self):
+    def column_types(self) -> Dict[str, str]:
         """
 
         >>> import pandas as pd
@@ -108,7 +109,7 @@ class ColumnSet:
             data[column_name] = array
         return pd.DataFrame(data)
 
-    def write_to(self, filename: str):
+    def write_to(self, filename: str) -> None:
         """
         serialize to a file.
 
