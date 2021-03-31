@@ -19,6 +19,7 @@ mod geo;
 mod inspect;
 mod syncapi;
 mod window;
+mod error;
 
 /// version of the module
 #[pyfunction]

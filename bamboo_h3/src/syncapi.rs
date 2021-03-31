@@ -1,27 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::{PyErr, PyResult};
+use pyo3::PyResult;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
 use crate::convert::ColumnSet;
+use crate::error::IntoPyResult;
+use bamboo_h3_int::clickhouse::compacted_tables::TableSet;
 use bamboo_h3_int::clickhouse::query::{
     list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
 };
-use bamboo_h3_int::clickhouse_rs::{errors::Error as ChError, errors::Result as ChResult, Pool};
-use bamboo_h3_int::clickhouse::compacted_tables::TableSet;
-
-fn ch_to_pyerr(ch_err: ChError) -> PyErr {
-    PyRuntimeError::new_err(format!("clickhouse error: {:?}", ch_err))
-}
-
-fn ch_to_pyresult<T>(res: ChResult<T>) -> PyResult<T> {
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(ch_to_pyerr(e)),
-    }
-}
+use bamboo_h3_int::clickhouse_rs::Pool;
 
 pub enum Query {
     /// return all rows returned by the given query string
@@ -63,11 +53,8 @@ impl ClickhousePool {
     pub fn query(&self, query: Query) -> PyResult<bamboo_h3_int::ColumnSet> {
         let p = &self.pool;
         self.runtime.block_on(async {
-            let client = match p.get_handle().await {
-                Ok(c) => c,
-                Err(e) => return Err(ch_to_pyerr(e)),
-            };
-            let res = match query {
+            let client = p.get_handle().await.into_pyresult()?;
+            match query {
                 Query::Plain(query_string) => query_all(client, query_string).await,
 
                 // while it is not great to block tokio with the CPU-heavy uncompacting, it
@@ -75,8 +62,8 @@ impl ClickhousePool {
                 Query::Uncompact(query_string, h3index_set) => {
                     query_all_with_uncompacting(client, query_string, h3index_set).await
                 }
-            };
-            ch_to_pyresult(res)
+            }
+            .into_pyresult()
         })
     }
 
@@ -99,13 +86,10 @@ impl ClickhousePool {
     /// ´´´
     pub fn spawn_query(&self, query_kind: Query) -> TaskJoinHandle<PyResult<ColumnSet>> {
         let p = &self.pool;
-        let gethandle = self.runtime.block_on(async { p.get_handle().await });
+        let get_handle = self.runtime.block_on(async { p.get_handle().await });
         self.runtime.spawn(async {
-            let client = match gethandle {
-                Ok(c) => c,
-                Err(e) => return Err(ch_to_pyerr(e)),
-            };
-            let res = match query_kind {
+            let client = get_handle.into_pyresult()?;
+            match query_kind {
                 Query::Plain(query_string) => query_all(client, query_string).await,
 
                 // while it is not great to block tokio with the CPU-heavy uncompacting, it
@@ -114,8 +98,8 @@ impl ClickhousePool {
                     query_all_with_uncompacting(client, query_string, h3index_set).await
                 }
             }
-            .map(|hm| hm.into());
-            ch_to_pyresult(res)
+            .map(|hm| hm.into())
+            .into_pyresult()
         })
     }
 
@@ -133,17 +117,21 @@ impl ClickhousePool {
 
     pub fn query_returns_rows(&self, query_string: String) -> PyResult<bool> {
         let p = &self.pool;
-        ch_to_pyresult(self.runtime.block_on(async {
-            let client = p.get_handle().await?;
-            query_returns_rows(client, query_string).await
-        }))
+        self.runtime
+            .block_on(async {
+                let client = p.get_handle().await?;
+                query_returns_rows(client, query_string).await
+            })
+            .into_pyresult()
     }
 
     pub fn list_tablesets(&self) -> PyResult<HashMap<String, TableSet>> {
         let p = &self.pool;
-        ch_to_pyresult(self.runtime.block_on(async {
-            let client = p.get_handle().await?;
-            list_tablesets(client).await
-        }))
+        self.runtime
+            .block_on(async {
+                let client = p.get_handle().await?;
+                list_tablesets(client).await
+            })
+            .into_pyresult()
     }
 }

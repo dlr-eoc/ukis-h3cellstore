@@ -1,21 +1,20 @@
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use h3ron::{Index, polyfill, ToPolygon};
+use h3ron::{polyfill, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
-use bamboo_h3_int::{
-    COL_NAME_H3INDEX,
-    ColVec,
-    geo::algorithm::{centroid::Centroid, intersects::Intersects},
-    geo_types::Polygon,
-};
 use bamboo_h3_int::clickhouse::compacted_tables::{TableSet, TableSetQuery};
 use bamboo_h3_int::clickhouse::window::window_index_resolution;
+use bamboo_h3_int::{
+    geo::algorithm::{centroid::Centroid, intersects::Intersects},
+    geo_types::Polygon,
+    ColVec, COL_NAME_H3INDEX,
+};
 
 use crate::clickhouse::{AwaitableResultSet, ResultSet};
-use crate::convert::intresult_to_pyresult;
+use crate::error::IntoPyResult;
 use crate::syncapi::{ClickhousePool, Query};
 
 #[pyclass]
@@ -168,11 +167,10 @@ fn next_window_queryparameters(
             continue;
         }
 
-        let query_string = intresult_to_pyresult(
-            sliding_window
-                .tableset
-                .build_select_query(&child_indexes, &sliding_window.query),
-        )?;
+        let query_string = sliding_window
+            .tableset
+            .build_select_query(&child_indexes, &sliding_window.query)
+            .into_pyresult()?;
         return Ok(Some(QueryParameters {
             query: Query::Uncompact(query_string, child_indexes.iter().cloned().collect()),
             h3indexes_queried: child_indexes,
@@ -217,11 +215,10 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
 
         let query = {
             let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
-            let q = intresult_to_pyresult(
-                sliding_window
-                    .tableset
-                    .build_select_query(&h3indexes, &sliding_window.prefetch_query),
-            )?;
+            let q = sliding_window
+                .tableset
+                .build_select_query(&h3indexes, &sliding_window.prefetch_query)
+                .into_pyresult()?;
             Query::Uncompact(
                 format!("select distinct {} from ({})", COL_NAME_H3INDEX, q),
                 h3indexes.drain(..).collect(),

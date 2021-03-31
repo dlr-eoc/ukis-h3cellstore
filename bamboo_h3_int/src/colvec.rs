@@ -279,22 +279,23 @@ vec_to_colvec_from_impl!(Option<i64>, I64N);
 vec_to_colvec_from_impl!(Option<f32>, F32N);
 vec_to_colvec_from_impl!(Option<f64>, F64N);
 vec_to_colvec_from_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
-vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN, |d| d.map(|inner| date_to_timestamp(&inner)));
+vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN, |d| d
+    .map(|inner| date_to_timestamp(&inner)));
 vec_to_colvec_from_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
-vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d.map(|inner| datetime_to_timestamp(&inner)));
-
+vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
+    .map(|inner| datetime_to_timestamp(&inner)));
 
 macro_rules! iter_to_colvec_fromiterator_impl {
     ($vt:ty, $cvtype:ident) => {
         impl FromIterator<$vt> for ColVec {
-            fn from_iter<T: IntoIterator<Item=$vt>>(iter: T) -> Self {
+            fn from_iter<T: IntoIterator<Item = $vt>>(iter: T) -> Self {
                 ColVec::$cvtype(iter.into_iter().collect())
             }
         }
     };
     ($vt:ty, $cvtype:ident, $converter_closure:expr) => {
         impl FromIterator<$vt> for ColVec {
-            fn from_iter<T: IntoIterator<Item=$vt>>(iter: T) -> Self {
+            fn from_iter<T: IntoIterator<Item = $vt>>(iter: T) -> Self {
                 ColVec::$cvtype(iter.into_iter().map($converter_closure).collect())
             }
         }
@@ -322,12 +323,11 @@ iter_to_colvec_fromiterator_impl!(Option<i64>, I64N);
 iter_to_colvec_fromiterator_impl!(Option<f32>, F32N);
 iter_to_colvec_fromiterator_impl!(Option<f64>, F64N);
 iter_to_colvec_fromiterator_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
-iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN, |d| d.map(|inner| date_to_timestamp(&inner)));
+iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN, |d| d
+    .map(|inner| date_to_timestamp(&inner)));
 iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
-iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d.map(|inner| datetime_to_timestamp(&inner)));
-
-
-
+iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
+    .map(|inner| datetime_to_timestamp(&inner)));
 
 ///
 /// a set of columns with their values

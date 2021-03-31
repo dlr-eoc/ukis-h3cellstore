@@ -10,8 +10,9 @@ use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::convert::ColumnSet;
+use crate::error::IntoPyResult;
 use crate::{
-    convert::{check_index_valid, intresult_to_pyresult},
+    convert::check_index_valid,
     geo::Polygon,
     inspect::TableSet as TableSetWrapper,
     syncapi::{ClickhousePool, Query},
@@ -82,11 +83,10 @@ impl ClickhouseConnection {
         query_template: Option<String>,
     ) -> PyResult<ResultSet> {
         let h3indexes_vec = h3indexes.as_array().to_vec();
-        let query_string = intresult_to_pyresult(
-            tableset
-                .inner
-                .build_select_query(&h3indexes_vec, &query_template.into()),
-        )?;
+        let query_string = tableset
+            .inner
+            .build_select_query(&h3indexes_vec, &query_template.into())
+            .into_pyresult()?;
 
         let mut resultset: ResultSet = AwaitableResultSet::new(
             self.clickhouse_pool.clone(),
@@ -115,11 +115,10 @@ impl ClickhouseConnection {
                 COL_NAME_H3INDEX, COL_NAME_H3INDEX,
             )),
         };
-        let query_string = intresult_to_pyresult(
-            tableset
-                .inner
-                .build_select_query(&[index.h3index()], &tablesetquery),
-        )?;
+        let query_string = tableset
+            .inner
+            .build_select_query(&[index.h3index()], &tablesetquery)
+            .into_pyresult()?;
         self.clickhouse_pool.query_returns_rows(query_string)
     }
 }

@@ -1,3 +1,4 @@
+use crate::error::IntoPyResult;
 use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
 use bamboo_h3_int::ColVec;
 use h3ron::Index;
@@ -16,15 +17,6 @@ pub fn check_index_valid(index: &Index) -> PyResult<()> {
         )))
     } else {
         Ok(())
-    }
-}
-
-pub fn intresult_to_pyresult<T>(
-    res: std::result::Result<T, bamboo_h3_int::error::Error>,
-) -> PyResult<T> {
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(PyValueError::new_err(e.to_string())),
     }
 }
 
@@ -84,7 +76,9 @@ impl ColumnSet {
     }
 
     fn add_numpy_column(&mut self, column_name: String, data: DataFrameColumnData) -> PyResult<()> {
-        intresult_to_pyresult(self.inner.add_column(column_name, data.into()))
+        self.inner
+            .add_column(column_name, data.into())
+            .into_pyresult()
     }
 
     #[getter]
@@ -101,7 +95,7 @@ impl ColumnSet {
     fn write_to(&self, filename: String) -> PyResult<()> {
         let outfile =
             File::create(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
-        intresult_to_pyresult(serialize_into(outfile, &self.inner))?;
+        serialize_into(outfile, &self.inner).into_pyresult()?;
         Ok(())
     }
 
@@ -109,7 +103,7 @@ impl ColumnSet {
     fn read_from(filename: String) -> PyResult<Self> {
         let infile =
             File::open(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
-        let inner: bamboo_h3_int::ColumnSet = intresult_to_pyresult(deserialize_from(infile))?;
+        let inner: bamboo_h3_int::ColumnSet = deserialize_from(infile).into_pyresult()?;
         Ok(Self { inner })
     }
 }
@@ -179,8 +173,6 @@ impl From<HashMap<String, ColVec>> for ColumnSet {
 
 impl From<bamboo_h3_int::ColumnSet> for ColumnSet {
     fn from(cs: bamboo_h3_int::ColumnSet) -> Self {
-        Self {
-            inner: cs,
-        }
+        Self { inner: cs }
     }
 }
