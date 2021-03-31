@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::iter::Zip;
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
@@ -17,6 +16,7 @@ use log::{error, warn};
 
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use crate::iter::ItemRepeatingIterator;
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -180,76 +180,13 @@ pub async fn query_all_with_uncompacting(
     Ok(out_rows.into())
 }
 
-struct RowRepeatingIterator<'a, I, T>
-where
-    I: Iterator<Item = T>,
-    T: Clone,
-{
-    num_uncompacted_rows: usize,
-    zipped_iterator: Zip<I, std::slice::Iter<'a, usize>>,
-
-    current_element: Option<I::Item>,
-    repetitions_left: usize,
-}
-
-impl<'a, I, T> RowRepeatingIterator<'a, I, T>
-where
-    I: Iterator<Item = T>,
-    T: Clone,
-{
-    pub fn new(num_uncompacted_rows: usize, repetitions: &'a [usize], iter: I) -> Self {
-        Self {
-            num_uncompacted_rows,
-            zipped_iterator: iter.zip(repetitions.iter()),
-            current_element: None,
-            repetitions_left: 0,
-        }
-    }
-}
-
-impl<'a, I, T> Iterator for RowRepeatingIterator<'a, I, T>
-where
-    I: Iterator<Item = T>,
-    T: Clone,
-{
-    type Item = I::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.repetitions_left > 0 {
-            self.repetitions_left -= 1;
-            self.current_element.clone()
-        } else {
-            loop {
-                if let Some((current_element, repetitions_left)) = self.zipped_iterator.next() {
-                    if repetitions_left == &0 {
-                        continue;
-                    }
-                    self.current_element = Some(current_element);
-                    self.repetitions_left = repetitions_left - 1;
-                    return self.current_element.clone();
-                } else {
-                    return None;
-                }
-            }
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.num_uncompacted_rows, None)
-    }
-}
 
 fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
-
     macro_rules! column_values {
         ($iter:expr) => {
             if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
-                RowRepeatingIterator::new(
-                    num_uncompacted_rows,
-                    &row_repetitions,
-                    $iter,
-                )
-                .collect()
+                ItemRepeatingIterator::new($iter, &row_repetitions, Some(num_uncompacted_rows))
+                    .collect()
             } else {
                 $iter.collect()
             }
@@ -273,51 +210,51 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
             SqlType::UInt8 => {
                 let iter = column.iter::<Option<u8>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::UInt16 => {
                 let iter = column.iter::<Option<u16>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::UInt32 => {
                 let iter = column.iter::<Option<u32>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::UInt64 => {
                 let iter = column.iter::<Option<u64>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Int8 => {
                 let iter = column.iter::<Option<i8>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Int16 => {
                 let iter = column.iter::<Option<i16>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Int32 => {
                 let iter = column.iter::<Option<i32>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Int64 => {
                 let iter = column.iter::<Option<i64>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Float32 => {
                 let iter = column.iter::<Option<f32>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Float64 => {
                 let iter = column.iter::<Option<f64>>()?.map(|v| v.copied());
                 column_values!(iter)
-            },
+            }
             SqlType::Date => {
                 let iter = column.iter::<Option<Date<Tz>>>()?;
                 column_values!(iter)
-            },
+            }
             SqlType::DateTime(_) => {
                 let iter = column.iter::<Option<DateTime<Tz>>>()?;
                 column_values!(iter)
-            },
+            }
             _ => {
                 error!(
                     "unsupported nullable column type {} for column {}",
@@ -337,23 +274,4 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
         }
     };
     Ok(values)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::clickhouse::query::RowRepeatingIterator;
-
-    #[test]
-    fn repeating_iterator() {
-        let some_data = vec![1, 2, 3];
-        let repetitions = vec![2, 1, 3];
-        let mut iter = RowRepeatingIterator::new(6, &repetitions, some_data.iter());
-        assert_eq!(iter.next(), Some(&1));
-        assert_eq!(iter.next(), Some(&1));
-        assert_eq!(iter.next(), Some(&2));
-        assert_eq!(iter.next(), Some(&3));
-        assert_eq!(iter.next(), Some(&3));
-        assert_eq!(iter.next(), Some(&3));
-        assert_eq!(iter.next(), None);
-    }
 }

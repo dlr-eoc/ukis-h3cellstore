@@ -10,10 +10,11 @@ pub use geo_types;
 pub use crate::colvec::ColumnSet;
 pub use crate::colvec::ColVec;
 
-pub mod algorithm;
-pub mod clickhouse;
 mod colvec;
 mod common;
+mod iter;
+pub mod algorithm;
+pub mod clickhouse;
 pub mod error;
 pub mod fileio;
 
