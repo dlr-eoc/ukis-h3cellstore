@@ -35,3 +35,15 @@ impl<T> IntoPyResult<T> for bamboo_h3_int::clickhouse_rs::errors::Result<T> {
         }
     }
 }
+
+impl<T> IntoPyResult<T> for Result<T, url::ParseError> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyValueError::new_err(format!(
+                "Invalid URL given: {}",
+                err.to_string()
+            ))),
+        }
+    }
+}

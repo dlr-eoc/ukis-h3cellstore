@@ -253,8 +253,7 @@ impl ResultSet {
 }
 
 pub(crate) fn validate_clickhouse_url(u: &str) -> PyResult<()> {
-    let parsed_url = url::Url::parse(u)
-        .map_err(|e| PyValueError::new_err(format!("Invalid Url given: {:?}", e)))?;
+    let parsed_url = url::Url::parse(u).into_pyresult()?;
 
     let parameters: HashMap<_, _> = parsed_url
         .query_pairs()
