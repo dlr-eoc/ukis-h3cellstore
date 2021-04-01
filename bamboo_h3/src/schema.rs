@@ -122,7 +122,7 @@ impl CompactedTableSchemaBuilder {
         order_key_position: Option<u8>,
     ) -> PyResult<()> {
         let sc = SimpleColumn::new(
-            Datatype::from_str(&datatype_str).into_pyresult()?,
+            Datatype::from_name_str(&datatype_str).into_pyresult()?,
             order_key_position,
         );
         self.columns
@@ -144,7 +144,7 @@ impl CompactedTableSchemaBuilder {
         order_key_position: Option<u8>,
     ) -> PyResult<()> {
         let sc = SimpleColumn::new(
-            Datatype::from_str(&datatype_str).into_pyresult()?,
+            Datatype::from_name_str(&datatype_str).into_pyresult()?,
             order_key_position,
         );
         let agg = match agg_method_str.to_lowercase().as_str() {

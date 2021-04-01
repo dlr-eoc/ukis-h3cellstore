@@ -8,6 +8,31 @@ use crate::common::Named;
 use crate::error::Error;
 use std::iter::FromIterator;
 
+const DT_DATE_NAME: &str = "date";
+const DT_DATEN_NAME: &str = "date_n";
+const DT_DATETIME_NAME: &str = "datetime";
+const DT_DATETIMEN_NAME: &str = "datetime_n";
+const DT_F32_NAME: &str = "f32";
+const DT_F32N_NAME: &str = "f32n";
+const DT_F64_NAME: &str = "f64";
+const DT_F64N_NAME: &str = "f64n";
+const DT_I16_NAME: &str = "i16";
+const DT_I16N_NAME: &str = "i16n";
+const DT_I32_NAME: &str = "i32";
+const DT_I32N_NAME: &str = "i32n";
+const DT_I64_NAME: &str = "i64";
+const DT_I64N_NAME: &str = "i64n";
+const DT_I8_NAME: &str = "i8";
+const DT_I8N_NAME: &str = "i8n";
+const DT_U16_NAME: &str = "u16";
+const DT_U16N_NAME: &str = "u16n";
+const DT_U32_NAME: &str = "u32";
+const DT_U32N_NAME: &str = "u32n";
+const DT_U64_NAME: &str = "u64";
+const DT_U64N_NAME: &str = "u64n";
+const DT_U8_NAME: &str = "u8";
+const DT_U8N_NAME: &str = "u8n";
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Datatype {
@@ -38,32 +63,32 @@ pub enum Datatype {
 }
 
 impl Datatype {
-    pub fn from_str(value: &str) -> Result<Self, Error> {
+    pub fn from_name_str(value: &str) -> Result<Self, Error> {
         Ok(match value.to_lowercase().as_str() {
-            "u8" | "uint8" => Datatype::U8,
-            "u8n" => Datatype::U8N,
-            "i8" | "int8" => Datatype::I8,
-            "i8n" => Datatype::I8N,
-            "u16" | "uint16" => Datatype::U16,
-            "u16n" => Datatype::U16N,
-            "i16" | "int16" => Datatype::I16,
-            "i16n" => Datatype::I16N,
-            "u32" | "uint32" => Datatype::U32,
-            "u32n" => Datatype::U32N,
-            "i32" | "int32" => Datatype::I32,
-            "i32n" => Datatype::I32N,
-            "u64" | "uint64" => Datatype::U64,
-            "u64n" => Datatype::U64N,
-            "i64" | "int64" => Datatype::I64,
-            "i64n" => Datatype::I64N,
-            "f32" | "float32" => Datatype::F32,
-            "f32n" => Datatype::F32N,
-            "f64" | "float64" => Datatype::F64,
-            "f64n" => Datatype::F64N,
-            "date" => Datatype::Date,
-            "date_n" => Datatype::DateN,
-            "datetime" => Datatype::DateTime,
-            "datetime_n" => Datatype::DateTimeN,
+            DT_U8_NAME | "uint8" => Datatype::U8,
+            DT_U8N_NAME => Datatype::U8N,
+            DT_I8_NAME | "int8" => Datatype::I8,
+            DT_I8N_NAME => Datatype::I8N,
+            DT_U16_NAME | "uint16" => Datatype::U16,
+            DT_U16N_NAME => Datatype::U16N,
+            DT_I16_NAME | "int16" => Datatype::I16,
+            DT_I16N_NAME => Datatype::I16N,
+            DT_U32_NAME | "uint32" => Datatype::U32,
+            DT_U32N_NAME => Datatype::U32N,
+            DT_I32_NAME | "int32" => Datatype::I32,
+            DT_I32N_NAME => Datatype::I32N,
+            DT_U64_NAME | "uint64" => Datatype::U64,
+            DT_U64N_NAME => Datatype::U64N,
+            DT_I64_NAME | "int64" => Datatype::I64,
+            DT_I64N_NAME => Datatype::I64N,
+            DT_F32_NAME | "float32" => Datatype::F32,
+            DT_F32N_NAME => Datatype::F32N,
+            DT_F64_NAME | "float64" => Datatype::F64,
+            DT_F64N_NAME => Datatype::F64N,
+            DT_DATE_NAME => Datatype::Date,
+            DT_DATEN_NAME => Datatype::DateN,
+            DT_DATETIME_NAME => Datatype::DateTime,
+            DT_DATETIMEN_NAME => Datatype::DateTimeN,
             _ => return Err(Error::UnknownDatatype(value.to_string())),
         })
     }
@@ -111,30 +136,30 @@ impl Datatype {
 impl Named for Datatype {
     fn name(&self) -> &'static str {
         match self {
-            Datatype::U8 => "u8",
-            Datatype::U8N => "u8n",
-            Datatype::I8 => "i8",
-            Datatype::I8N => "i8n",
-            Datatype::U16 => "u16",
-            Datatype::U16N => "u16n",
-            Datatype::I16 => "i16",
-            Datatype::I16N => "i16n",
-            Datatype::U32 => "u32",
-            Datatype::U32N => "u32n",
-            Datatype::I32 => "i32",
-            Datatype::I32N => "i32n",
-            Datatype::U64 => "u64",
-            Datatype::U64N => "u64n",
-            Datatype::I64 => "i64",
-            Datatype::I64N => "i64n",
-            Datatype::F32 => "f32",
-            Datatype::F32N => "f32n",
-            Datatype::F64 => "f64",
-            Datatype::F64N => "f64n",
-            Datatype::Date => "date",
-            Datatype::DateN => "date_n",
-            Datatype::DateTime => "datetime",
-            Datatype::DateTimeN => "datetime_n",
+            Datatype::U8 => DT_U8_NAME,
+            Datatype::U8N => DT_U8N_NAME,
+            Datatype::I8 => DT_I8_NAME,
+            Datatype::I8N => DT_I8N_NAME,
+            Datatype::U16 => DT_U16_NAME,
+            Datatype::U16N => DT_U16N_NAME,
+            Datatype::I16 => DT_I16_NAME,
+            Datatype::I16N => DT_I16N_NAME,
+            Datatype::U32 => DT_U32_NAME,
+            Datatype::U32N => DT_U32N_NAME,
+            Datatype::I32 => DT_I32_NAME,
+            Datatype::I32N => DT_I32N_NAME,
+            Datatype::U64 => DT_U64_NAME,
+            Datatype::U64N => DT_U64N_NAME,
+            Datatype::I64 => DT_U64_NAME,
+            Datatype::I64N => DT_I64N_NAME,
+            Datatype::F32 => DT_F32_NAME,
+            Datatype::F32N => DT_F32N_NAME,
+            Datatype::F64 => DT_F64_NAME,
+            Datatype::F64N => DT_F64N_NAME,
+            Datatype::Date => DT_DATE_NAME,
+            Datatype::DateN => DT_DATEN_NAME,
+            Datatype::DateTime => DT_DATETIME_NAME,
+            Datatype::DateTimeN => DT_DATETIMEN_NAME,
         }
     }
 }
