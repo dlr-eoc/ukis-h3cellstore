@@ -13,6 +13,7 @@ pub enum Error {
     SchemaValidationError(&'static str, String),
     SerializationError(String),
     InvalidH3Resolution(u8),
+    UnknownDatatype(String),
 }
 
 impl fmt::Display for Error {
@@ -31,6 +32,7 @@ impl fmt::Display for Error {
             Error::SchemaValidationError(location, msg) => write!(f, "failed to validate {}: {}", location, msg),
             Error::SerializationError(msg) => write!(f, "{}", msg),
             Error::InvalidH3Resolution(res) => write!(f, "invalid h3 resolution: {}", res),
+            Error::UnknownDatatype(dt) => write!(f, "unknown datatype: {}", dt),
         }
     }
 }

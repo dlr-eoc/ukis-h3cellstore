@@ -28,9 +28,15 @@ pub enum Schema {
 }
 
 impl Schema {
-    fn to_json_string(&self) -> Result<String, Error> {
+    pub fn to_json_string(&self) -> Result<String, Error> {
         self.validate()?;
         serde_json::to_string_pretty(self).map_err(|e| e.into())
+    }
+
+    pub fn from_json_string(instr: &str) -> Result<Self, Error> {
+        let schema: Schema = serde_json::from_str(instr)?;
+        schema.validate()?;
+        Ok(schema)
     }
 }
 
@@ -68,7 +74,7 @@ fn validate_table_name(location: &'static str, name: &str) -> Result<(), Error> 
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum TableEngine {
     ReplacingMergeTree,
     SummingMergeTree(Vec<String>),
@@ -81,7 +87,7 @@ impl Default for TableEngine {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum CompressionMethod {
     LZ4HC(u8),
@@ -119,7 +125,7 @@ impl Default for CompressionMethod {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TemporalResolution {
     Second,
     Day,
@@ -131,7 +137,7 @@ impl Default for TemporalResolution {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TemporalPartitioning {
     Year,
     Month,
@@ -145,7 +151,7 @@ impl Default for TemporalPartitioning {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AggregationMethod {
-    RelativeToResolutionArea,
+    RelativeToCellArea,
     Sum,
     Max,
     Min,
@@ -156,7 +162,7 @@ pub enum AggregationMethod {
 impl AggregationMethod {
     pub fn is_applicable_to_datatype(&self, datatype: &Datatype) -> bool {
         match self {
-            Self::RelativeToResolutionArea => !(datatype.is_nullable() || datatype.is_temporal()),
+            Self::RelativeToCellArea => !(datatype.is_nullable() || datatype.is_temporal()),
             Self::Sum => !(datatype.is_nullable() || datatype.is_temporal()),
             Self::Max => !datatype.is_nullable(),
             Self::Min => !datatype.is_nullable(),
@@ -168,7 +174,7 @@ impl AggregationMethod {
 impl Named for AggregationMethod {
     fn name(&self) -> &'static str {
         match self {
-            Self::RelativeToResolutionArea => "relativetoresolutionarea",
+            Self::RelativeToCellArea => "relativetocellarea",
             Self::Max => "max",
             Self::Min => "min",
             Self::Sum => "sum",
@@ -190,6 +196,8 @@ impl GetSqlType for Datatype {
             Datatype::I8N => SqlType::Nullable(&SqlType::Int8),
             Datatype::U16 => SqlType::UInt16,
             Datatype::U16N => SqlType::Nullable(&SqlType::UInt16),
+            Datatype::I16 => SqlType::Int16,
+            Datatype::I16N => SqlType::Nullable(&SqlType::Int16),
             Datatype::U32 => SqlType::UInt32,
             Datatype::U32N => SqlType::Nullable(&SqlType::UInt32),
             Datatype::I32 => SqlType::Int32,
@@ -279,3 +287,12 @@ pub struct SimpleColumn {
     order_key_position: Option<u8>,
 }
 
+
+impl SimpleColumn {
+    pub fn new(datatype: Datatype, order_key_position: Option<u8>) -> Self {
+        Self {
+            datatype,
+            order_key_position
+        }
+    }
+}

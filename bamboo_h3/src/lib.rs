@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use numpy::PyReadonlyArray1;
-use pyo3::{
-    prelude::*,
-    wrap_pyfunction, Python,
-};
+use pyo3::{prelude::*, wrap_pyfunction, Python};
 
 use crate::{
     clickhouse::{validate_clickhouse_url, ClickhouseConnection, ResultSet},
@@ -15,11 +12,12 @@ use crate::{
 
 mod clickhouse;
 mod convert;
+mod error;
 mod geo;
 mod inspect;
+mod schema;
 mod syncapi;
 mod window;
-mod error;
 
 /// version of the module
 #[pyfunction]
@@ -35,7 +33,6 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
         db_url,
     )?)))
 }
-
 
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
@@ -66,6 +63,13 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
         py.get_type::<crate::window::SlidingH3Window>(),
     )?;
     m.add("ColumnSet", py.get_type::<ColumnSet>())?;
+
+    // **** schema *****************************************
+    m.add("Schema", py.get_type::<crate::schema::Schema>())?;
+    m.add(
+        "CompactedTableSchemaBuilder",
+        py.get_type::<crate::schema::CompactedTableSchemaBuilder>(),
+    )?;
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;

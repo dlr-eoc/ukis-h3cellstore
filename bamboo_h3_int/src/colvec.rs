@@ -17,6 +17,8 @@ pub enum Datatype {
     I8N,
     U16,
     U16N,
+    I16,
+    I16N,
     U32,
     U32N,
     I32,
@@ -36,6 +38,37 @@ pub enum Datatype {
 }
 
 impl Datatype {
+
+    pub fn from_str(value: &str) -> Result<Self, Error> {
+        Ok(match value.to_lowercase().as_str() {
+            "u8" => Datatype::U8,
+            "u8n" => Datatype::U8N,
+            "i8" => Datatype::I8,
+            "i8n" => Datatype::I8N,
+            "u16" => Datatype::U16,
+            "u16n" => Datatype::U16N,
+            "i16" => Datatype::I16,
+            "i16n" => Datatype::I16N,
+            "u32" => Datatype::U32,
+            "u32n" => Datatype::U32N,
+            "i32" => Datatype::I32,
+            "i32n" => Datatype::I32N,
+            "u64" => Datatype::U64,
+            "u64n" => Datatype::U64N,
+            "i64" => Datatype::I64,
+            "i64n" => Datatype::I64N,
+            "f32" => Datatype::F32,
+            "f32n" => Datatype::F32N,
+            "f64" => Datatype::F64,
+            "f64n" => Datatype::F64N,
+            "date" => Datatype::Date,
+            "date_n" => Datatype::DateN,
+            "datetime" => Datatype::DateTime,
+            "datetime_n" => Datatype::DateTimeN,
+            _ => return Err(Error::UnknownDatatype(value.to_string())),
+        })
+    }
+
     pub fn is_nullable(&self) -> bool {
         // always list all variants of the enum to have the benefit of the compiler errors
         // when missing something
@@ -43,6 +76,7 @@ impl Datatype {
             Datatype::U8
             | Datatype::I8
             | Datatype::U16
+            | Datatype::I16
             | Datatype::U32
             | Datatype::I32
             | Datatype::U64
@@ -55,6 +89,7 @@ impl Datatype {
             Datatype::U8N
             | Datatype::I8N
             | Datatype::U16N
+            | Datatype::I16N
             | Datatype::U32N
             | Datatype::I32N
             | Datatype::U64N
@@ -83,6 +118,8 @@ impl Named for Datatype {
             Datatype::I8N => "i8n",
             Datatype::U16 => "u16",
             Datatype::U16N => "u16n",
+            Datatype::I16 => "i16",
+            Datatype::I16N => "i16n",
             Datatype::U32 => "u32",
             Datatype::U32N => "u32n",
             Datatype::I32 => "i32",
@@ -151,8 +188,8 @@ impl ColVec {
             ColVec::I8N(_) => Datatype::I8N,
             ColVec::U16(_) => Datatype::U16,
             ColVec::U16N(_) => Datatype::U16N,
-            ColVec::I16(_) => Datatype::U16,
-            ColVec::I16N(_) => Datatype::U16N,
+            ColVec::I16(_) => Datatype::I16,
+            ColVec::I16N(_) => Datatype::I16N,
             ColVec::U32(_) => Datatype::U32,
             ColVec::U32N(_) => Datatype::U32N,
             ColVec::I32(_) => Datatype::I32,

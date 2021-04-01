@@ -19,9 +19,9 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
                 | Error::InvalidH3Resolution(_)
                 | Error::DifferentColumnLength(_, _, _)
                 | Error::SchemaValidationError(_, _) => Err(PyValueError::new_err(err.to_string())),
-                Error::NoQueryableTables | Error::SerializationError(_) => {
-                    Err(PyRuntimeError::new_err(err.to_string()))
-                }
+                Error::NoQueryableTables
+                | Error::SerializationError(_)
+                | Error::UnknownDatatype(_) => Err(PyRuntimeError::new_err(err.to_string())),
             },
         }
     }

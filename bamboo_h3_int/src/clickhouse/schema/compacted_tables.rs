@@ -11,7 +11,7 @@ use crate::COL_NAME_H3INDEX;
 use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
     name: String,
     table_engine: TableEngine,
@@ -276,6 +276,7 @@ impl ValidateSchema for CompactedTableSchema {
     }
 }
 
+#[derive(Clone)]
 pub struct CompactedTableSchemaBuilder {
     schema: CompactedTableSchema,
 }
