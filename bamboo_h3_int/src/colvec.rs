@@ -38,28 +38,27 @@ pub enum Datatype {
 }
 
 impl Datatype {
-
     pub fn from_str(value: &str) -> Result<Self, Error> {
         Ok(match value.to_lowercase().as_str() {
-            "u8" => Datatype::U8,
+            "u8" | "uint8" => Datatype::U8,
             "u8n" => Datatype::U8N,
-            "i8" => Datatype::I8,
+            "i8" | "int8" => Datatype::I8,
             "i8n" => Datatype::I8N,
-            "u16" => Datatype::U16,
+            "u16" | "uint16" => Datatype::U16,
             "u16n" => Datatype::U16N,
-            "i16" => Datatype::I16,
+            "i16" | "int16" => Datatype::I16,
             "i16n" => Datatype::I16N,
-            "u32" => Datatype::U32,
+            "u32" | "uint32" => Datatype::U32,
             "u32n" => Datatype::U32N,
-            "i32" => Datatype::I32,
+            "i32" | "int32" => Datatype::I32,
             "i32n" => Datatype::I32N,
-            "u64" => Datatype::U64,
+            "u64" | "uint64" => Datatype::U64,
             "u64n" => Datatype::U64N,
-            "i64" => Datatype::I64,
+            "i64" | "int64" => Datatype::I64,
             "i64n" => Datatype::I64N,
-            "f32" => Datatype::F32,
+            "f32" | "float32" => Datatype::F32,
             "f32n" => Datatype::F32N,
-            "f64" => Datatype::F64,
+            "f64" | "float64" => Datatype::F64,
             "f64n" => Datatype::F64N,
             "date" => Datatype::Date,
             "date_n" => Datatype::DateN,
