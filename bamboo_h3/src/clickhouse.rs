@@ -232,6 +232,7 @@ impl ResultSet {
     /// This can be done only once as the ownership get passed to python.
     ///
     /// Calling this results in waiting until the results are available.
+    #[allow(clippy::wrong_self_convention)]
     fn to_columnset(&mut self) -> PyResult<Option<ColumnSet>> {
         self.await_column_data()?;
         match self.column_data.as_mut() {

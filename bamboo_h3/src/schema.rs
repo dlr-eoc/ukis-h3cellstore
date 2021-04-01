@@ -130,9 +130,8 @@ impl CompactedTableSchemaBuilder {
         Ok(())
     }
 
-    fn add_h3index_column(&mut self, column_name: String) -> PyResult<()> {
+    fn add_h3index_column(&mut self, column_name: String) {
         self.columns.push((column_name, ColumnDefinition::H3Index));
-        Ok(())
     }
 
     #[args(order_key_position = "None")]
