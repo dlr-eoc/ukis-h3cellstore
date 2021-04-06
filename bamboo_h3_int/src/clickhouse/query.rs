@@ -15,8 +15,9 @@ use h3ron::Index;
 use log::{error, warn};
 
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
-use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
 use crate::iter::ItemRepeatingIterator;
+use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use std::iter::FromIterator;
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
@@ -180,80 +181,68 @@ pub async fn query_all_with_uncompacting(
     Ok(out_rows.into())
 }
 
+#[inline]
+fn collect_with_reps<I, T, O>(iter: I, row_reps: Option<(usize, &Vec<usize>)>) -> O
+where
+    I: Iterator<Item = T>,
+    T: Clone,
+    O: FromIterator<T>,
+{
+    if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
+        ItemRepeatingIterator::new(iter, &row_repetitions, Some(num_uncompacted_rows)).collect()
+    } else {
+        iter.collect()
+    }
+}
 
 fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
-    macro_rules! column_values {
-        ($iter:expr) => {
-            if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
-                ItemRepeatingIterator::new($iter, &row_repetitions, Some(num_uncompacted_rows))
-                    .collect()
-            } else {
-                $iter.collect()
-            }
-        };
-    }
-
     let values: ColVec = match column.sql_type() {
-        SqlType::UInt8 => column_values!(column.iter::<u8>()?.copied()),
-        SqlType::UInt16 => column_values!(column.iter::<u16>()?.copied()),
-        SqlType::UInt32 => column_values!(column.iter::<u32>()?.copied()),
-        SqlType::UInt64 => column_values!(column.iter::<u64>()?.copied()),
-        SqlType::Int8 => column_values!(column.iter::<i8>()?.copied()),
-        SqlType::Int16 => column_values!(column.iter::<i16>()?.copied()),
-        SqlType::Int32 => column_values!(column.iter::<i32>()?.copied()),
-        SqlType::Int64 => column_values!(column.iter::<i64>()?.copied()),
-        SqlType::Float32 => column_values!(column.iter::<f32>()?.copied()),
-        SqlType::Float64 => column_values!(column.iter::<f64>()?.copied()),
-        SqlType::Date => column_values!(column.iter::<Date<Tz>>()?),
-        SqlType::DateTime(_) => column_values!(column.iter::<DateTime<Tz>>()?),
+        SqlType::UInt8 => collect_with_reps(column.iter::<u8>()?.copied(), row_reps),
+        SqlType::UInt16 => collect_with_reps(column.iter::<u16>()?.copied(), row_reps),
+        SqlType::UInt32 => collect_with_reps(column.iter::<u32>()?.copied(), row_reps),
+        SqlType::UInt64 => collect_with_reps(column.iter::<u64>()?.copied(), row_reps),
+        SqlType::Int8 => collect_with_reps(column.iter::<i8>()?.copied(), row_reps),
+        SqlType::Int16 => collect_with_reps(column.iter::<i16>()?.copied(), row_reps),
+        SqlType::Int32 => collect_with_reps(column.iter::<i32>()?.copied(), row_reps),
+        SqlType::Int64 => collect_with_reps(column.iter::<i64>()?.copied(), row_reps),
+        SqlType::Float32 => collect_with_reps(column.iter::<f32>()?.copied(), row_reps),
+        SqlType::Float64 => collect_with_reps(column.iter::<f64>()?.copied(), row_reps),
+        SqlType::Date => collect_with_reps(column.iter::<Date<Tz>>()?, row_reps),
+        SqlType::DateTime(_) => collect_with_reps(column.iter::<DateTime<Tz>>()?, row_reps),
         SqlType::Nullable(inner_sqltype) => match inner_sqltype {
             SqlType::UInt8 => {
-                let iter = column.iter::<Option<u8>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<u8>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::UInt16 => {
-                let iter = column.iter::<Option<u16>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<u16>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::UInt32 => {
-                let iter = column.iter::<Option<u32>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<u32>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::UInt64 => {
-                let iter = column.iter::<Option<u64>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<u64>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Int8 => {
-                let iter = column.iter::<Option<i8>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<i8>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Int16 => {
-                let iter = column.iter::<Option<i16>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<i16>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Int32 => {
-                let iter = column.iter::<Option<i32>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<i32>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Int64 => {
-                let iter = column.iter::<Option<i64>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<i64>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Float32 => {
-                let iter = column.iter::<Option<f32>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<f32>>()?.map(|v| v.copied()), row_reps)
             }
             SqlType::Float64 => {
-                let iter = column.iter::<Option<f64>>()?.map(|v| v.copied());
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<f64>>()?.map(|v| v.copied()), row_reps)
             }
-            SqlType::Date => {
-                let iter = column.iter::<Option<Date<Tz>>>()?;
-                column_values!(iter)
-            }
+            SqlType::Date => collect_with_reps(column.iter::<Option<Date<Tz>>>()?, row_reps),
             SqlType::DateTime(_) => {
-                let iter = column.iter::<Option<DateTime<Tz>>>()?;
-                column_values!(iter)
+                collect_with_reps(column.iter::<Option<DateTime<Tz>>>()?, row_reps)
             }
             _ => {
                 error!(

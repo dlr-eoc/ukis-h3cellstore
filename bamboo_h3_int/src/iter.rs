@@ -79,6 +79,8 @@ mod tests {
         let some_data = vec![1, 2, 3, 4];
         let repetitions = vec![2, 1, 3, 0];
         let mut iter = ItemRepeatingIterator::new(some_data.iter(), &repetitions, Some(6));
+        let size_hint = iter.size_hint();
+        assert_eq!(size_hint.0, 6);
         assert_eq!(iter.next(), Some(&1));
         assert_eq!(iter.next(), Some(&1));
         assert_eq!(iter.next(), Some(&2));
@@ -93,6 +95,8 @@ mod tests {
         let some_data = vec![1, 2, 3, 4];
         let repetitions = vec![2, 1, 3, 0];
         let mut iter = ItemRepeatingIterator::new(some_data.iter(), &repetitions, None);
+        let size_hint = iter.size_hint();
+        assert_eq!(size_hint.0, 6);
         assert_eq!(iter.next(), Some(&1));
         assert_eq!(iter.next(), Some(&1));
         assert_eq!(iter.next(), Some(&2));
