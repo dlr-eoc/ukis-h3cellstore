@@ -12,7 +12,7 @@ from .bamboo_h3 import create_connection, \
     H3IndexesContainedIn, \
     h3indexes_convex_hull, \
     version
-from .container import ColumnSet
+from .columnset import ColumnSet
 from .geo import to_polygon
 
 __all__ = [

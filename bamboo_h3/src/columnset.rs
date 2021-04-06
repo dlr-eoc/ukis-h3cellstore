@@ -1,24 +1,12 @@
 use crate::error::IntoPyResult;
 use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
 use bamboo_h3_int::ColVec;
-use h3ron::Index;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::exceptions::{PyIOError, PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::PyMappingProtocol;
 use std::collections::HashMap;
 use std::fs::File;
-
-pub fn check_index_valid(index: &Index) -> PyResult<()> {
-    if !index.is_valid() {
-        Err(PyValueError::new_err(format!(
-            "invalid h3index given: {}",
-            index.h3index()
-        )))
-    } else {
-        Ok(())
-    }
-}
 
 /// convert a Vec to a numpy array
 pub fn vec_to_numpy_owned<T: numpy::Element>(in_vec: Vec<T>) -> Py<PyArray<T, Ix1>> {
@@ -124,7 +112,7 @@ macro_rules! columnset_drain_column_fn {
                             self.inner.size = None;
                         }
 
-                        Ok(crate::convert::vec_to_numpy_owned(data))
+                        Ok(vec_to_numpy_owned(data))
                     } else {
                         Err(PyValueError::new_err(format!(
                             "column {} is not accessible as type {}",

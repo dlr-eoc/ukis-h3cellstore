@@ -7,11 +7,11 @@ pub use geo;
 // versions
 pub use geo_types;
 
-pub use crate::colvec::ColumnSet;
-pub use crate::colvec::ColVec;
-pub use crate::colvec::Datatype;
+pub use crate::columnset::ColumnSet;
+pub use crate::columnset::ColVec;
+pub use crate::columnset::Datatype;
 
-mod colvec;
+mod columnset;
 mod common;
 mod iter;
 pub mod algorithm;

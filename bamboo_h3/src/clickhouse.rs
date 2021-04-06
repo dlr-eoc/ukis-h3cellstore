@@ -9,10 +9,9 @@ use pyo3::{prelude::*, PyResult, Python};
 use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
-use crate::convert::ColumnSet;
-use crate::error::IntoPyResult;
+use crate::columnset::ColumnSet;
 use crate::{
-    convert::check_index_valid,
+    error::{check_index_valid, IntoPyResult},
     geo::Polygon,
     inspect::TableSet as TableSetWrapper,
     syncapi::{ClickhousePool, Query},

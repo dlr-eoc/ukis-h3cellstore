@@ -19,7 +19,7 @@ use pyo3::{
 };
 use wkb::WKBReadExt;
 
-use crate::convert::vec_to_numpy_owned;
+use crate::columnset::vec_to_numpy_owned;
 use bamboo_h3_int::geo::algorithm::bounding_rect::BoundingRect;
 use bamboo_h3_int::geo::algorithm::contains::Contains;
 use bamboo_h3_int::geo_types as gt;

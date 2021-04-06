@@ -209,7 +209,7 @@ impl CompactedTableSchemaBuilder {
             builder = builder.compression_method(cm.clone())
         }
         if let Some(h3res) = &self.h3_base_resolutions {
-            builder = builder.h3_base_resolutions(h3res.clone())
+            builder = builder.h3_base_resolutions(h3res.clone(), false)
         }
         if let Some(h3res) = &self.h3_compacted_resolutions {
             builder = builder.h3_compacted_resolutions(h3res.clone())

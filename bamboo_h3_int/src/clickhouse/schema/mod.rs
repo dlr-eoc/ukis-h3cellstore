@@ -4,7 +4,7 @@ use std::any::type_name;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::colvec::Datatype;
+use crate::columnset::Datatype;
 use crate::common::Named;
 use crate::error::Error;
 use clickhouse_rs::types::{DateTimeType, SqlType};

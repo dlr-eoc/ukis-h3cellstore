@@ -5,13 +5,13 @@ use pyo3::{prelude::*, wrap_pyfunction, Python};
 
 use crate::{
     clickhouse::{validate_clickhouse_url, ClickhouseConnection, ResultSet},
-    convert::ColumnSet,
+    columnset::ColumnSet,
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
 };
 
 mod clickhouse;
-mod convert;
+mod columnset;
 mod error;
 mod geo;
 mod inspect;

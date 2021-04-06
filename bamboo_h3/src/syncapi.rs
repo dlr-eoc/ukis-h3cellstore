@@ -5,7 +5,7 @@ use pyo3::PyResult;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
-use crate::convert::ColumnSet;
+use crate::columnset::ColumnSet;
 use crate::error::IntoPyResult;
 use bamboo_h3_int::clickhouse::compacted_tables::TableSet;
 use bamboo_h3_int::clickhouse::query::{
