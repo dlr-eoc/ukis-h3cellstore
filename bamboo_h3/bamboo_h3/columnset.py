@@ -50,6 +50,16 @@ class ColumnSet:
         return self.inner.column_types
 
     def __len__(self) -> int:
+        """
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> df = pd.DataFrame({"x": np.zeros(12, dtype='uint8')})
+        >>> column_set = ColumnSet.from_dataframe(df)
+        >>> len(column_set)
+        12
+
+        :return: int
+        """
         return len(self.inner)
 
     @property
@@ -146,6 +156,21 @@ class ColumnSet:
         """
         inner = lib.ColumnSet.read_from(filename)
         return ColumnSet(inner)
+
+    def __repr__(self) -> str:
+        """
+        Get a representation of the object.
+
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> df = pd.DataFrame({"x": np.zeros(12, dtype='uint8'), "y": np.zeros(12, dtype='uint8')})
+        >>> column_set = ColumnSet.from_dataframe(df)
+        >>> repr(column_set)
+        'ColumnSet(x, y)[12 rows]'
+
+        :return: str
+        """
+        return repr(self.inner)
 
 
 if __name__ == "__main__":

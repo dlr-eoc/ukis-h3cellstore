@@ -1,12 +1,16 @@
-use crate::error::IntoPyResult;
-use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
-use bamboo_h3_int::ColVec;
-use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
-use pyo3::exceptions::{PyIOError, PyIndexError, PyValueError};
-use pyo3::prelude::*;
-use pyo3::PyMappingProtocol;
 use std::collections::HashMap;
 use std::fs::File;
+
+use itertools::Itertools;
+use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
+use pyo3::{PyObjectProtocol, PySequenceProtocol};
+use pyo3::exceptions::{PyIndexError, PyValueError};
+use pyo3::prelude::*;
+
+use bamboo_h3_int::ColVec;
+use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
+
+use crate::error::IntoPyResult;
 
 /// convert a Vec to a numpy array
 pub fn vec_to_numpy_owned<T: numpy::Element>(in_vec: Vec<T>) -> Py<PyArray<T, Ix1>> {
@@ -81,16 +85,14 @@ impl ColumnSet {
     }
 
     fn write_to(&self, filename: String) -> PyResult<()> {
-        let outfile =
-            File::create(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
+        let outfile = File::create(filename).into_pyresult()?;
         serialize_into(outfile, &self.inner).into_pyresult()?;
         Ok(())
     }
 
     #[staticmethod]
     fn read_from(filename: String) -> PyResult<Self> {
-        let infile =
-            File::open(filename).map_err(|e| PyIOError::new_err(format!("io error: {:?}", e)))?;
+        let infile = File::open(filename).into_pyresult()?;
         let inner: bamboo_h3_int::ColumnSet = deserialize_from(infile).into_pyresult()?;
         Ok(Self { inner })
     }
@@ -106,7 +108,7 @@ macro_rules! columnset_drain_column_fn {
                     if let ColVec::$cvtype(v) = cv {
                         let data = std::mem::take(v);
 
-                        // remove new completely as the type matches
+                        // remove the column completely as the type matches
                         self.inner.columns.remove(column_name);
                         if self.inner.columns.is_empty() {
                             self.inner.size = None;
@@ -145,9 +147,25 @@ columnset_drain_column_fn!(drain_column_date, i64, Date);
 columnset_drain_column_fn!(drain_column_datetime, i64, DateTime);
 
 #[pyproto]
-impl PyMappingProtocol for ColumnSet {
+impl PySequenceProtocol for ColumnSet {
     fn __len__(&self) -> usize {
         self.inner.len()
+    }
+}
+
+#[pyproto]
+impl PyObjectProtocol for ColumnSet {
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
+    }
+
+    fn __repr__(&self) -> String {
+        let keys = self.inner.columns.keys().sorted().join(", ");
+        format!(
+            "ColumnSet({})[{} rows]",
+            keys,
+            self.inner.len()
+        )
     }
 }
 

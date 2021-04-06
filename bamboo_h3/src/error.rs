@@ -1,7 +1,7 @@
 use bamboo_h3_int::error::Error;
+use h3ron::Index;
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::PyResult;
-use h3ron::Index;
 
 /// convert the result of some other crate into a PyResult
 pub trait IntoPyResult<T> {
@@ -49,6 +49,14 @@ impl<T> IntoPyResult<T> for Result<T, url::ParseError> {
     }
 }
 
+impl<T> IntoPyResult<T> for std::io::Result<T> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyIOError::new_err(format!("IO error: {}", err.to_string()))),
+        }
+    }
+}
 
 pub fn check_index_valid(index: &Index) -> PyResult<()> {
     if !index.is_valid() {
