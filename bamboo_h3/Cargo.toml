@@ -54,6 +54,10 @@ features = [
 ]
 
 [package.metadata.maturin]
+# the h3 dependencies are incomplete. As the extension is distributed as source only,
+# the additional packages `scikit-build` and `cython` may be required for the build. The later
+# may be needed as the included c-sources may be generated for an older python version. In case
+# of weird comppiler errors just try to install cython.
 requires-dist = [
     "numpy",
     "pandas>=1.2",
