@@ -1,4 +1,0 @@
-maturin==0.9.4
-wheel
-setuptools_rust # for twine
-twine

@@ -15,3 +15,10 @@ maturin build --release
 ```
 
 to get an optimized build.
+
+Run the unittests with:
+
+```shell
+maturin develop
+pytest
+```
