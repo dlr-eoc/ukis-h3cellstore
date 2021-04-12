@@ -20,5 +20,5 @@ Run the unittests with:
 
 ```shell
 maturin develop
-pytest
+pytest -v
 ```
