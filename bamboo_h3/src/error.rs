@@ -1,4 +1,3 @@
-use h3ron::{HasH3Index, Index};
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::PyResult;
 
@@ -69,16 +68,5 @@ impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
             // TODO: more fine-grained mapping to pyhton exceptions
             Err(err) => Err(PyValueError::new_err(err.to_string())),
         }
-    }
-}
-
-pub fn check_index_valid(index: &Index) -> PyResult<()> {
-    if !index.is_valid() {
-        Err(PyValueError::new_err(format!(
-            "invalid h3index given: {}",
-            index.h3index()
-        )))
-    } else {
-        Ok(())
     }
 }

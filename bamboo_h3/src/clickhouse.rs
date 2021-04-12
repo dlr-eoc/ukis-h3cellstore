@@ -1,27 +1,27 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::convert::TryFrom;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use h3ron::{Index, HasH3Index};
+use either::Either;
+use h3ron::{HasH3Index, Index};
 use log::warn;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::{prelude::*, PyResult, Python};
+use tokio::task::JoinHandle as TaskJoinHandle;
 
 use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::columnset::ColumnSet;
 use crate::{
-    error::{check_index_valid, IntoPyResult},
+    error::IntoPyResult,
     geo::Polygon,
     inspect::TableSet as TableSetWrapper,
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };
-use either::Either;
-use pyo3::exceptions::PyRuntimeError;
-use std::time::{Duration, Instant};
-use tokio::task::JoinHandle as TaskJoinHandle;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -106,8 +106,6 @@ impl ClickhouseConnection {
         query_template: Option<String>,
     ) -> PyResult<bool> {
         let index = Index::try_from(h3index).into_pyresult()?;
-        check_index_valid(&index)?;
-
         let tablesetquery = match query_template {
             Some(qs) => TableSetQuery::TemplatedSelect(format!("{} limit 1", qs)),
             None => TableSetQuery::TemplatedSelect(format!(
