@@ -13,7 +13,7 @@ def pip_install(packages):
 
 
 if __name__ == '__main__':
-    pip_install(["toml", "pytest>=6.0.0,<7.0.0"])
+    pip_install(["pip", "toml"])  # always upgrade pip
 
     import toml  # import only after it has been installed
 
