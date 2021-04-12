@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use h3ron::{Index, H3_MIN_RESOLUTION};
+use h3ron::{Index, H3_MIN_RESOLUTION, HasH3Index};
 use itertools::Itertools;
 use regex::Regex;
 
 use crate::error::{check_index_valid, Error};
 use crate::COL_NAME_H3INDEX;
+use std::convert::TryFrom;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct TableSpec {
@@ -209,7 +210,7 @@ impl TableSet {
 
         // use the h3 resolution of the first index as the target resolution
         let h3_resolution = if let Some(h3index) = h3indexes.first() {
-            let index = Index::from(*h3index);
+            let index: Index = Index::try_from(*h3index)?;
             check_index_valid(&index)?;
             index.resolution()
         } else {
@@ -225,13 +226,13 @@ impl TableSet {
             .map(|(r, _)| (*r, HashSet::new()))
             .collect();
         for h3index in h3indexes {
-            let index = Index::from(*h3index);
+            let index = Index::try_from(*h3index)?;
             check_index_valid(&index)?;
             if index.resolution() != h3_resolution {
                 return Err(Error::MixedResolutions);
             }
             queryable_h3indexes.iter_mut().for_each(|(r, r_indexes)| {
-                r_indexes.insert(index.get_parent(*r).h3index());
+                r_indexes.insert(index.get_parent_unchecked(*r).h3index());
             })
         }
         if queryable_h3indexes.is_empty() {

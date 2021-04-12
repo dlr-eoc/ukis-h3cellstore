@@ -3,6 +3,7 @@ use std::sync::Arc;
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 
+use crate::error::IntoPyResult;
 use crate::{
     clickhouse::{validate_clickhouse_url, ClickhouseConnection, ResultSet},
     columnset::ColumnSet,
@@ -36,9 +37,10 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
 
 /// calculate the convex hull of an array og h3 indexes
 #[pyfunction]
-fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> crate::geo::Polygon {
+fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo::Polygon> {
     let view = np_array.as_array();
-    bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into()
+    let poly = bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into_pyresult()?;
+    Ok(poly.into())
 }
 
 /// A Python module implemented in Rust.

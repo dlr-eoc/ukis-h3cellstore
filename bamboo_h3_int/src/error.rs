@@ -1,6 +1,6 @@
 use std::fmt;
 
-use h3ron::Index;
+use h3ron::{Index, HasH3Index};
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,6 +14,9 @@ pub enum Error {
     SerializationError(String),
     InvalidH3Resolution(u8),
     UnknownDatatype(String),
+    H3ron(h3ron::Error),
+    Clickhouse(clickhouse_rs::errors::Error),
+    ColumNotFound(String),
 }
 
 impl fmt::Display for Error {
@@ -33,6 +36,9 @@ impl fmt::Display for Error {
             Error::SerializationError(msg) => write!(f, "{}", msg),
             Error::InvalidH3Resolution(res) => write!(f, "invalid h3 resolution: {}", res),
             Error::UnknownDatatype(dt) => write!(f, "unknown datatype: {}", dt),
+            Error::H3ron(e) => write!(f, "h3ron: {}", e),
+            Error::ColumNotFound(column_name) => write!(f, "column not found: {}", column_name),
+            Error::Clickhouse(e) => write!(f, "clickhouse: {:?}", e),
         }
     }
 }
@@ -42,7 +48,7 @@ impl std::error::Error for Error {}
 #[inline]
 pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error> {
     if !index.is_valid() {
-        Err(Error::InvalidH3Index(index.clone()))
+        Err(Error::InvalidH3Index(*index))
     } else {
         Ok(())
     }
@@ -58,5 +64,17 @@ impl From<serde_cbor::Error> for Error {
 impl From<serde_json::error::Error> for Error {
     fn from(te: serde_json::error::Error) -> Self {
         Error::SerializationError(format!("{:?}",te))
+    }
+}
+
+impl From<h3ron::Error> for Error {
+    fn from(e: h3ron::Error) -> Self {
+        Error::H3ron(e)
+    }
+}
+
+impl From<clickhouse_rs::errors::Error> for Error {
+    fn from(e: clickhouse_rs::errors::Error) -> Self {
+        Error::Clickhouse(e)
     }
 }

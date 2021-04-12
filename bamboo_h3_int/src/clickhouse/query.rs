@@ -1,26 +1,23 @@
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
+use std::iter::FromIterator;
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
 use clickhouse_rs::types::{Column, Complex};
-use clickhouse_rs::{
-    errors::{Error, Result},
-    types::SqlType,
-    ClientHandle,
-};
+use clickhouse_rs::{types::SqlType, ClientHandle};
 use futures_util::StreamExt;
-use h3ron::Index;
+use h3ron::{HasH3Index, Index};
 use log::{error, warn};
 
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
+use crate::error::Error;
 use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
-use std::iter::FromIterator;
 
 /// list all tablesets in the current database
-pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>> {
+pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
     let mut tablesets = {
         let mut stream = ch
             .query(format!(
@@ -81,19 +78,19 @@ pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, Tabl
 }
 
 /// check if a query would return any rows
-pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> Result<bool> {
+pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> Result<bool, Error> {
     let mut stream = ch.query(query_string).stream();
     if let Some(first) = stream.next().await {
         match first {
             Ok(_) => Ok(true),
-            Err(e) => Err(e),
+            Err(e) => Err(e.into()),
         }
     } else {
         Ok(false)
     }
 }
 
-pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<ColumnSet> {
+pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<ColumnSet, Error> {
     let block = ch.query(query_string).fetch_all().await?;
 
     let mut out_rows = HashMap::new();
@@ -108,11 +105,12 @@ pub async fn query_all_with_uncompacting(
     mut ch: ClientHandle,
     query_string: String,
     h3index_set: HashSet<u64>,
-) -> Result<ColumnSet> {
+) -> Result<ColumnSet, Error> {
     let h3_res = if let Some(first) = h3index_set.iter().next() {
-        Index::from(*first).resolution()
+        let index = Index::try_from(*first)?;
+        index.resolution()
     } else {
-        return Err(Error::Other(Cow::from("no h3indexes given")));
+        return Err(Error::EmptyIndexes);
     };
     let block = ch.query(query_string).fetch_all().await?;
 
@@ -123,10 +121,7 @@ pub async fn query_all_with_uncompacting(
     {
         c
     } else {
-        return Err(Error::Other(Cow::from(format!(
-            "no {} column found",
-            COL_NAME_H3INDEX
-        ))));
+        return Err(Error::ColumNotFound(COL_NAME_H3INDEX.to_string()));
     };
 
     // the number denoting how often a value of the other columns must be repeated
@@ -137,7 +132,7 @@ pub async fn query_all_with_uncompacting(
     let (h3_vec, num_uncompacted_rows) = {
         let mut h3_vec = Vec::new();
         for h3index in h3index_column.iter::<u64>()? {
-            let idx = Index::from(*h3index);
+            let idx: Index = Index::try_from(*h3index)?;
             let m = match idx.resolution().cmp(&h3_res) {
                 Ordering::Less => {
                     let mut valid_children = idx
@@ -155,9 +150,7 @@ pub async fn query_all_with_uncompacting(
                     1
                 }
                 _ => {
-                    return Err(Error::Other(Cow::from(
-                        "too small resolution during uncompacting",
-                    )));
+                    return Err(Error::InvalidH3Resolution(idx.resolution()));
                 }
             };
             row_repetitions.push(m);
@@ -195,7 +188,10 @@ where
     }
 }
 
-fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>) -> Result<ColVec> {
+fn read_column(
+    column: &Column<Complex>,
+    row_reps: Option<(usize, &Vec<usize>)>,
+) -> Result<ColVec, Error> {
     let values: ColVec = match column.sql_type() {
         SqlType::UInt8 => collect_with_reps(column.iter::<u8>()?.copied(), row_reps),
         SqlType::UInt16 => collect_with_reps(column.iter::<u16>()?.copied(), row_reps),
@@ -250,7 +246,9 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
                     column.sql_type().to_string(),
                     column.name()
                 );
-                return Err(Error::Other(Cow::from("unsupported nullable column type")));
+                return Err(Error::UnknownDatatype(
+                    column.sql_type().to_string().to_string(),
+                ));
             }
         },
         _ => {
@@ -259,7 +257,9 @@ fn read_column(column: &Column<Complex>, row_reps: Option<(usize, &Vec<usize>)>)
                 column.sql_type().to_string(),
                 column.name()
             );
-            return Err(Error::Other(Cow::from("unsupported column type")));
+            return Err(Error::UnknownDatatype(
+                column.sql_type().to_string().to_string(),
+            ));
         }
     };
     Ok(values)

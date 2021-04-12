@@ -155,10 +155,6 @@ impl PySequenceProtocol for ColumnSet {
 
 #[pyproto]
 impl PyObjectProtocol for ColumnSet {
-    fn __bool__(&self) -> bool {
-        !self.inner.is_empty()
-    }
-
     fn __repr__(&self) -> String {
         let keys = self.inner.columns.keys().sorted().join(", ");
         format!(
@@ -166,6 +162,10 @@ impl PyObjectProtocol for ColumnSet {
             keys,
             self.inner.len()
         )
+    }
+
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
     }
 }
 

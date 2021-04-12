@@ -1,7 +1,8 @@
-use bamboo_h3_int::error::Error;
-use h3ron::Index;
+use h3ron::{HasH3Index, Index};
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::PyResult;
+
+use bamboo_h3_int::error::Error;
 
 /// convert the result of some other crate into a PyResult
 pub trait IntoPyResult<T> {
@@ -22,6 +23,9 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
                 | Error::SchemaValidationError(_, _) => Err(PyValueError::new_err(err.to_string())),
                 Error::NoQueryableTables
                 | Error::SerializationError(_)
+                | Error::ColumNotFound(_)
+                | Error::Clickhouse(_)
+                | Error::H3ron(_)
                 | Error::UnknownDatatype(_) => Err(PyRuntimeError::new_err(err.to_string())),
             },
         }
@@ -54,6 +58,16 @@ impl<T> IntoPyResult<T> for std::io::Result<T> {
         match self {
             Ok(v) => Ok(v),
             Err(err) => Err(PyIOError::new_err(format!("IO error: {}", err.to_string()))),
+        }
+    }
+}
+
+impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            // TODO: more fine-grained mapping to pyhton exceptions
+            Err(err) => Err(PyValueError::new_err(err.to_string())),
         }
     }
 }

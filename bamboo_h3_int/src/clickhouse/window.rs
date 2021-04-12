@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
-use h3ron::{polyfill, Index, ToPolygon};
+use h3ron::{polyfill, Index, ToPolygon, HasH3Index};
 use h3ron_h3_sys::H3Index;
 
 use crate::clickhouse::compacted_tables::TableSet;
@@ -72,7 +72,7 @@ impl<F: WindowFilter> WindowIterator<F> {
             // polyfill just uses the centroid to determinate if an index is convert,
             // but we also want intersecting h3 cells where the centroid may be outside
             // of the polygon, so we add the direct neighbors as well.
-            for ring_h3index in Index::from(h3index).k_ring(1) {
+            for ring_h3index in Index::new(h3index).k_ring(1) {
                 window_index_set.insert(ring_h3index.h3index());
             }
         }
@@ -98,7 +98,7 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(h3index) = self.window_indexes.get(self.iter_pos) {
             self.iter_pos += 1;
-            let window_index = Index::from(*h3index);
+            let window_index = Index::new(*h3index);
 
             // window_h3index must really intersect with the window
             if !self.window_polygon.intersects(&window_index.to_polygon()) {

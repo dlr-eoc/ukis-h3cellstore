@@ -1,7 +1,8 @@
 use std::collections::{HashSet, VecDeque};
+use std::convert::TryFrom;
 use std::sync::Arc;
 
-use h3ron::{polyfill, Index, ToPolygon};
+use h3ron::{polyfill, HasH3Index, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
@@ -85,14 +86,14 @@ pub fn create_window(
     };
 
     for h3index in polyfill(&window_polygon, window_h3_resolution) {
-        let index = Index::from(h3index);
+        let index = Index::try_from(h3index).into_pyresult()?;
         add_index(index);
     }
 
     // for small windows, polyfill may not yield results,
     // so just adding the center as well.
     if let Some(point) = window_polygon.centroid() {
-        let index = Index::from_coordinate(&point.0, window_h3_resolution);
+        let index = Index::from_coordinate(&point.0, window_h3_resolution).into_pyresult()?;
         add_index(index);
     }
     log::info!(
@@ -149,7 +150,8 @@ fn next_window_queryparameters(
     sliding_window: &mut SlidingH3Window,
 ) -> PyResult<Option<QueryParameters>> {
     while let Some(window_h3index) = next_window_index(sliding_window)? {
-        let child_indexes: Vec<_> = Index::from(window_h3index)
+        let child_indexes: Vec<_> = Index::try_from(window_h3index)
+            .into_pyresult()?
             .get_children(sliding_window.target_h3_resolution)
             .drain(..)
             // remove children located outside of the window_polygon. It is probably is not
@@ -235,7 +237,7 @@ fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResul
                     h3indexes.iter().for_each(|h3i| {
                         sliding_window
                             .prefetched_window_indexes
-                            .push_back(Index::from(*h3i))
+                            .push_back(Index::new(*h3i))
                     });
                     Ok(())
                 }
