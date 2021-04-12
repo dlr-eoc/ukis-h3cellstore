@@ -121,7 +121,7 @@ pub async fn query_all_with_uncompacting(
     {
         c
     } else {
-        return Err(Error::ColumNotFound(COL_NAME_H3INDEX.to_string()));
+        return Err(Error::ColumnNotFound(COL_NAME_H3INDEX.to_string()));
     };
 
     // the number denoting how often a value of the other columns must be repeated
