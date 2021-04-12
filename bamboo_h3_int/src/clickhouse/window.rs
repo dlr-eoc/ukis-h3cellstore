@@ -141,7 +141,7 @@ mod tests {
     use std::collections::HashMap;
 
     use geo_types::{LineString, Polygon};
-    use h3ron::Index;
+    use h3ron::{Index, HasH3Index};
 
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
     use crate::clickhouse::window::{window_index_resolution, WindowFilter, WindowIterator};
