@@ -65,4 +65,5 @@ requires-dist = [
     "geojson>=2.5",
     "h3>=3.7",
     "shapely>=1.7",
+    "h3ronpy>=0.9",
 ]

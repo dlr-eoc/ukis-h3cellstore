@@ -1,4 +1,5 @@
 exclude *.prof
+exclude *.sq
 exclude opt*.svg
 exclude *.tmp.py
 exclude t.py

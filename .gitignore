@@ -6,3 +6,4 @@
 *.tmp.py
 *.pyc
 *.swp
+/bamboo_h3/bamboo_h3/*.so
