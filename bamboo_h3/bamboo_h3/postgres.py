@@ -61,7 +61,7 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
     :param wkb_column_name: the name of the column containing a polygon in WKB format
     :param query_str: the query string to execute
     :param query_args: arguments for the query string
-    :return:
+    :return: pandas DataFrame
     """
 
     df, wkb_list = __wkb_and_df_from_query(cur, wkb_column_name, query_str, *query_args)

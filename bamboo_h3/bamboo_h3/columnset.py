@@ -69,7 +69,7 @@ class ColumnSet:
         return len(self.inner)
 
     @property
-    def size(self) -> bool:
+    def size(self) -> int:
         """size property, equally to the one provided by pandas"""
         return len(self.inner)
 
