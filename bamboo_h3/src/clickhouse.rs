@@ -22,6 +22,7 @@ use crate::{
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };
+use crate::schema::Schema;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -71,6 +72,11 @@ impl ClickhouseConnection {
             .collect())
     }
 
+    fn drop_tableset(&mut self, tableset: TableSetWrapper) -> PyResult<()> {
+        self.clickhouse_pool.drop_tableset(&tableset.inner)?;
+        Ok(())
+    }
+
     fn query_fetch(&mut self, query_string: String) -> ResultSet {
         AwaitableResultSet::new(self.clickhouse_pool.clone(), Query::Plain(query_string)).into()
     }
@@ -118,6 +124,11 @@ impl ClickhouseConnection {
             .build_select_query(&[index.h3index()], &tablesetquery)
             .into_pyresult()?;
         self.clickhouse_pool.query_returns_rows(query_string)
+    }
+
+
+    fn create_schema(&mut self, schema: &Schema) -> PyResult<()> {
+        self.clickhouse_pool.create_schema(&schema.inner)
     }
 }
 

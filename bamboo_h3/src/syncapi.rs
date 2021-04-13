@@ -5,13 +5,15 @@ use pyo3::PyResult;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
+use bamboo_h3_int::clickhouse::compacted_tables::{Table, TableSet};
+use bamboo_h3_int::clickhouse::query::{
+    execute, list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
+};
+use bamboo_h3_int::clickhouse::schema::{CreateSchema, Schema};
+use bamboo_h3_int::clickhouse_rs::Pool;
+
 use crate::columnset::ColumnSet;
 use crate::error::IntoPyResult;
-use bamboo_h3_int::clickhouse::compacted_tables::TableSet;
-use bamboo_h3_int::clickhouse::query::{
-    list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
-};
-use bamboo_h3_int::clickhouse_rs::Pool;
 
 pub enum Query {
     /// return all rows returned by the given query string
@@ -47,6 +49,16 @@ impl ClickhousePool {
         Ok(Self {
             pool: Pool::new(db_url),
             runtime,
+        })
+    }
+
+    pub fn execute(&self, query_string: &str) -> PyResult<()> {
+        let p = &self.pool;
+        self.runtime.block_on(async {
+            let client = p.get_handle().await.into_pyresult()?;
+            execute(client, query_string.to_string())
+                .await
+                .into_pyresult()
         })
     }
 
@@ -133,5 +145,28 @@ impl ClickhousePool {
                 list_tablesets(client).await
             })
             .into_pyresult()
+    }
+
+    pub fn drop_tableset(&self, tableset: &TableSet) -> PyResult<()> {
+        for tablespec in tableset
+            .base_tables
+            .values()
+            .into_iter()
+            .chain(tableset.compacted_tables.values().into_iter())
+        {
+            let table = Table {
+                basename: tableset.basename.clone(),
+                spec: tablespec.clone(),
+            };
+            self.execute(&format!("drop table if exists {}", table.to_table_name()))?;
+        }
+        Ok(())
+    }
+
+    pub fn create_schema(&self, schema: &Schema) -> PyResult<()> {
+        for statement in schema.create_statements().into_pyresult()? {
+            self.execute(&statement)?;
+        }
+        Ok(())
     }
 }

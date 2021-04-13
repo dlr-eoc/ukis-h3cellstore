@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 
 #[pyclass]
 pub struct Schema {
-    inner: bamboo_h3_int::clickhouse::schema::Schema,
+    pub(crate) inner: bamboo_h3_int::clickhouse::schema::Schema,
 }
 
 #[pymethods]

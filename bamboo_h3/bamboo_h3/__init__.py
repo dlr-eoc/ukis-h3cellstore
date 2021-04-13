@@ -2,8 +2,10 @@ from __future__ import annotations  # https://stackoverflow.com/a/33533514
 
 # import from rust library
 from typing import Dict, Optional, Generator
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from .bamboo_h3 import create_connection, \
     Polygon, \
     CompactedTable, \
@@ -14,6 +16,7 @@ from .bamboo_h3 import create_connection, \
     version
 from .columnset import ColumnSet
 from .geo import to_polygon
+from .schema import Schema
 
 __all__ = [
     "ClickhouseConnection",
@@ -200,6 +203,15 @@ class ClickhouseConnection:
         """list all tablesets in the database"""
         return self.inner.list_tablesets()
 
+    def drop_tableset(self, tableset: TableSet):
+        """
+        Drop a tableset from the database.
+
+        This may fail when Clickhouse enforces its maximum allowed drop
+        limit (default is 50GB)
+        """
+        return self.inner.drop_tableset(tableset)
+
     def query_fetch(self, query_string: str) -> ClickhouseResultSet:
         """
         execute a query string.
@@ -229,3 +241,6 @@ class ClickhouseConnection:
         :return: bool
         """
         return self.inner.tableset_contains_h3index(tableset, h3index, query_template=query_template)
+
+    def create_schema(self, schema: Schema):
+        return self.inner.create_schema(schema)

@@ -15,6 +15,7 @@ use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
 use crate::error::Error;
 use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use crate::clickhouse::schema::{Schema, CreateSchema};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
@@ -98,6 +99,18 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<Col
         out_rows.insert(column.name().to_string(), read_column(column, None)?);
     }
     Ok(out_rows.into())
+}
+
+pub async fn execute(mut ch: ClientHandle, query_string: String) -> Result<(), Error> {
+    ch.execute(query_string).await?;
+    Ok(())
+}
+
+pub async fn create_schema(mut ch: ClientHandle, schema: &Schema) -> Result<(), Error> {
+    for statement in schema.create_statements()?.iter() {
+        ch.execute(statement).await?;
+    }
+    Ok(())
 }
 
 /// return all rows from the query and uncompact the h3index in the h3index column, all other columns get duplicated accordingly
