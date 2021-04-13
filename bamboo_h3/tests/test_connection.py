@@ -1,10 +1,7 @@
 # noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_dsn
+from .fixtures import clickhouse_db
 
-from bamboo_h3 import ClickhouseConnection
 
-def test_connection_fetch_dataframe(clickhouse_dsn):
-    conn = ClickhouseConnection(clickhouse_dsn)
-    assert conn is not None
-    df = conn.query_fetch("select 25 as col1").to_dataframe()
+def test_connection_fetch_dataframe(clickhouse_db):
+    df = clickhouse_db.query_fetch("select 25 as col1").to_dataframe()
     assert df["col1"][0] == 25
