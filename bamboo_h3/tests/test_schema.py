@@ -1,7 +1,7 @@
-# noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_db
-
 from bamboo_h3.schema import CompactedTableSchemaBuilder
+
+# noinspection PyUnresolvedReferences
+from .fixtures import clickhouse_db, naturalearth_africa_dataframe
 
 
 def elephant_schema(tableset_name="okavango_delta"):
@@ -24,3 +24,8 @@ def test_create_and_delete_schema(clickhouse_db):
     clickhouse_db.drop_tableset(tableset)
     tableset = clickhouse_db.list_tablesets().get(tableset_name)
     assert tableset is None
+
+
+def test_write_dataframe(naturalearth_africa_dataframe):
+    print(naturalearth_africa_dataframe)
+    # TODO
