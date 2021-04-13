@@ -10,4 +10,5 @@ minversion = "6.0"
 addopts = "--doctest-modules"
 testpaths = [
     "bamboo_h3",
+    "tests"
 ]

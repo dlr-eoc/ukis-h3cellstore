@@ -20,5 +20,10 @@ Run the unittests with:
 
 ```shell
 maturin develop
-pytest -v
+
+# connection string to connect to the test clickhouse database. If this is not
+# set the DB tests will not run
+export BAMBOO_CLICKHOUSE_DSN_TEST="tcp://localhost:19010/bamboo_test?compression=lz4"
+
+pytest -v -s --tb=native
 ```
