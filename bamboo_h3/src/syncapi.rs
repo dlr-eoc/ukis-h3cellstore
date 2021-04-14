@@ -174,9 +174,16 @@ impl ClickhousePool {
     }
 
     pub fn create_schema(&self, schema: &Schema) -> PyResult<()> {
-        for statement in schema.create_statements().into_pyresult()? {
-            self.execute(&statement)?;
-        }
-        Ok(())
+        let mut statements = schema.create_statements().into_pyresult()?;
+        let p = &self.pool;
+        self.runtime.block_on(async {
+            let mut client = p.get_handle().await.into_pyresult()?;
+            for s in statements.drain(..) {
+                client.execute(s)
+                    .await
+                    .into_pyresult()?
+            }
+            Ok(())
+        })
     }
 }
