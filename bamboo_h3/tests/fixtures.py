@@ -50,6 +50,11 @@ def naturalearth_africa_dataframe_6():
 
 
 @pytest.fixture
+def naturalearth_africa_dataframe_8():
+    return __naturalearth_africa_dataframe(h3_res=8)
+
+
+@pytest.fixture
 def naturalearth_africa_geodataframe_4():
     return h3index_column_to_geodataframe(__naturalearth_africa_dataframe(h3_res=4))
 

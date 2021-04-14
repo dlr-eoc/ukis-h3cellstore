@@ -5,6 +5,7 @@ use chrono::{Date, DateTime};
 use chrono_tz::Tz;
 use itertools::repeat_n;
 use ordered_float::OrderedFloat;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::common::Named;
@@ -201,6 +202,9 @@ enum ColVecValue {
     DateTime(i64),
     DateTimeN(Option<i64>),
 }
+
+// to allow using rayons parallel iterators with that type
+unsafe impl Send for ColVecValue {}
 
 /// a vector of column values
 ///
@@ -605,13 +609,13 @@ impl ColumnSet {
                     .or_insert_with(|| vec![h3index]);
             }
 
-            let mut outmap: HashMap<String, ColVec> = HashMap::new();
-            for (mut group, h3indexes) in groups.drain() {
-                let h3indexes_new = h3ron::compact(&h3indexes);
+            let parallelize = self.len() > 100000 && groups.len() > 1;
 
+            let mut outmap: HashMap<String, ColVec> = HashMap::new();
+            for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize) {
                 // repeat each column value according to the number of h3indexes in the group
                 for (col_index, col_value) in group.drain(..).enumerate() {
-                    let mut col_cv = colvecvalue_to_colvec(col_value, h3indexes_new.len());
+                    let mut col_cv = colvecvalue_to_colvec(col_value, h3indexes_compacted.len());
                     match outmap.get_mut(&other_columns[col_index]) {
                         Some(outmap_cv) => {
                             outmap_cv.append(&mut col_cv)?;
@@ -623,7 +627,7 @@ impl ColumnSet {
                 }
 
                 // add the h3indexes
-                let mut h3index_colvec = ColVec::U64(h3indexes_new);
+                let mut h3index_colvec = ColVec::U64(h3indexes_compacted);
                 match outmap.get_mut(&h3index_column_name) {
                     Some(outmap_cv) => {
                         outmap_cv.append(&mut h3index_colvec)?;
@@ -635,6 +639,24 @@ impl ColumnSet {
             }
             Ok(outmap.into())
         }
+    }
+}
+
+fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
+    // prepare for compacting by removing all eventual duplicates
+    h3indexes.sort_unstable();
+    h3indexes.dedup();
+    h3ron::compact(&h3indexes)
+}
+
+fn compact_groups(
+    mut groups: HashMap<Vec<ColVecValue>, Vec<u64>>,
+    paralleize: bool,
+) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
+    if paralleize {
+        groups.par_drain().map(|(k, v)| (k, compact(v))).collect()
+    } else {
+        groups.drain().map(|(k, v)| (k, compact(v))).collect()
     }
 }
 
