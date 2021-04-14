@@ -642,8 +642,11 @@ impl ColumnSet {
     }
 }
 
+/// compact the give h3 indexes
+///
+/// prepares for compacting by removing all eventual duplicates as
+/// this is nothing upstream `compact` can handle
 fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
-    // prepare for compacting by removing all eventual duplicates
     h3indexes.sort_unstable();
     h3indexes.dedup();
     h3ron::compact(&h3indexes)
@@ -651,9 +654,9 @@ fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
 
 fn compact_groups(
     mut groups: HashMap<Vec<ColVecValue>, Vec<u64>>,
-    paralleize: bool,
+    parallelize: bool,
 ) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
-    if paralleize {
+    if parallelize {
         groups.par_drain().map(|(k, v)| (k, compact(v))).collect()
     } else {
         groups.drain().map(|(k, v)| (k, compact(v))).collect()
