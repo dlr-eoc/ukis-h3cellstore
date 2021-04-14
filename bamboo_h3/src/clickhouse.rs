@@ -15,6 +15,7 @@ use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
 use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::columnset::ColumnSet;
+use crate::schema::Schema;
 use crate::{
     error::IntoPyResult,
     geo::Polygon,
@@ -22,7 +23,6 @@ use crate::{
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };
-use crate::schema::Schema;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -125,7 +125,6 @@ impl ClickhouseConnection {
             .into_pyresult()?;
         self.clickhouse_pool.query_returns_rows(query_string)
     }
-
 
     fn create_schema(&mut self, schema: &Schema) -> PyResult<()> {
         self.clickhouse_pool.create_schema(&schema.inner)

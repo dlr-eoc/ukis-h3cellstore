@@ -46,10 +46,20 @@ impl ClickhousePool {
                 PyRuntimeError::new_err(format!("Unable to create tokio runtime: {:?}", e))
             })?;
 
-        Ok(Self {
-            pool: Pool::new(db_url),
-            runtime,
-        })
+        let pool = Pool::new(db_url);
+
+        // check if the connections are usable
+        runtime.block_on(async {
+            (&pool)
+                .get_handle()
+                .await
+                .into_pyresult()?
+                .check_connection()
+                .await
+                .into_pyresult()
+        })?;
+
+        Ok(Self { pool, runtime })
     }
 
     pub fn execute(&self, query_string: &str) -> PyResult<()> {
