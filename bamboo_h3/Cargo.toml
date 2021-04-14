@@ -67,4 +67,5 @@ requires-dist = [
     "shapely>=1.7",
     "h3ronpy>=0.9",
     "geopandas>=0.8",
+    "rasterio>=1.1",
 ]

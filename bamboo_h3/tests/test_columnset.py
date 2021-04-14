@@ -1,7 +1,7 @@
 from bamboo_h3 import ColumnSet
 
 # noinspection PyUnresolvedReferences
-from .fixtures import naturalearth_africa_dataframe_4
+from .fixtures import naturalearth_africa_dataframe_4, r_tiff_dataframe_uncompacted_8
 
 
 def test_to_compacted_single_column(naturalearth_africa_dataframe_4):
@@ -29,3 +29,13 @@ def test_to_compacted_multiple_columns(naturalearth_africa_dataframe_4):
 
     # test for an expected compaction rate
     assert len(columnset) > (len(columnset_compacted) * 3)
+
+
+def test_to_compacted_multiple_columns_raster(r_tiff_dataframe_uncompacted_8):
+    columnset = ColumnSet.from_dataframe(r_tiff_dataframe_uncompacted_8)
+    columnset_compacted = columnset.to_compacted()
+    assert not columnset_compacted.empty
+    assert len(columnset) > len(columnset_compacted)
+
+    compaction_percent = float(len(columnset_compacted)) / len(columnset)
+    print(f"[compacted to {compaction_percent * 100:.2f}%]", end=" ")

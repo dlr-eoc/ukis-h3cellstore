@@ -2,9 +2,13 @@ import os
 
 import geopandas as gpd
 import pytest
+import rasterio
 from bamboo_h3 import ClickhouseConnection
-from h3ronpy.util import h3index_column_to_geodataframe
-from h3ronpy.vector import geodataframe_to_h3
+from bamboo_h3.raster import raster_to_dataframe
+from bamboo_h3.util import h3index_column_to_geodataframe
+from bamboo_h3.vector import geodataframe_to_h3
+
+from . import TESTDATA_PATH
 
 
 def __clickhouse_dsn():
@@ -48,3 +52,14 @@ def naturalearth_africa_dataframe_6():
 @pytest.fixture
 def naturalearth_africa_geodataframe_4():
     return h3index_column_to_geodataframe(__naturalearth_africa_dataframe(h3_res=4))
+
+
+def __r_tiff_dataframe(h3_res=4, compacted=True):
+    dataset = rasterio.open(TESTDATA_PATH / "r.tiff")
+    band = dataset.read(1)
+    return raster_to_dataframe(band, dataset.transform, h3_res, nodata_value=0, compacted=compacted, geo=False)
+
+
+@pytest.fixture
+def r_tiff_dataframe_uncompacted_8():
+    return __r_tiff_dataframe(h3_res=8, compacted=False)
