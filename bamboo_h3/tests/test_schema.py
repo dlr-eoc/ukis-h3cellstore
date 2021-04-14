@@ -1,7 +1,7 @@
 from bamboo_h3.schema import CompactedTableSchemaBuilder
 
 # noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_db, naturalearth_africa_dataframe
+from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
 
 
 def elephant_schema(tableset_name="okavango_delta"):
@@ -28,6 +28,6 @@ def test_create_and_delete_schema(clickhouse_db):
     assert tableset is None
 
 
-def test_write_dataframe(naturalearth_africa_dataframe):
-    print(naturalearth_africa_dataframe)
+def test_write_dataframe(naturalearth_africa_dataframe_4):
+    print(naturalearth_africa_dataframe_4)
     # TODO

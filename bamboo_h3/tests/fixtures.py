@@ -36,10 +36,15 @@ def __naturalearth_africa_dataframe(h3_res=4):
 
 
 @pytest.fixture
-def naturalearth_africa_dataframe():
-    return __naturalearth_africa_dataframe()
+def naturalearth_africa_dataframe_4():
+    return __naturalearth_africa_dataframe(h3_res=4)
 
 
 @pytest.fixture
-def naturalearth_africa_geodataframe():
-    return h3index_column_to_geodataframe(__naturalearth_africa_dataframe())
+def naturalearth_africa_dataframe_6():
+    return __naturalearth_africa_dataframe(h3_res=6)
+
+
+@pytest.fixture
+def naturalearth_africa_geodataframe_4():
+    return h3index_column_to_geodataframe(__naturalearth_africa_dataframe(h3_res=4))
