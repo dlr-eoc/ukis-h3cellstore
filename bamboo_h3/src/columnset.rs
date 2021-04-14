@@ -3,12 +3,12 @@ use std::fs::File;
 
 use itertools::Itertools;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
-use pyo3::{PyObjectProtocol, PySequenceProtocol};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::{PyObjectProtocol, PySequenceProtocol};
 
-use bamboo_h3_int::ColVec;
 use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
+use bamboo_h3_int::ColVec;
 
 use crate::error::IntoPyResult;
 
@@ -90,6 +90,15 @@ impl ColumnSet {
         Ok(())
     }
 
+    fn to_compacted(&self, h3index_column_name: String) -> PyResult<Self> {
+        Ok(Self {
+            inner: self
+                .inner
+                .to_compacted(&h3index_column_name)
+                .into_pyresult()?,
+        })
+    }
+
     #[staticmethod]
     fn read_from(filename: String) -> PyResult<Self> {
         let infile = File::open(filename).into_pyresult()?;
@@ -157,11 +166,7 @@ impl PySequenceProtocol for ColumnSet {
 impl PyObjectProtocol for ColumnSet {
     fn __repr__(&self) -> String {
         let keys = self.inner.columns.keys().sorted().join(", ");
-        format!(
-            "ColumnSet({})[{} rows]",
-            keys,
-            self.inner.len()
-        )
+        format!("ColumnSet({})[{} rows]", keys, self.inner.len())
     }
 
     fn __bool__(&self) -> bool {

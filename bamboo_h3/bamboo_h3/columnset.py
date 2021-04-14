@@ -1,8 +1,9 @@
 from __future__ import annotations  # https://stackoverflow.com/a/33533514
+
 from typing import Dict
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from . import bamboo_h3 as lib
 
@@ -70,6 +71,18 @@ class ColumnSet:
     @property
     def empty(self) -> bool:
         return self.inner.empty
+
+    def to_compacted(self, h3index_column_name: str = "h3index") -> ColumnSet:
+        """
+        Compact the h3indexes in the columnset and return a new columnset
+        with the compacted data.
+
+        Reduces the storage volume
+
+        :param h3index_column_name:
+        :return:
+        """
+        return ColumnSet(self.inner.to_compacted(h3index_column_name))
 
     def to_dataframe(self) -> pd.DataFrame:
         """

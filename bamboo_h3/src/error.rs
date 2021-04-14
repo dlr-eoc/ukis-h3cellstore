@@ -15,7 +15,9 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
             Err(err) => match err {
                 Error::EmptyIndexes
                 | Error::InvalidH3Index(_)
+                | Error::InvalidColumn(_)
                 | Error::MixedResolutions
+                | Error::IncompatibleDatatype
                 | Error::MissingQueryPlaceholder(_)
                 | Error::InvalidH3Resolution(_)
                 | Error::DifferentColumnLength(_, _, _)

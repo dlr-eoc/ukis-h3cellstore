@@ -17,6 +17,8 @@ pub enum Error {
     H3ron(h3ron::Error),
     Clickhouse(clickhouse_rs::errors::Error),
     ColumnNotFound(String),
+    InvalidColumn(String),
+    IncompatibleDatatype,
 }
 
 impl fmt::Display for Error {
@@ -38,7 +40,9 @@ impl fmt::Display for Error {
             Error::UnknownDatatype(dt) => write!(f, "unknown datatype: {}", dt),
             Error::H3ron(e) => write!(f, "h3ron: {}", e),
             Error::ColumnNotFound(column_name) => write!(f, "column not found: {}", column_name),
+            Error::InvalidColumn(column_name) => write!(f, "invalid column: {}", column_name),
             Error::Clickhouse(e) => write!(f, "clickhouse: {:?}", e),
+            Error::IncompatibleDatatype => write!(f, "incompatible datatype"),
         }
     }
 }

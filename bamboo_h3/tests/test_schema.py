@@ -12,7 +12,9 @@ def elephant_schema(tableset_name="okavango_delta"):
     csb.add_h3index_column("migrating_from")
     csb.add_column("is_valid", "u8")
     csb.add_aggregated_column("elephant_density", "f32", "RelativeToCellArea")
-    return tableset_name, csb.build()  # raises when the schema is invalid / missing something
+    schema = csb.build()  # raises when the schema is invalid / missing something
+    assert schema is not None
+    return tableset_name, schema
 
 
 def test_create_and_delete_schema(clickhouse_db):

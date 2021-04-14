@@ -1,12 +1,14 @@
 use std::collections::HashMap;
+use std::iter::FromIterator;
 
 use chrono::{Date, DateTime};
 use chrono_tz::Tz;
+use itertools::repeat_n;
+use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 
 use crate::common::Named;
 use crate::error::Error;
-use std::iter::FromIterator;
 
 const DT_DATE_NAME: &str = "date";
 const DT_DATEN_NAME: &str = "date_n";
@@ -170,6 +172,36 @@ impl std::fmt::Display for Datatype {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+enum ColVecValue {
+    U8(u8),
+    U8N(Option<u8>),
+    I8(i8),
+    I8N(Option<i8>),
+    U16(u16),
+    U16N(Option<u16>),
+    I16(i16),
+    I16N(Option<i16>),
+    U32(u32),
+    U32N(Option<u32>),
+    I32(i32),
+    I32N(Option<i32>),
+    U64(u64),
+    U64N(Option<u64>),
+    I64(i64),
+    I64N(Option<i64>),
+    F32(OrderedFloat<f32>),
+    F32N(Option<OrderedFloat<f32>>),
+    F64(OrderedFloat<f64>),
+    F64N(Option<OrderedFloat<f64>>),
+    /// unix timestamp, as numpy has no native date type
+    Date(i64),
+    DateN(Option<i64>),
+    /// unix timestamp, as numpy has no native datetime type
+    DateTime(i64),
+    DateTimeN(Option<i64>),
+}
+
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable
@@ -289,6 +321,81 @@ impl ColVec {
             ColVec::DateTime(v) => v.len(),
             ColVec::DateTimeN(v) => v.len(),
         }
+    }
+
+    fn value_at(&self, index: usize) -> Option<ColVecValue> {
+        match self {
+            ColVec::U8(v) => v.get(index).map(|v| ColVecValue::U8(*v)),
+            ColVec::U8N(v) => v.get(index).map(|v| ColVecValue::U8N(*v)),
+            ColVec::I8(v) => v.get(index).map(|v| ColVecValue::I8(*v)),
+            ColVec::I8N(v) => v.get(index).map(|v| ColVecValue::I8N(*v)),
+            ColVec::U16(v) => v.get(index).map(|v| ColVecValue::U16(*v)),
+            ColVec::U16N(v) => v.get(index).map(|v| ColVecValue::U16N(*v)),
+            ColVec::I16(v) => v.get(index).map(|v| ColVecValue::I16(*v)),
+            ColVec::I16N(v) => v.get(index).map(|v| ColVecValue::I16N(*v)),
+            ColVec::U32(v) => v.get(index).map(|v| ColVecValue::U32(*v)),
+            ColVec::U32N(v) => v.get(index).map(|v| ColVecValue::U32N(*v)),
+            ColVec::I32(v) => v.get(index).map(|v| ColVecValue::I32(*v)),
+            ColVec::I32N(v) => v.get(index).map(|v| ColVecValue::I32N(*v)),
+            ColVec::U64(v) => v.get(index).map(|v| ColVecValue::U64(*v)),
+            ColVec::U64N(v) => v.get(index).map(|v| ColVecValue::U64N(*v)),
+            ColVec::I64(v) => v.get(index).map(|v| ColVecValue::I64(*v)),
+            ColVec::I64N(v) => v.get(index).map(|v| ColVecValue::I64N(*v)),
+            ColVec::F32(v) => v
+                .get(index)
+                .map(|v| ColVecValue::F32(OrderedFloat::from(*v))),
+            ColVec::F32N(v) => v
+                .get(index)
+                .map(|v| ColVecValue::F32N(v.map(OrderedFloat::from))),
+            ColVec::F64(v) => v
+                .get(index)
+                .map(|v| ColVecValue::F64(OrderedFloat::from(*v))),
+            ColVec::F64N(v) => v
+                .get(index)
+                .map(|v| ColVecValue::F64N(v.map(OrderedFloat::from))),
+            ColVec::Date(v) => v.get(index).map(|v| ColVecValue::Date(*v)),
+            ColVec::DateN(v) => v.get(index).map(|v| ColVecValue::DateN(*v)),
+            ColVec::DateTime(v) => v.get(index).map(|v| ColVecValue::DateTime(*v)),
+            ColVec::DateTimeN(v) => v.get(index).map(|v| ColVecValue::DateTimeN(*v)),
+        }
+    }
+
+    pub(crate) fn append(&mut self, other: &mut ColVec) -> Result<(), Error> {
+        match (self, other) {
+            (ColVec::U8(v), ColVec::U8(other_v)) => v.append(other_v),
+            (ColVec::U8N(v), ColVec::U8N(other_v)) => v.append(other_v),
+            (ColVec::I8(v), ColVec::I8(other_v)) => v.append(other_v),
+            (ColVec::I8N(v), ColVec::I8N(other_v)) => v.append(other_v),
+            (ColVec::U16(v), ColVec::U16(other_v)) => v.append(other_v),
+            (ColVec::U16N(v), ColVec::U16N(other_v)) => v.append(other_v),
+            (ColVec::I16(v), ColVec::I16(other_v)) => v.append(other_v),
+            (ColVec::I16N(v), ColVec::I16N(other_v)) => v.append(other_v),
+            (ColVec::U32(v), ColVec::U32(other_v)) => v.append(other_v),
+            (ColVec::U32N(v), ColVec::U32N(other_v)) => v.append(other_v),
+            (ColVec::I32(v), ColVec::I32(other_v)) => v.append(other_v),
+            (ColVec::I32N(v), ColVec::I32N(other_v)) => v.append(other_v),
+            (ColVec::U64(v), ColVec::U64(other_v)) => v.append(other_v),
+            (ColVec::U64N(v), ColVec::U64N(other_v)) => v.append(other_v),
+            (ColVec::I64(v), ColVec::I64(other_v)) => v.append(other_v),
+            (ColVec::I64N(v), ColVec::I64N(other_v)) => v.append(other_v),
+            (ColVec::F32(v), ColVec::F32(other_v)) => v.append(other_v),
+            (ColVec::F32N(v), ColVec::F32N(other_v)) => v.append(other_v),
+            (ColVec::F64(v), ColVec::F64(other_v)) => v.append(other_v),
+            (ColVec::F64N(v), ColVec::F64N(other_v)) => v.append(other_v),
+            (ColVec::Date(v), ColVec::Date(other_v)) => v.append(other_v),
+            (ColVec::DateN(v), ColVec::DateN(other_v)) => v.append(other_v),
+            (ColVec::DateTime(v), ColVec::DateTime(other_v)) => v.append(other_v),
+            (ColVec::DateTimeN(v), ColVec::DateTimeN(other_v)) => v.append(other_v),
+            (this_cv, other_cv) => {
+                log::error!(
+                    "colvecs of datatype {} can not be appended to colvecs of datatype {}",
+                    other_cv.datatype().to_string(),
+                    this_cv.datatype().to_string()
+                );
+                return Err(Error::IncompatibleDatatype);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -412,7 +519,7 @@ impl ColumnSet {
     }
 
     pub fn add_column(&mut self, column_name: String, colvec: ColVec) -> Result<(), Error> {
-        // enforce all colvecs having the same length
+        // enforce all colvecs to have the same length
         if let Some(size) = self.size {
             if colvec.len() != size {
                 return Err(Error::DifferentColumnLength(
@@ -441,6 +548,122 @@ impl ColumnSet {
 
     pub fn len(&self) -> usize {
         self.size.unwrap_or(0)
+    }
+
+    pub fn to_compacted<T>(&self, h3index_column: &T) -> Result<Self, Error>
+    where
+        T: ToString,
+    {
+        let (h3index_column_name, h3index_vec) = {
+            let hc = h3index_column.to_string();
+            match self.columns.get(&hc) {
+                None => return Err(Error::ColumnNotFound(hc)),
+                Some(colvec) => match colvec {
+                    ColVec::U64(colvec) => (hc, colvec),
+                    _ => return Err(Error::InvalidColumn(hc)),
+                },
+            }
+        };
+        let other_columns: Vec<_> = self
+            .columns
+            .keys()
+            .cloned()
+            .filter(|cn| cn.as_str() != h3index_column_name)
+            .collect();
+
+        if other_columns.is_empty() {
+            // single column Columset, so taking a shortcut by just compacting the single vec
+            let mut hm = HashMap::new();
+            hm.insert(
+                h3index_column_name,
+                ColVec::U64(h3ron::compact(h3index_vec)),
+            );
+            Ok(hm.into())
+        } else {
+            let size = match self.size {
+                Some(s) => s,
+                None => return Err(Error::EmptyIndexes), // TODO: better error
+            };
+
+            // create groups using the same values in the non-h3index columns
+            let mut groups: HashMap<Vec<ColVecValue>, Vec<u64>> = HashMap::new();
+            for i in 0..size {
+                let mut this_group = Vec::with_capacity(other_columns.len());
+                for c in other_columns.iter() {
+                    this_group.push(
+                        self.columns
+                            .get(c)
+                            .expect("missing column")
+                            .value_at(i)
+                            .expect("column vec too short"),
+                    )
+                }
+                let h3index = h3index_vec.get(i).cloned().expect("h3index_vec too short");
+                groups
+                    .entry(this_group)
+                    .and_modify(|v| v.push(h3index))
+                    .or_insert_with(|| vec![h3index]);
+            }
+
+            let mut outmap: HashMap<String, ColVec> = HashMap::new();
+            for (mut group, h3indexes) in groups.drain() {
+                let h3indexes_new = h3ron::compact(&h3indexes);
+
+                // repeat each column value according to the number of h3indexes in the group
+                for (col_index, col_value) in group.drain(..).enumerate() {
+                    let mut col_cv = colvecvalue_to_colvec(col_value, h3indexes_new.len());
+                    match outmap.get_mut(&other_columns[col_index]) {
+                        Some(outmap_cv) => {
+                            outmap_cv.append(&mut col_cv)?;
+                        }
+                        None => {
+                            outmap.insert(other_columns[col_index].clone(), col_cv);
+                        }
+                    }
+                }
+
+                // add the h3indexes
+                let mut h3index_colvec = ColVec::U64(h3indexes_new);
+                match outmap.get_mut(&h3index_column_name) {
+                    Some(outmap_cv) => {
+                        outmap_cv.append(&mut h3index_colvec)?;
+                    }
+                    None => {
+                        outmap.insert(h3index_column_name.clone(), h3index_colvec);
+                    }
+                }
+            }
+            Ok(outmap.into())
+        }
+    }
+}
+
+fn colvecvalue_to_colvec(cvv: ColVecValue, repetitions: usize) -> ColVec {
+    match cvv {
+        ColVecValue::U8(v) => ColVec::U8(repeat_n(v, repetitions).collect()),
+        ColVecValue::U8N(v) => ColVec::U8N(repeat_n(v, repetitions).collect()),
+        ColVecValue::I8(v) => ColVec::I8(repeat_n(v, repetitions).collect()),
+        ColVecValue::I8N(v) => ColVec::I8N(repeat_n(v, repetitions).collect()),
+        ColVecValue::U16(v) => ColVec::U16(repeat_n(v, repetitions).collect()),
+        ColVecValue::U16N(v) => ColVec::U16N(repeat_n(v, repetitions).collect()),
+        ColVecValue::I16(v) => ColVec::I16(repeat_n(v, repetitions).collect()),
+        ColVecValue::I16N(v) => ColVec::I16N(repeat_n(v, repetitions).collect()),
+        ColVecValue::U32(v) => ColVec::U32(repeat_n(v, repetitions).collect()),
+        ColVecValue::U32N(v) => ColVec::U32N(repeat_n(v, repetitions).collect()),
+        ColVecValue::I32(v) => ColVec::I32(repeat_n(v, repetitions).collect()),
+        ColVecValue::I32N(v) => ColVec::I32N(repeat_n(v, repetitions).collect()),
+        ColVecValue::U64(v) => ColVec::U64(repeat_n(v, repetitions).collect()),
+        ColVecValue::U64N(v) => ColVec::U64N(repeat_n(v, repetitions).collect()),
+        ColVecValue::I64(v) => ColVec::I64(repeat_n(v, repetitions).collect()),
+        ColVecValue::I64N(v) => ColVec::I64N(repeat_n(v, repetitions).collect()),
+        ColVecValue::F32(v) => ColVec::F32(repeat_n(*v, repetitions).collect()),
+        ColVecValue::F32N(v) => ColVec::F32N(repeat_n(v.map(|v| *v), repetitions).collect()),
+        ColVecValue::F64(v) => ColVec::F64(repeat_n(*v, repetitions).collect()),
+        ColVecValue::F64N(v) => ColVec::F64N(repeat_n(v.map(|v| *v), repetitions).collect()),
+        ColVecValue::Date(v) => ColVec::Date(repeat_n(v, repetitions).collect()),
+        ColVecValue::DateN(v) => ColVec::DateN(repeat_n(v, repetitions).collect()),
+        ColVecValue::DateTime(v) => ColVec::DateTime(repeat_n(v, repetitions).collect()),
+        ColVecValue::DateTimeN(v) => ColVec::DateTimeN(repeat_n(v, repetitions).collect()),
     }
 }
 
