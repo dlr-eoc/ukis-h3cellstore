@@ -14,13 +14,6 @@ from . import ClickhouseResultSet
 def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygon]:
     """cut a shapely geometry into chunks to distribute it across multiple processes
 
-    >>> from bamboo_h3.testdata import WILD_POLYGON_GEOJSON
-    >>> from shapely.geometry import MultiPolygon, shape
-    >>> import json
-    >>> 15 < len(chunk_polygon(shape(json.loads(WILD_POLYGON_GEOJSON)), num_chunks_approx=20)) < 30
-    True
-    >>> # print(json.dumps(MultiPolygon(g).__geo_interface__))
-
     :returns: list of shapely polygons
     """
     bounds = geometry.bounds
