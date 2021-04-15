@@ -43,6 +43,18 @@ fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo
     Ok(poly.into())
 }
 
+#[cfg(debug_assertions)]
+#[pyfunction]
+fn is_release_build() -> bool {
+    false
+}
+
+#[cfg(not(debug_assertions))]
+#[pyfunction]
+fn is_release_build() -> bool {
+    true
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
@@ -76,6 +88,7 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
     m.add_function(wrap_pyfunction!(h3indexes_convex_hull, m)?)?;
+    m.add_function(wrap_pyfunction!(is_release_build, m)?)?;
 
     Ok(())
 }

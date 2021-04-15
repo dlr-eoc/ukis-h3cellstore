@@ -1,8 +1,10 @@
 import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
+import pytest
 from bamboo_h3 import ColumnSet
 
+from . import is_release_build
 # noinspection PyUnresolvedReferences
 from .fixtures import naturalearth_africa_dataframe_4, r_tiff_dataframe_uncompacted_8, naturalearth_africa_dataframe_8, \
     r_tiff_dataframe_compacted_8
@@ -88,6 +90,7 @@ def test_to_compacted_multiple_columns(naturalearth_africa_dataframe_4):
     assert len(columnset) > (len(columnset_compacted) * 3)
 
 
+@pytest.mark.skipif(is_release_build() == False, reason="too slow on debug builds")
 def test_to_compacted_multiple_columns_parallized(naturalearth_africa_dataframe_8):
     """uses larger amounts of data, to tests the multithreaded compacting impl"""
     columnset = ColumnSet.from_dataframe(
@@ -122,4 +125,4 @@ def test_split_by_resolution(r_tiff_dataframe_compacted_8):
         assert len(parts[expected_res]) > 0
         df = parts[expected_res].to_dataframe()
         indexes = df["h3index"].to_numpy()
-        assert np.unique(np.array([h3.h3_get_resolution(x) for x in indexes])) == [expected_res,]
+        assert np.unique(np.array([h3.h3_get_resolution(x) for x in indexes])) == [expected_res, ]
