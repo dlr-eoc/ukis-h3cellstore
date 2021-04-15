@@ -1,7 +1,7 @@
 # Bamboo_H3 Tutorial
 
 This tutorial is based on Ubuntu (18.04), but should be easily adaptable
-to other Linux flavors as well as Windows.
+to other Linux flavors.
 
 ## Prerequisites
 
