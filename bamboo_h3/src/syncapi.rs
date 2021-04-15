@@ -1,5 +1,7 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
 use tokio::runtime::{Builder, Runtime};
@@ -163,6 +165,21 @@ impl ClickhousePool {
             .values()
             .into_iter()
             .chain(tableset.compacted_tables.values().into_iter())
+            // drop starting with the higher resolutions (= larger table size) going to the lower ones
+            // to reduce the chance of having partial tablesets when ClickHouses
+            // `max_table_size_to_drop` limit kicks in.
+            // https://clickhouse.tech/docs/en/operations/server-configuration-parameters/settings/#max-table-size-to-drop
+            .sorted_by(|a, b| {
+                if a.h3_resolution < b.h3_resolution {
+                    Ordering::Greater
+                } else if a.h3_resolution > b.h3_resolution || b.is_compacted {
+                    // the compacted table is most likely larger than the base table,
+                    // so the base table should be dropped first.
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
+            })
         {
             let table = Table {
                 basename: tableset.basename.clone(),
@@ -179,9 +196,7 @@ impl ClickhousePool {
         self.runtime.block_on(async {
             let mut client = p.get_handle().await.into_pyresult()?;
             for s in statements.drain(..) {
-                client.execute(s)
-                    .await
-                    .into_pyresult()?
+                client.execute(s).await.into_pyresult()?
             }
             Ok(())
         })
