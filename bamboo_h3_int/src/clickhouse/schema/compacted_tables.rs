@@ -6,10 +6,13 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
-use crate::clickhouse::schema::{ColumnDefinition, CompressionMethod, CreateSchema, GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, validate_table_name, ValidateSchema};
-use crate::COL_NAME_H3INDEX;
+use crate::clickhouse::schema::{
+    validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSqlType,
+    TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
+};
 use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
+use crate::COL_NAME_H3INDEX;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
@@ -39,10 +42,10 @@ impl CompactedTableSchema {
                 // most important criteria for a fast lookup
                 let pos = key_pos
                     - if column_name == COL_NAME_H3INDEX {
-                    100
-                } else {
-                    0
-                };
+                        100
+                    } else {
+                        0
+                    };
 
                 (pos, column_name)
             })
@@ -152,6 +155,7 @@ impl CreateSchema for CompactedTableSchema {
         let columns = &self
             .columns
             .iter()
+            .sorted_by(|a, b| Ord::cmp(a.0, b.0)) // order to make the SQL comparable
             .map(|(col_name, def)| {
                 format!(
                     " {} {} CODEC({})",
@@ -351,8 +355,11 @@ impl CompactedTableSchemaBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompactedTableSchema, CreateSchema, Schema, SimpleColumn, TemporalPartitioning};
     use crate::clickhouse::schema::compacted_tables::CompactedTableSchemaBuilder;
+    use crate::clickhouse::schema::{
+        AggregationMethod, ColumnDefinition, CompactedTableSchema, CreateSchema, Schema,
+        SimpleColumn, TemporalPartitioning,
+    };
     use crate::columnset::Datatype;
 
     use super::validate_table_name;

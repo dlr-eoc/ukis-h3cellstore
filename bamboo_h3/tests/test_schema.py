@@ -1,4 +1,6 @@
-from bamboo_h3.schema import CompactedTableSchemaBuilder
+import json
+
+from bamboo_h3.schema import CompactedTableSchemaBuilder, Schema
 
 # noinspection PyUnresolvedReferences
 from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
@@ -26,6 +28,22 @@ def test_create_and_delete_schema(clickhouse_db):
     clickhouse_db.drop_tableset(tableset)
     tableset = clickhouse_db.list_tablesets().get(tableset_name)
     assert tableset is None
+
+
+def test_schema_save_and_load():
+    tableset_name, schema = elephant_schema()
+    sqls_before = schema.sql_statements()
+    assert type(sqls_before) == list
+    assert len(sqls_before) > 0
+    assert len(sqls_before[0]) > 10
+
+    schema_description = schema.to_json_string()
+    json.loads(schema_description)  # should not fail
+
+    # create a new schema-objects from the serialized representation
+    schema2 = Schema.from_json_string(schema_description)
+    sqls_after = schema2.sql_statements()
+    assert sqls_before == sqls_after
 
 
 def test_write_dataframe(naturalearth_africa_dataframe_4):

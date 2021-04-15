@@ -1,8 +1,5 @@
 use crate::error::IntoPyResult;
-use bamboo_h3_int::clickhouse::schema::{
-    AggregationMethod, ColumnDefinition, CompressionMethod, SimpleColumn, TableEngine,
-    TemporalPartitioning, TemporalResolution, ValidateSchema,
-};
+use bamboo_h3_int::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompressionMethod, SimpleColumn, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema, CreateSchema};
 use bamboo_h3_int::Datatype;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -28,6 +25,10 @@ impl Schema {
             inner: bamboo_h3_int::clickhouse::schema::Schema::from_json_string(&instr)
                 .into_pyresult()?,
         })
+    }
+
+    fn sql_statements(&self) -> PyResult<Vec<String>> {
+        self.inner.create_statements().into_pyresult()
     }
 }
 
