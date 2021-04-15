@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::common::Named;
-use crate::error::Error;
+use crate::error::{check_same_h3_resolution, Error};
 
 const DT_DATE_NAME: &str = "date";
 const DT_DATEN_NAME: &str = "date_n";
@@ -612,7 +612,7 @@ impl ColumnSet {
             let parallelize = self.len() > 100000 && groups.len() > 1;
 
             let mut outmap: HashMap<String, ColVec> = HashMap::new();
-            for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize) {
+            for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize)? {
                 // repeat each column value according to the number of h3indexes in the group
                 for (col_index, col_value) in group.drain(..).enumerate() {
                     let mut col_cv = colvecvalue_to_colvec(col_value, h3indexes_compacted.len());
@@ -642,24 +642,28 @@ impl ColumnSet {
     }
 }
 
-/// compact the give h3 indexes
+/// compact the given h3 indexes
 ///
 /// prepares for compacting by removing all eventual duplicates as
 /// this is nothing upstream `compact` can handle
-fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
+fn compact(mut h3indexes: Vec<u64>) -> Result<Vec<u64>, Error> {
     h3indexes.sort_unstable();
     h3indexes.dedup();
-    h3ron::compact(&h3indexes)
+    check_same_h3_resolution(&h3indexes)?;
+    Ok(h3ron::compact(&h3indexes))
 }
 
 fn compact_groups(
     mut groups: HashMap<Vec<ColVecValue>, Vec<u64>>,
     parallelize: bool,
-) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
+) -> Result<HashMap<Vec<ColVecValue>, Vec<u64>>, Error> {
     if parallelize {
-        groups.par_drain().map(|(k, v)| (k, compact(v))).collect()
+        groups
+            .par_drain()
+            .map(|(k, v)| Ok((k, compact(v)?)))
+            .collect()
     } else {
-        groups.drain().map(|(k, v)| (k, compact(v))).collect()
+        groups.drain().map(|(k, v)| Ok((k, compact(v)?))).collect()
     }
 }
 

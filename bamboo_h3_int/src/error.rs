@@ -1,6 +1,7 @@
 use std::fmt;
 
 use h3ron::{Index, HasH3Index};
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub enum Error {
@@ -58,6 +59,19 @@ pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error>
     }
 }
 
+pub(crate) fn check_same_h3_resolution<T: HasH3Index>(indexes: &[T]) -> std::result::Result<(), Error> {
+    if let Some(first) = indexes.get(0) {
+        let first_index = Index::try_from(first.h3index())?;
+        let expected_res = first_index.resolution();
+        for idx in indexes.iter() {
+            let this_index = Index::try_from(idx.h3index())?;
+            if this_index.resolution() != expected_res {
+                return Err(Error::MixedResolutions)
+            }
+        }
+    }
+    Ok(())
+}
 
 impl From<serde_cbor::Error> for Error {
     fn from(se: serde_cbor::Error) -> Self {
