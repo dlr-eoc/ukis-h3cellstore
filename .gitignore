@@ -1,5 +1,6 @@
 /target
 /Cargo.lock
 /bamboo_h3/example_processor.mod.py
+/.ipynb_checkpoints
 *.prof
 *.tmp.py
