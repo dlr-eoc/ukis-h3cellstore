@@ -4,3 +4,4 @@
 /tutorial/.ipynb_checkpoints
 *.prof
 *.tmp.py
+*.pyc
