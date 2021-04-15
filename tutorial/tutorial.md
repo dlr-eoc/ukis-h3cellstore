@@ -1,6 +1,7 @@
 # Bamboo_H3 Tutorial
 
-This tutorial is based on Ubuntu 18.04.
+This tutorial is based on Ubuntu (18.04), but should be easily adaptable
+to other Linux flavors and also Windows.
 
 ## Prerequisites
 
@@ -23,25 +24,91 @@ sudo -u postgres psql -d h3out
 ```SQL
 CREATE EXTENSION postgis;
 CREATE USER <user_name> WITH PASSWORD '<password>';
-GRANT ALL PRIVILEGES ON DATABASE h3out to <user_name>;
+GRANT ALL PRIVILEGES ON DATABASE water_out to <user_name>;
 \q
 ```
 
-### Open SSH tunnel
 
-Use a separate terminal to execute the following command:
+## Setup environment
+
+### Option 1: Pyenv/Poetry
+
+#### Pyenv Installation
 
 ```BASH
-ssh $USER@torvalds.eoc.dlr.de \
-  -L 9010:localhost:9010 \
-  -L 5433:localhost:5432
+sudo apt install libbz2-dev
+
+curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
+
+nano $USER/.bashrc:
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+
+exec $SHELL
+pyenv update
+
+pyenv install --list
+
+pyenv install -v 3.9.4
+
 ```
 
-### Install Anaconda
+#### poetry Installation
 
 ```BASH
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+
+exec $SHELL
+
+poetry --version
+```
+
+#### Create and configure a poetry project
+
+```BASH
+mkdir -p $USER/venvs
+cd $USER/venvs
+
+poetry new bamboo_h3_example
+cd bamboo_h3_example
+```
+
+
+add the following lines in `bamboo_h3_example/pyproject.toml`:
+
+```BASH
+
+  [[tool.poetry.source]]
+  name = "py-all"
+  url = "https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple"
+
+  [tool.poetry.dependencies]
+  python = "^3.8"
+  h3ronpy = "^0.7.1"
+  bamboo_h3 = ""
+  h3 = ""
+  psycopg2 = ""
+```
+
+```BASH
+pyenv local 3.9.4
+poetry update  
+```
+
+
+## Option 2: Anaconda / Miniconda
+
+### Installation
+
+```BASH
+# Anaconda
 wget https://repo.anaconda.com/archive/Anaconda3-2020.11-Linux-x86_64.sh
 bash Anaconda3-2020.11-Linux-x86_64.sh
+
+# Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
 ### Setup conda environment
@@ -54,6 +121,19 @@ pip install psycopg2
 pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple bamboo_h3
 pip install -i https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-all/simple h3ronpy>=0.7.1
 ```
+
+
+## Open SSH tunnel
+
+Use a separate terminal to execute the following command:
+
+```BASH
+ssh $USER@torvalds.eoc.dlr.de \
+  -L 9010:localhost:9010 \
+  -L 5433:localhost:5432
+```
+
+
 
 ## Run example_processor.py
 
@@ -80,21 +160,19 @@ from shapely.geometry import shape, Polygon
 
 ## Check results
 
+By default, the example processor stores the results in a table named water_out.
+
 ### Connect to DB
 
 ```BASH
 sudo -i -u postgres
-psql -d h3out -U <user_name>
+psql -d water_out -U <user_name>
 ```
 
 ### Query the first item of the results
 
 ```SQL
 \dt
-SELECT * FROM water_out LIMIT 1;
+SELECT * FROM water_results LIMIT 1;
 ```
 
-
-```python
-
-```
