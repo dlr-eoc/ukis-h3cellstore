@@ -627,10 +627,10 @@ impl ColumnSet {
     {
         let hc = h3index_column.to_string();
         match self.columns.get(&hc) {
-            None => return Err(Error::ColumnNotFound(hc)),
+            None => Err(Error::ColumnNotFound(hc)),
             Some(colvec) => match colvec {
                 ColVec::U64(colvec) => Ok((hc, colvec)),
-                _ => return Err(Error::InvalidColumn(hc)),
+                _ => Err(Error::InvalidColumn(hc)),
             },
         }
     }
@@ -740,7 +740,7 @@ impl ColumnSet {
             };
             let resmap = outmaps
                 .entry(index.resolution())
-                .or_insert_with(|| Default::default());
+                .or_insert_with(Default::default);
 
             // push the h3index
             match resmap.get_mut(&h3index_column_name) {

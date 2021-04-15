@@ -60,7 +60,7 @@ impl std::error::Error for Error {}
 pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error> {
     index
         .validate()
-        .map_err(|_| Error::InvalidH3Index(index.clone()))
+        .map_err(|_| Error::InvalidH3Index(*index))
 }
 
 pub(crate) fn check_same_h3_resolution<T: HasH3Index>(
