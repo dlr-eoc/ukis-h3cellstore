@@ -203,9 +203,6 @@ enum ColVecValue {
     DateTimeN(Option<i64>),
 }
 
-// to allow using rayons parallel iterators with that type
-unsafe impl Send for ColVecValue {}
-
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable

@@ -1,7 +1,7 @@
+use std::convert::TryFrom;
 use std::fmt;
 
-use h3ron::{Index, HasH3Index};
-use std::convert::TryFrom;
+use h3ron::{HasH3Index, Index};
 
 #[derive(Debug)]
 pub enum Error {
@@ -31,11 +31,17 @@ impl fmt::Display for Error {
             Error::NoQueryableTables => write!(f, "no queryable tables found"),
             Error::MissingQueryPlaceholder(placeholder) => {
                 write!(f, "missing query placeholder: {}", placeholder)
-            },
+            }
             Error::DifferentColumnLength(column_name, expected_len, found_len) => {
-                write!(f, "column {} has the a differing length. Expected {}, found {}", column_name, expected_len, found_len)
-            },
-            Error::SchemaValidationError(location, msg) => write!(f, "failed to validate {}: {}", location, msg),
+                write!(
+                    f,
+                    "column {} has the a differing length. Expected {}, found {}",
+                    column_name, expected_len, found_len
+                )
+            }
+            Error::SchemaValidationError(location, msg) => {
+                write!(f, "failed to validate {}: {}", location, msg)
+            }
             Error::SerializationError(msg) => write!(f, "{}", msg),
             Error::InvalidH3Resolution(res) => write!(f, "invalid h3 resolution: {}", res),
             Error::UnknownDatatype(dt) => write!(f, "unknown datatype: {}", dt),
@@ -52,21 +58,21 @@ impl std::error::Error for Error {}
 
 #[inline]
 pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error> {
-    if !index.is_valid() {
-        Err(Error::InvalidH3Index(*index))
-    } else {
-        Ok(())
-    }
+    index
+        .validate()
+        .map_err(|_| Error::InvalidH3Index(index.clone()))
 }
 
-pub(crate) fn check_same_h3_resolution<T: HasH3Index>(indexes: &[T]) -> std::result::Result<(), Error> {
+pub(crate) fn check_same_h3_resolution<T: HasH3Index>(
+    indexes: &[T],
+) -> std::result::Result<(), Error> {
     if let Some(first) = indexes.get(0) {
         let first_index = Index::try_from(first.h3index())?;
         let expected_res = first_index.resolution();
         for idx in indexes.iter() {
             let this_index = Index::try_from(idx.h3index())?;
             if this_index.resolution() != expected_res {
-                return Err(Error::MixedResolutions)
+                return Err(Error::MixedResolutions);
             }
         }
     }
@@ -81,7 +87,7 @@ impl From<serde_cbor::Error> for Error {
 
 impl From<serde_json::error::Error> for Error {
     fn from(te: serde_json::error::Error) -> Self {
-        Error::SerializationError(format!("{:?}",te))
+        Error::SerializationError(format!("{:?}", te))
     }
 }
 
