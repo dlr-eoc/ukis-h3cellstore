@@ -4,7 +4,8 @@ import pandas as pd
 from bamboo_h3 import ColumnSet
 
 # noinspection PyUnresolvedReferences
-from .fixtures import naturalearth_africa_dataframe_4, r_tiff_dataframe_uncompacted_8, naturalearth_africa_dataframe_8
+from .fixtures import naturalearth_africa_dataframe_4, r_tiff_dataframe_uncompacted_8, naturalearth_africa_dataframe_8, \
+    r_tiff_dataframe_compacted_8
 
 
 def test_to_compacted_single_column(naturalearth_africa_dataframe_4):
@@ -111,3 +112,14 @@ def test_to_compacted_multiple_columns_raster(r_tiff_dataframe_uncompacted_8):
 
     compaction_percent = float(len(columnset_compacted)) / len(columnset)
     print(f"[compacted to {compaction_percent * 100:.2f}%]", end=" ")
+
+
+def test_split_by_resolution(r_tiff_dataframe_compacted_8):
+    columnset = ColumnSet.from_dataframe(r_tiff_dataframe_compacted_8)
+    parts = columnset.split_by_resolution("h3index", validate_indexes=True)
+    for expected_res in [8, 7, 6]:
+        assert expected_res in parts
+        assert len(parts[expected_res]) > 0
+        df = parts[expected_res].to_dataframe()
+        indexes = df["h3index"].to_numpy()
+        assert np.unique(np.array([h3.h3_get_resolution(x) for x in indexes])) == [expected_res,]

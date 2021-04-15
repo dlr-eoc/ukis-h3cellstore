@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use chrono::{Date, DateTime};
 use chrono_tz::Tz;
+use h3ron::{HasH3Index, Index};
 use itertools::repeat_n;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
@@ -398,6 +400,73 @@ impl ColVec {
         }
         Ok(())
     }
+
+    fn push(&mut self, new_value: ColVecValue) -> Result<(), Error> {
+        match (self, new_value) {
+            (ColVec::U8(v), ColVecValue::U8(new_val)) => v.push(new_val),
+            (ColVec::U8N(v), ColVecValue::U8N(new_val)) => v.push(new_val),
+            (ColVec::I8(v), ColVecValue::I8(new_val)) => v.push(new_val),
+            (ColVec::I8N(v), ColVecValue::I8N(new_val)) => v.push(new_val),
+            (ColVec::U16(v), ColVecValue::U16(new_val)) => v.push(new_val),
+            (ColVec::U16N(v), ColVecValue::U16N(new_val)) => v.push(new_val),
+            (ColVec::I16(v), ColVecValue::I16(new_val)) => v.push(new_val),
+            (ColVec::I16N(v), ColVecValue::I16N(new_val)) => v.push(new_val),
+            (ColVec::U32(v), ColVecValue::U32(new_val)) => v.push(new_val),
+            (ColVec::U32N(v), ColVecValue::U32N(new_val)) => v.push(new_val),
+            (ColVec::I32(v), ColVecValue::I32(new_val)) => v.push(new_val),
+            (ColVec::I32N(v), ColVecValue::I32N(new_val)) => v.push(new_val),
+            (ColVec::U64(v), ColVecValue::U64(new_val)) => v.push(new_val),
+            (ColVec::U64N(v), ColVecValue::U64N(new_val)) => v.push(new_val),
+            (ColVec::I64(v), ColVecValue::I64(new_val)) => v.push(new_val),
+            (ColVec::I64N(v), ColVecValue::I64N(new_val)) => v.push(new_val),
+            (ColVec::F32(v), ColVecValue::F32(new_val)) => v.push(*new_val),
+            (ColVec::F32N(v), ColVecValue::F32N(new_val)) => v.push(new_val.map(|x| *x)),
+            (ColVec::F64(v), ColVecValue::F64(new_val)) => v.push(*new_val),
+            (ColVec::F64N(v), ColVecValue::F64N(new_val)) => v.push(new_val.map(|x| *x)),
+            (ColVec::Date(v), ColVecValue::Date(new_val)) => v.push(new_val),
+            (ColVec::DateN(v), ColVecValue::DateN(new_val)) => v.push(new_val),
+            (ColVec::DateTime(v), ColVecValue::DateTime(new_val)) => v.push(new_val),
+            (ColVec::DateTimeN(v), ColVecValue::DateTimeN(new_val)) => v.push(new_val),
+            (this_cv, other_cvv) => {
+                log::error!(
+                    "values {:?} can not be appended to colvecs of datatype {}",
+                    other_cvv,
+                    this_cv.datatype().to_string()
+                );
+                return Err(Error::IncompatibleDatatype);
+            }
+        }
+        Ok(())
+    }
+
+    fn from_cvv(cvv: ColVecValue) -> ColVec {
+        match cvv {
+            ColVecValue::U8(v) => ColVec::U8(vec![v]),
+            ColVecValue::U8N(v) => ColVec::U8N(vec![v]),
+            ColVecValue::I8(v) => ColVec::I8(vec![v]),
+            ColVecValue::I8N(v) => ColVec::I8N(vec![v]),
+            ColVecValue::U16(v) => ColVec::U16(vec![v]),
+            ColVecValue::U16N(v) => ColVec::U16N(vec![v]),
+            ColVecValue::I16(v) => ColVec::I16(vec![v]),
+            ColVecValue::I16N(v) => ColVec::I16N(vec![v]),
+            ColVecValue::U32(v) => ColVec::U32(vec![v]),
+            ColVecValue::U32N(v) => ColVec::U32N(vec![v]),
+            ColVecValue::I32(v) => ColVec::I32(vec![v]),
+            ColVecValue::I32N(v) => ColVec::I32N(vec![v]),
+            ColVecValue::U64(v) => ColVec::U64(vec![v]),
+            ColVecValue::U64N(v) => ColVec::U64N(vec![v]),
+            ColVecValue::I64(v) => ColVec::I64(vec![v]),
+            ColVecValue::I64N(v) => ColVec::I64N(vec![v]),
+            ColVecValue::F32(v) => ColVec::F32(vec![*v]),
+            ColVecValue::F32N(v) => ColVec::F32N(vec![v.map(|x| *x)]),
+            ColVecValue::F64(v) => ColVec::F64(vec![*v]),
+            ColVecValue::F64N(v) => ColVec::F64N(vec![v.map(|x| *x)]),
+            ColVecValue::Date(v) => ColVec::Date(vec![v]),
+            ColVecValue::DateN(v) => ColVec::DateN(vec![v]),
+            ColVecValue::DateTime(v) => ColVec::DateTime(vec![v]),
+            ColVecValue::DateTimeN(v) => ColVec::DateTimeN(vec![v]),
+        }
+    }
 }
 
 #[inline]
@@ -551,26 +620,37 @@ impl ColumnSet {
         self.size.unwrap_or(0)
     }
 
+    /// get the name and vec of the given h3index column
+    fn get_h3index_vec<T>(&self, h3index_column: &T) -> Result<(String, &Vec<u64>), Error>
+    where
+        T: ToString,
+    {
+        let hc = h3index_column.to_string();
+        match self.columns.get(&hc) {
+            None => return Err(Error::ColumnNotFound(hc)),
+            Some(colvec) => match colvec {
+                ColVec::U64(colvec) => Ok((hc, colvec)),
+                _ => return Err(Error::InvalidColumn(hc)),
+            },
+        }
+    }
+
+    /// get the names
+    fn get_column_names_except(&self, except_column: &str) -> Vec<String> {
+        self.columns
+            .keys()
+            .cloned()
+            .filter(|cn| cn.as_str() != except_column)
+            .collect()
+    }
+
+    /// generate a compacted version of this columnset
     pub fn to_compacted<T>(&self, h3index_column: &T) -> Result<Self, Error>
     where
         T: ToString,
     {
-        let (h3index_column_name, h3index_vec) = {
-            let hc = h3index_column.to_string();
-            match self.columns.get(&hc) {
-                None => return Err(Error::ColumnNotFound(hc)),
-                Some(colvec) => match colvec {
-                    ColVec::U64(colvec) => (hc, colvec),
-                    _ => return Err(Error::InvalidColumn(hc)),
-                },
-            }
-        };
-        let other_columns: Vec<_> = self
-            .columns
-            .keys()
-            .cloned()
-            .filter(|cn| cn.as_str() != h3index_column_name)
-            .collect();
+        let (h3index_column_name, h3index_vec) = self.get_h3index_vec(h3index_column)?;
+        let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
 
         if other_columns.is_empty() {
             // single column Columset, so taking a shortcut by just compacting the single vec
@@ -636,6 +716,65 @@ impl ColumnSet {
             }
             Ok(outmap.into())
         }
+    }
+
+    /// split the columnset into parts depending on the h3 resolution used
+    /// in the given h3index column
+    pub fn split_by_resolution<T>(
+        &self,
+        h3index_column: &T,
+        validate_indexes: bool,
+    ) -> Result<HashMap<u8, Self>, Error>
+    where
+        T: ToString,
+    {
+        let (h3index_column_name, h3index_vec) = self.get_h3index_vec(h3index_column)?;
+        let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
+
+        let mut outmaps: HashMap<u8, HashMap<String, ColVec>> = HashMap::new();
+        for (i, h3index) in h3index_vec.iter().enumerate() {
+            let index = if validate_indexes {
+                Index::try_from(*h3index)?
+            } else {
+                Index::new(*h3index)
+            };
+            let resmap = outmaps
+                .entry(index.resolution())
+                .or_insert_with(|| Default::default());
+
+            // push the h3index
+            match resmap.get_mut(&h3index_column_name) {
+                Some(cv) => cv.push(ColVecValue::U64(index.h3index()))?,
+                None => {
+                    resmap.insert(
+                        h3index_column_name.clone(),
+                        ColVec::U64(vec![index.h3index()]),
+                    );
+                }
+            }
+
+            // push all remaining
+            for column_name in other_columns.iter() {
+                let val = self
+                    .columns
+                    .get(column_name)
+                    .expect("missing column")
+                    .value_at(i)
+                    .expect("column vec too short");
+
+                match resmap.get_mut(column_name) {
+                    Some(cv) => cv.push(val)?,
+                    None => {
+                        resmap.insert(column_name.clone(), ColVec::from_cvv(val));
+                    }
+                }
+            }
+        }
+
+        Ok(outmaps
+            .drain()
+            .map(|(h3_res, colmap)| (h3_res, colmap.into()))
+            .collect())
     }
 }
 

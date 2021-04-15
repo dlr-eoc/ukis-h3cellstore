@@ -84,6 +84,21 @@ class ColumnSet:
         """
         return ColumnSet(self.inner.to_compacted(h3index_column_name))
 
+    def split_by_resolution(self, h3index_column_name: str, validate_indexes: bool = False) -> Dict[int, ColumnSet]:
+        """
+        split the columnset into parts depending on the h3 resolution used
+        in the given h3index column
+
+        :param h3index_column_name:
+        :param validate_indexes:
+        :return:
+        """
+        parts = self.inner.split_by_resolution(h3index_column_name, validate_indexes=validate_indexes)
+        out_dict = {}
+        for h3_res, cs_inner in parts.items():
+            out_dict[h3_res] = ColumnSet(cs_inner)
+        return out_dict
+
     def to_dataframe(self) -> pd.DataFrame:
         """
         drains the resultset into a pandas dataframe.

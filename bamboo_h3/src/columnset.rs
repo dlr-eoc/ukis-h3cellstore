@@ -105,6 +105,18 @@ impl ColumnSet {
         let inner: bamboo_h3_int::ColumnSet = deserialize_from(infile).into_pyresult()?;
         Ok(Self { inner })
     }
+
+    #[args(validate_indexes = "true")]
+    fn split_by_resolution(&self, h3index_column_name: String, validate_indexes: bool) -> PyResult<HashMap<u8, Self>> {
+        let out = self
+            .inner
+            .split_by_resolution(&h3index_column_name, validate_indexes)
+            .into_pyresult()?
+            .drain()
+            .map(|(h3res, cs)| (h3res, Self { inner: cs }))
+            .collect();
+        Ok(out)
+    }
 }
 
 // creating multiple impls is ugly - replace this in the future

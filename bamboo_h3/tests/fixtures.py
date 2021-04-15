@@ -68,3 +68,8 @@ def __r_tiff_dataframe(h3_res=4, compacted=True):
 @pytest.fixture
 def r_tiff_dataframe_uncompacted_8():
     return __r_tiff_dataframe(h3_res=8, compacted=False)
+
+
+@pytest.fixture
+def r_tiff_dataframe_compacted_8():
+    return __r_tiff_dataframe(h3_res=8, compacted=True)
