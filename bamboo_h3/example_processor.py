@@ -52,7 +52,7 @@ MAX_WORKERS = 1
 # postgres credentials see password db, here they are passed via PGUSER
 # and PGPASSWORD environment variables (in libpq)
 DSN_POSTGRES = "dbname=water2 host=127.0.0.1 port=5433"
-DSN_CLICKHOUSE = "tcp://localhost:9010/water2?compression=lz4"
+DSN_CLICKHOUSE = "tcp://localhost:9010/water2?compression=lz4&connection_timeout=2000ms"
 DSN_POSTGRES_OUTPUT = "user=mand_nc host=127.0.0.1 password=xxxx dbname=water_out"
 
 # polygon geometry to visit

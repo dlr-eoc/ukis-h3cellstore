@@ -23,7 +23,7 @@ maturin develop
 
 # connection string to connect to the test clickhouse database. If this is not
 # set the DB tests will not run
-export BAMBOO_CLICKHOUSE_DSN_TEST="tcp://localhost:19001/bamboo_test?compression=lz4"
+export BAMBOO_CLICKHOUSE_DSN_TEST="tcp://localhost:19001/bamboo_test?compression=lz4&connection_timeout=2000ms"
 
 pytest -v -s --tb=native
 ```
