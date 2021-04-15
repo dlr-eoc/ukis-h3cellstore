@@ -1,7 +1,7 @@
 # Bamboo_H3 Tutorial
 
 This tutorial is based on Ubuntu (18.04), but should be easily adaptable
-to other Linux flavors and also Windows.
+to other Linux flavors as well as Windows.
 
 ## Prerequisites
 
@@ -49,6 +49,7 @@ eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 ```
 
+Install a Python version, tested with 3.8.0 and 3.9.4.
 
 ```BASH
 exec $SHELL
@@ -61,9 +62,7 @@ pyenv install -v 3.9.4
 
 ```BASH
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-
 exec $SHELL
-
 poetry --version
 ```
 
@@ -78,7 +77,7 @@ cd bamboo_h3_example
 ```
 
 
-add the following lines in `bamboo_h3_example/pyproject.toml`:
+Add the following lines in `bamboo_h3_example/pyproject.toml`:
 
 ```BASH
 
@@ -94,15 +93,18 @@ add the following lines in `bamboo_h3_example/pyproject.toml`:
   psycopg2 = ""
 ```
 
+
+Set the desired Python environment and fetch the respective dependencies.
+
 ```BASH
 pyenv local 3.9.4
 poetry update  
 ```
 
 
-## Option 2: Anaconda / Miniconda
+### Option 2: Anaconda / Miniconda
 
-### Installation
+#### Installation
 
 ```BASH
 # Anaconda
@@ -114,7 +116,7 @@ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
-### Setup conda environment
+#### Setup conda environment
 
 ```BASH
 conda create -n py38dev python=3.8
@@ -138,7 +140,7 @@ ssh $USER@torvalds.eoc.dlr.de \
 
 
 
-## Run example_processor.py
+## Run `example_processor.py`
 
 Make sure to copy the file to a custom location, so that the imports do not refer to local directories.
 
@@ -163,16 +165,16 @@ from shapely.geometry import shape, Polygon
 
 ## Check results
 
-By default, the example processor stores the results in a table named water_out.
+By default, the example processor stores the results in a table named `water_out`.
 
-### Connect to DB
+Connect to DB:
 
 ```BASH
 sudo -i -u postgres
 psql -d water_out -U <user_name>
 ```
 
-### Query the first item of the results
+And query the first item of the results:
 
 ```SQL
 \dt
