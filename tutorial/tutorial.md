@@ -31,9 +31,11 @@ GRANT ALL PRIVILEGES ON DATABASE water_out to <user_name>;
 
 ## Setup environment
 
-### Option 1: Pyenv/Poetry
+### Option 1: pyenv/Poetry
 
-#### Pyenv Installation
+#### pyenv Installation
+
+Note: Installing pyenv is not necessary if a recent version of Python (>= 3.7) is installed system-wide.
 
 ```BASH
 sudo apt install libbz2-dev
@@ -58,7 +60,7 @@ pyenv install --list
 pyenv install -v 3.9.4
 ```
 
-#### poetry Installation
+#### Poetry Installation
 
 ```BASH
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
@@ -66,7 +68,7 @@ exec $SHELL
 poetry --version
 ```
 
-#### Create and configure a poetry project
+#### Create and configure a Poetry project
 
 ```BASH
 mkdir -p $USER/venvs
@@ -103,6 +105,9 @@ poetry update
 
 
 ### Option 2: Anaconda / Miniconda
+
+Note: Installing Anaconda / Miniconda is not necessary if a recent version of Python (>= 3.7) is installed system-wide.
+Using at least a `virtualenv` is encouraged, though.
 
 #### Installation
 
