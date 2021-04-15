@@ -39,19 +39,22 @@ GRANT ALL PRIVILEGES ON DATABASE water_out to <user_name>;
 sudo apt install libbz2-dev
 
 curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
+```
 
-nano $USER/.bashrc:
-    export PATH="$HOME/.pyenv/bin:$PATH"
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
 
+add the following lines to $USER/.bashrc:
+```BASH
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+```
+
+
+```BASH
 exec $SHELL
 pyenv update
-
 pyenv install --list
-
 pyenv install -v 3.9.4
-
 ```
 
 #### poetry Installation
