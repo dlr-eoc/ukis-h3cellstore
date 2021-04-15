@@ -283,6 +283,7 @@ impl ValidateSchema for CompactedTableSchema {
 #[derive(Clone)]
 pub struct CompactedTableSchemaBuilder {
     schema: CompactedTableSchema,
+    use_compaction: bool,
 }
 
 impl CompactedTableSchemaBuilder {
@@ -301,6 +302,7 @@ impl CompactedTableSchemaBuilder {
                 partition_by_columns: Default::default(),
                 columns,
             },
+            use_compaction: true,
         }
     }
 
@@ -314,16 +316,21 @@ impl CompactedTableSchemaBuilder {
         self
     }
 
-    pub fn h3_base_resolutions(mut self, h3res: Vec<u8>, use_for_compacted: bool) -> Self {
-        if use_for_compacted {
+    pub fn h3_base_resolutions(mut self, h3res: Vec<u8>) -> Self {
+        if self.use_compaction {
             self.schema.h3_compacted_resolutions = h3res.clone();
         }
         self.schema.h3_base_resolutions = h3res;
         self
     }
 
-    pub fn h3_compacted_resolutions(mut self, h3res: Vec<u8>) -> Self {
-        self.schema.h3_compacted_resolutions = h3res;
+    pub fn use_compacted_resolutions(mut self, use_compaction: bool) -> Self {
+        self.use_compaction = use_compaction;
+        if use_compaction {
+            self.schema.h3_compacted_resolutions = self.schema.h3_base_resolutions.clone();
+        } else {
+            self.schema.h3_compacted_resolutions = vec![];
+        }
         self
     }
 
@@ -375,8 +382,7 @@ mod tests {
 
     fn data_okavango_delta() -> CompactedTableSchema {
         CompactedTableSchemaBuilder::new("okavango_delta")
-            .h3_compacted_resolutions(vec![1, 2, 3, 4])
-            .h3_base_resolutions(vec![1, 2, 3, 4, 5], false)
+            .h3_base_resolutions(vec![1, 2, 3, 4, 5])
             .temporal_partitioning(TemporalPartitioning::Month)
             .add_column(
                 "elephant_density",

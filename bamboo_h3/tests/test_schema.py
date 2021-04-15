@@ -8,7 +8,7 @@ from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
 
 def elephant_schema(tableset_name="okavango_delta"):
     csb = CompactedTableSchemaBuilder(tableset_name)
-    csb.h3_base_resolutions(list(range(0, 8)), compacted=True)
+    csb.h3_base_resolutions(list(range(0, 8)))
     csb.temporal_resolution("second")
     csb.temporal_partitioning("month")
     csb.add_h3index_column("migrating_from")

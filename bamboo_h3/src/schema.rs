@@ -1,8 +1,13 @@
-use crate::error::IntoPyResult;
-use bamboo_h3_int::clickhouse::schema::{AggregationMethod, ColumnDefinition, CompressionMethod, SimpleColumn, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema, CreateSchema};
-use bamboo_h3_int::Datatype;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+
+use bamboo_h3_int::clickhouse::schema::{
+    AggregationMethod, ColumnDefinition, CompressionMethod, CreateSchema, SimpleColumn,
+    TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
+};
+use bamboo_h3_int::Datatype;
+
+use crate::error::IntoPyResult;
 
 #[pyclass]
 pub struct Schema {
@@ -38,7 +43,7 @@ pub struct CompactedTableSchemaBuilder {
     table_engine: Option<TableEngine>,
     compression_method: Option<CompressionMethod>,
     h3_base_resolutions: Option<Vec<u8>>,
-    h3_compacted_resolutions: Option<Vec<u8>>,
+    use_compaction: bool,
     temporal_resolution: Option<TemporalResolution>,
     temporal_partitioning: Option<TemporalPartitioning>,
     partition_by: Option<Vec<String>>,
@@ -54,7 +59,7 @@ impl CompactedTableSchemaBuilder {
             table_engine: None,
             compression_method: None,
             h3_base_resolutions: None,
-            h3_compacted_resolutions: None,
+            use_compaction: true,
             temporal_resolution: None,
             temporal_partitioning: None,
             partition_by: None,
@@ -103,16 +108,13 @@ impl CompactedTableSchemaBuilder {
         Ok(())
     }
 
-    #[args(compacted = "false")]
-    fn h3_base_resolutions(&mut self, res: Vec<u8>, compacted: bool) {
-        if compacted {
-            self.h3_compacted_resolutions = Some(res.clone())
-        }
-        self.h3_base_resolutions = Some(res)
+    fn use_compacted_resolutions(&mut self, use_compaction: bool) {
+        self.use_compaction = use_compaction;
     }
 
-    fn h3_compacted_resolutions(&mut self, res: Vec<u8>) {
-        self.h3_compacted_resolutions = Some(res)
+    #[args(compacted = "false")]
+    fn h3_base_resolutions(&mut self, res: Vec<u8>) {
+        self.h3_base_resolutions = Some(res)
     }
 
     #[args(order_key_position = "None")]
@@ -209,11 +211,9 @@ impl CompactedTableSchemaBuilder {
         if let Some(cm) = &self.compression_method {
             builder = builder.compression_method(cm.clone())
         }
+        builder = builder.use_compacted_resolutions(self.use_compaction);
         if let Some(h3res) = &self.h3_base_resolutions {
-            builder = builder.h3_base_resolutions(h3res.clone(), false)
-        }
-        if let Some(h3res) = &self.h3_compacted_resolutions {
-            builder = builder.h3_compacted_resolutions(h3res.clone())
+            builder = builder.h3_base_resolutions(h3res.clone())
         }
         if let Some(tr) = &self.temporal_resolution {
             builder = builder.temporal_resolution(tr.clone());

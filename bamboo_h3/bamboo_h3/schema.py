@@ -7,7 +7,7 @@ Defining a schema
 
 >>> from bamboo_h3.schema import CompactedTableSchemaBuilder
 >>> csb = CompactedTableSchemaBuilder("okavango_delta")
->>> csb.h3_base_resolutions(list(range(0, 8)), compacted=True)
+>>> csb.h3_base_resolutions(list(range(0, 8)))
 >>> csb.temporal_resolution("second")
 >>> csb.temporal_partitioning("month")
 >>> csb.add_h3index_column("migrating_from")
