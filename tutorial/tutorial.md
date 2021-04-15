@@ -179,7 +179,7 @@ sudo -i -u postgres
 psql -d water_out -U <user_name>
 ```
 
-And query the first item of the results:
+Query the first item of the results:
 
 ```SQL
 \dt
