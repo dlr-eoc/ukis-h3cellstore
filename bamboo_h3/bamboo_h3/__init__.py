@@ -93,7 +93,7 @@ class ClickhouseResultSet:
         This method will wait for asynchronous queries to be finished executing.
         """
         cs = self.to_columnset()
-        if cs:
+        if cs is not None:
             return cs.to_dataframe()
         return None
 

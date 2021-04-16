@@ -178,6 +178,8 @@ impl ResultSet {
                 let (columnset, query_duration) = awaitable.wait_until_finished()?;
                 self.column_data = Either::Left(Some(columnset));
                 self.query_duration = Some(query_duration);
+            } else {
+                return Err(PyRuntimeError::new_err("Got None for AwaitableResultSet"))
             }
         }
         Ok(())
