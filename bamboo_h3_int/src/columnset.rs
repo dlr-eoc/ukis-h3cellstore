@@ -654,7 +654,7 @@ impl ColumnSet {
 
         if other_columns.is_empty() {
             // single column Columset, so taking a shortcut by just compacting the single vec
-            let mut hm = HashMap::new();
+            let mut hm: NonSecureHashMap<_, _> = Default::default();
             hm.insert(
                 h3index_column_name,
                 ColVec::U64(h3ron::compact(h3index_vec)),
@@ -667,7 +667,7 @@ impl ColumnSet {
             };
 
             // create groups using the same values in the non-h3index columns
-            let mut groups: HashMap<Vec<ColVecValue>, Vec<u64>> = HashMap::new();
+            let mut groups: HashMap<Vec<ColVecValue>, Vec<u64>> = Default::default();
             for i in 0..size {
                 let mut this_group = Vec::with_capacity(other_columns.len());
                 for c in other_columns.iter() {
@@ -688,7 +688,7 @@ impl ColumnSet {
 
             let parallelize = self.len() > 100000 && groups.len() > 1;
 
-            let mut outmap: HashMap<String, ColVec> = HashMap::new();
+            let mut outmap: HashMap<String, ColVec> = Default::default();
             for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize)? {
                 // repeat each column value according to the number of h3indexes in the group
                 for (col_index, col_value) in group.drain(..).enumerate() {
@@ -729,9 +729,18 @@ impl ColumnSet {
         T: ToString,
     {
         let (h3index_column_name, h3index_vec) = self.get_h3index_vec(h3index_column)?;
-        let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
+        let other_columns: Vec<_> = self
+            .get_column_names_except(&h3index_column_name)
+            .drain(..)
+            .map(|col_name| {
+                let colvec = self.columns.get(&col_name).expect("missing column");
+                (col_name, colvec)
+            })
+            .collect();
 
-        let mut outmaps: HashMap<u8, HashMap<String, ColVec>> = HashMap::new();
+        // TODO: not relying on nested maps would surely be faster
+        let mut outmaps: NonSecureHashMap<u8, NonSecureHashMap<String, ColVec>> =
+            Default::default();
         for (i, h3index) in h3index_vec.iter().enumerate() {
             let index = if validate_indexes {
                 Index::try_from(*h3index)?
@@ -754,13 +763,8 @@ impl ColumnSet {
             }
 
             // push all remaining
-            for column_name in other_columns.iter() {
-                let val = self
-                    .columns
-                    .get(column_name)
-                    .expect("missing column")
-                    .value_at(i)
-                    .expect("column vec too short");
+            for (column_name, column_colvec) in other_columns.iter() {
+                let val = column_colvec.value_at(i).expect("column vec too short");
 
                 match resmap.get_mut(column_name) {
                     Some(cv) => cv.push(val)?,
@@ -844,5 +848,19 @@ impl Default for ColumnSet {
 impl From<HashMap<String, ColVec>> for ColumnSet {
     fn from(columns: HashMap<String, ColVec>) -> Self {
         Self::from_columns(columns)
+    }
+}
+
+
+/// a cryptographically non-secure hashmap, mostly intended to be fast
+type NonSecureHashMap<K, V> = fnv::FnvHashMap<K, V>;
+
+impl From<NonSecureHashMap<String, ColVec>> for ColumnSet {
+    fn from(mut columns: NonSecureHashMap<String, ColVec>) -> Self {
+        let mut hm = HashMap::new();
+        for (k, v) in columns.drain() {
+            hm.insert(k, v);
+        }
+        Self::from_columns(hm)
     }
 }
