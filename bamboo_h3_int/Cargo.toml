@@ -1,6 +1,6 @@
 [package]
 name = "bamboo_h3_int"
-version = "0.6.3"
+version = "0.6.4"
 authors = ["Nico Mandery <nico.mandery@dlr.de>"]
 edition = "2018"
 description = "Internal code of bamboo_h3"
