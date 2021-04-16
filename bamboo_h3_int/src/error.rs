@@ -20,6 +20,7 @@ pub enum Error {
     ColumnNotFound(String),
     InvalidColumn(String),
     IncompatibleDatatype,
+    UrlParseError(url::ParseError),
 }
 
 impl fmt::Display for Error {
@@ -50,6 +51,7 @@ impl fmt::Display for Error {
             Error::InvalidColumn(column_name) => write!(f, "invalid column: {}", column_name),
             Error::Clickhouse(e) => write!(f, "clickhouse: {:?}", e),
             Error::IncompatibleDatatype => write!(f, "incompatible datatype"),
+            Error::UrlParseError(upe) => write!(f, "unable to parse url: {:?}", upe),
         }
     }
 }
@@ -100,5 +102,11 @@ impl From<h3ron::Error> for Error {
 impl From<clickhouse_rs::errors::Error> for Error {
     fn from(e: clickhouse_rs::errors::Error) -> Self {
         Error::Clickhouse(e)
+    }
+}
+
+impl From<url::ParseError> for Error {
+    fn from(e: url::ParseError) -> Self {
+        Error::UrlParseError(e)
     }
 }

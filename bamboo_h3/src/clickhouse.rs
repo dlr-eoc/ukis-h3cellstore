@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use either::Either;
 use h3ron::{HasH3Index, Index};
-use log::warn;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{prelude::*, PyResult, Python};
@@ -268,27 +267,4 @@ impl ResultSet {
         self.await_column_data()?;
         Ok(self.query_duration.map(|d| d.as_millis() as f64 / 1000.0))
     }
-}
-
-pub(crate) fn validate_clickhouse_url(u: &str) -> PyResult<()> {
-    let parsed_url = url::Url::parse(u).into_pyresult()?;
-
-    let parameters: HashMap<_, _> = parsed_url
-        .query_pairs()
-        .map(|(name, value)| (name.to_lowercase(), value.to_string()))
-        .collect();
-
-    if parameters
-        .get("compression")
-        .cloned()
-        .unwrap_or_else(|| "none".to_string())
-        == *"none"
-    {
-        warn!("possible inefficient data transfer: consider setting a compression_method in the clickhouse connection parameters. 'lz4' is one option.")
-    }
-    if parameters.get("connection_timeout").is_none() {
-        warn!("short connection_timeout: clickhouse connection parameters sets no connection_timeout, so it uses the very short default of 500ms")
-    }
-
-    Ok(())
 }

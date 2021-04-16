@@ -20,6 +20,7 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
                 | Error::IncompatibleDatatype
                 | Error::MissingQueryPlaceholder(_)
                 | Error::InvalidH3Resolution(_)
+                | Error::UrlParseError(_)
                 | Error::DifferentColumnLength(_, _, _)
                 | Error::SchemaValidationError(_, _) => Err(PyValueError::new_err(err.to_string())),
                 Error::NoQueryableTables
@@ -38,18 +39,6 @@ impl<T> IntoPyResult<T> for bamboo_h3_int::clickhouse_rs::errors::Result<T> {
         match self {
             Ok(v) => Ok(v),
             Err(err) => Err(PyIOError::new_err(err.to_string())),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T> for Result<T, url::ParseError> {
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(PyValueError::new_err(format!(
-                "Invalid URL given: {}",
-                err.to_string()
-            ))),
         }
     }
 }

@@ -3,9 +3,11 @@ use std::sync::Arc;
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 
+use bamboo_h3_int::clickhouse::validate_clickhouse_url;
+
 use crate::error::IntoPyResult;
 use crate::{
-    clickhouse::{validate_clickhouse_url, ClickhouseConnection, ResultSet},
+    clickhouse::{ClickhouseConnection, ResultSet},
     columnset::ColumnSet,
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
@@ -29,9 +31,8 @@ fn version() -> String {
 /// open a connection to clickhouse
 #[pyfunction]
 fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
-    validate_clickhouse_url(db_url)?;
     Ok(ClickhouseConnection::new(Arc::new(ClickhousePool::create(
-        db_url,
+        &validate_clickhouse_url(db_url, Some(2000)).into_pyresult()?,
     )?)))
 }
 
