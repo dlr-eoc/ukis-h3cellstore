@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_clickhouse_url_append_connection_timeout() {
-        let validated = validate_clickhouse_url("cp://localhost:9010/water2?compression=lz4", Some(2000)).unwrap();
+        let validated = validate_clickhouse_url("tcp://localhost:9010/water2?compression=lz4", Some(2000)).unwrap();
         assert!(validated.contains("connection_timeout=2000ms"));
     }
 }

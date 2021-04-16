@@ -46,12 +46,12 @@ impl fmt::Display for Error {
             Error::SerializationError(msg) => write!(f, "{}", msg),
             Error::InvalidH3Resolution(res) => write!(f, "invalid h3 resolution: {}", res),
             Error::UnknownDatatype(dt) => write!(f, "unknown datatype: {}", dt),
-            Error::H3ron(e) => write!(f, "h3ron: {}", e),
+            Error::H3ron(e) => e.fmt(f),
             Error::ColumnNotFound(column_name) => write!(f, "column not found: {}", column_name),
             Error::InvalidColumn(column_name) => write!(f, "invalid column: {}", column_name),
-            Error::Clickhouse(e) => write!(f, "clickhouse: {:?}", e),
+            Error::Clickhouse(e) => write!(f, "ClickHouse: {:?}", e),
             Error::IncompatibleDatatype => write!(f, "incompatible datatype"),
-            Error::UrlParseError(upe) => write!(f, "unable to parse url: {:?}", upe),
+            Error::UrlParseError(upe) => write!(f, "Unable to parse url: {:?}", upe),
         }
     }
 }
