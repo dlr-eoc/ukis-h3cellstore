@@ -126,7 +126,11 @@ impl ClickhouseConnection {
     }
 
     fn create_schema(&mut self, schema: &Schema) -> PyResult<()> {
-        self.clickhouse_pool.create_schema(&schema.inner)
+        self.clickhouse_pool.create_schema(schema)
+    }
+
+    fn save_columnset(&mut self, schema: &Schema, columnset: &ColumnSet) -> PyResult<()> {
+        self.clickhouse_pool.save_columnset(schema, columnset)
     }
 }
 

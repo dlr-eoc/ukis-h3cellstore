@@ -5,17 +5,19 @@ use std::iter::FromIterator;
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
-use clickhouse_rs::types::{Column, Complex};
+use clickhouse_rs::types::{Block, Column, Complex};
 use clickhouse_rs::{types::SqlType, ClientHandle};
 use futures_util::StreamExt;
 use h3ron::{HasH3Index, Index};
+use itertools::{Itertools, MinMaxResult};
 use log::{error, warn};
 
-use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
+use crate::clickhouse::compacted_tables::{find_tablesets, Table, TableSet, TableSpec};
+use crate::clickhouse::schema::compacted_tables::CompactedTableSchema;
+use crate::clickhouse::schema::{CreateSchema, GetSchemaColumns, Schema};
 use crate::error::Error;
 use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
-use crate::clickhouse::schema::{Schema, CreateSchema};
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
@@ -276,4 +278,79 @@ fn read_column(
         }
     };
     Ok(values)
+}
+
+pub async fn save_columnset(
+    ch: ClientHandle,
+    schema: &Schema,
+    columnset: &ColumnSet,
+) -> Result<(), Error> {
+    // validate the data for matching types
+    let schema_columns = schema.get_columns();
+    for (column_name, column_data) in columnset.columns.iter() {
+        if let Some(column_def) = schema_columns.get(column_name) {
+            if column_data.datatype() != column_def.datatype() {
+                log::error!(
+                    "Schema defines datatype {} for column {}, but the data is typed as {}",
+                    column_def.datatype().to_string(),
+                    column_name,
+                    column_data.datatype().to_string()
+                );
+                return Err(Error::IncompatibleDatatype);
+            }
+        } else {
+            return Err(Error::ColumnNotFound(column_name.to_string()));
+        }
+    }
+
+    match schema {
+        Schema::CompactedTable(ct_schema) => {
+            save_columnset_to_compactedtables(ch, ct_schema, columnset).await?
+        }
+    }
+    Ok(())
+}
+
+async fn save_columnset_to_compactedtables(
+    mut ch: ClientHandle,
+    ct_schema: &CompactedTableSchema,
+    columnset: &ColumnSet,
+) -> Result<(), Error> {
+    let mut splitted = columnset
+        .to_compacted(&COL_NAME_H3INDEX)?
+        .split_by_resolution(&COL_NAME_H3INDEX, true)?;
+
+    let (min_res, max_res) = match splitted.keys().minmax() {
+        MinMaxResult::NoElements => return Ok(()), // nothing to do, got no data to save
+        MinMaxResult::OneElement(r) => (*r, *r),
+        MinMaxResult::MinMax(mn, mx) => (*mn, *mx),
+    };
+    let schema_max_res = ct_schema.max_h3_resolution()?;
+    if max_res > schema_max_res {
+        log::error!("columnset included h3 resolution = {}, but the schema is only defined until {}", max_res, schema_max_res);
+        return Err(Error::InvalidH3Resolution(max_res));
+    }
+
+    // create the schema
+    for stmt in ct_schema.create_statements()?.iter() {
+        ch.execute(stmt).await?;
+    }
+
+    for (h3res, cs) in splitted.drain() {
+        let table = Table {
+            basename: ct_schema.name.clone(),
+            spec: TableSpec {
+                h3_resolution: h3res,
+                is_compacted: schema_max_res != h3res,
+                temporary_key: None,
+                has_base_suffix: ct_schema.has_base_suffix,
+            },
+        };
+
+        ch.insert(table.to_table_name(), Block::from(cs)).await?
+    }
+
+    // TODO: create other base_table data
+    // TODO: deduplicate tables
+    Ok(())
 }

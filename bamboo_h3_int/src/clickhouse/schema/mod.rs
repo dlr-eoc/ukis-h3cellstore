@@ -9,6 +9,7 @@ use crate::common::Named;
 use crate::error::Error;
 use clickhouse_rs::types::{DateTimeType, SqlType};
 use crate::clickhouse::schema::compacted_tables::CompactedTableSchema;
+use std::collections::HashMap;
 
 pub mod compacted_tables;
 
@@ -19,6 +20,10 @@ pub trait ValidateSchema {
 pub trait CreateSchema {
     /// generate the SQL statements to create the schema
     fn create_statements(&self) -> Result<Vec<String>, Error>;
+}
+
+pub trait GetSchemaColumns {
+    fn get_columns(&self) -> HashMap<String, ColumnDefinition>;
 }
 
 
@@ -56,6 +61,13 @@ impl CreateSchema for Schema {
     }
 }
 
+impl GetSchemaColumns for Schema {
+    fn get_columns(&self) -> HashMap<String, ColumnDefinition> {
+        match self {
+            Schema::CompactedTable(ct) => ct.get_columns()
+        }
+    }
+}
 
 lazy_static! {
     // validation does not include reserved SQL keywords, but Clickhouse will fail happily when

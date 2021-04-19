@@ -251,3 +251,9 @@ class ClickhouseConnection:
 
     def create_schema(self, schema: Schema):
         return self.inner.create_schema(schema)
+
+    def save_columnset(self, schema: Schema, columnset: ColumnSet):
+        return self.inner.save_columnset(schema, columnset.inner)
+
+    def save_dataframe(self, schema: Schema, dataframe: pd.DataFrame, drain: bool = False):
+        return self.save_columnset(schema, ColumnSet.from_dataframe(dataframe, drain=drain))

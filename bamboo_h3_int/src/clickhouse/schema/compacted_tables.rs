@@ -6,17 +6,14 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
-use crate::clickhouse::schema::{
-    validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSqlType,
-    TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
-};
+use crate::clickhouse::schema::{validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema, GetSchemaColumns};
 use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
 use crate::COL_NAME_H3INDEX;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
-    name: String,
+    pub(crate) name: String,
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     h3_base_resolutions: Vec<u8>,
@@ -25,6 +22,7 @@ pub struct CompactedTableSchema {
     temporal_partitioning: TemporalPartitioning,
     columns: HashMap<String, ColumnDefinition>,
     partition_by_columns: Vec<String>,
+    pub(crate) has_base_suffix: bool,
 }
 
 impl CompactedTableSchema {
@@ -135,6 +133,13 @@ impl CompactedTableSchema {
         }
         Ok(partition_by)
     }
+
+    pub fn max_h3_resolution(&self) -> Result<u8, Error> {
+        match self.h3_base_resolutions.iter().max() {
+            None => Err(Error::MixedResolutions), // TODO: better error
+            Some(h3res) =>Ok(*h3res)
+        }
+    }
 }
 
 impl CreateSchema for CompactedTableSchema {
@@ -178,7 +183,7 @@ impl CreateSchema for CompactedTableSchema {
                         h3_resolution,
                         is_compacted,
                         temporary_key: None,
-                        has_base_suffix: true,
+                        has_base_suffix: self.has_base_suffix,
                     },
                 };
 
@@ -280,6 +285,13 @@ impl ValidateSchema for CompactedTableSchema {
     }
 }
 
+
+impl GetSchemaColumns for CompactedTableSchema {
+    fn get_columns(&self) -> HashMap<String, ColumnDefinition> {
+        self.columns.clone()
+    }
+}
+
 #[derive(Clone)]
 pub struct CompactedTableSchemaBuilder {
     schema: CompactedTableSchema,
@@ -301,6 +313,7 @@ impl CompactedTableSchemaBuilder {
                 temporal_partitioning: Default::default(),
                 partition_by_columns: Default::default(),
                 columns,
+                has_base_suffix: true
             },
             use_compaction: true,
         }

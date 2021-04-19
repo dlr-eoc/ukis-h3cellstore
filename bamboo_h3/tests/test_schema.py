@@ -46,6 +46,18 @@ def test_schema_save_and_load():
     assert sqls_before == sqls_after
 
 
-def test_write_dataframe(naturalearth_africa_dataframe_4):
-    print(naturalearth_africa_dataframe_4)
+def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
+    subset_df = naturalearth_africa_dataframe_4.loc[:, ("h3index", "pop_est", "country_id", "gdp_md_est")]
+    print(subset_df)
+
+    # create schema
+    csb = CompactedTableSchemaBuilder("natural_earth_africa")
+    csb.h3_base_resolutions(list(range(0, 4 + 1)))
+    csb.add_column("pop_est", "i64")
+    csb.add_column("country_id", "u16")
+    csb.add_column("gdp_md_est", "f64")
+    schema = csb.build()
+
+    # save
+    clickhouse_db.save_dataframe(schema, subset_df)
     # TODO

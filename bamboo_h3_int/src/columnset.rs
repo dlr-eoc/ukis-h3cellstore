@@ -155,7 +155,7 @@ impl Named for Datatype {
             Datatype::I32N => DT_I32N_NAME,
             Datatype::U64 => DT_U64_NAME,
             Datatype::U64N => DT_U64N_NAME,
-            Datatype::I64 => DT_U64_NAME,
+            Datatype::I64 => DT_I64_NAME,
             Datatype::I64N => DT_I64N_NAME,
             Datatype::F32 => DT_F32_NAME,
             Datatype::F32N => DT_F32N_NAME,

@@ -1,6 +1,7 @@
 import os
 
 import geopandas as gpd
+import numpy as np
 import pytest
 import rasterio
 from bamboo_h3 import ClickhouseConnection
@@ -35,6 +36,7 @@ def __naturalearth_africa_dataframe(h3_res=4):
     :return:
     """
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    world["country_id"] = np.array(range(1, len(world.index) + 1), dtype=np.uint16)
     africa = world[world["continent"] == "Africa"]
     return geodataframe_to_h3(africa, h3_res)
 

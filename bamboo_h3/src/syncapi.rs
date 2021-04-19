@@ -10,11 +10,13 @@ use tokio::task::JoinHandle as TaskJoinHandle;
 use bamboo_h3_int::clickhouse::compacted_tables::{Table, TableSet};
 use bamboo_h3_int::clickhouse::query::{
     execute, list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
+    save_columnset,
 };
-use bamboo_h3_int::clickhouse::schema::{CreateSchema, Schema};
+use bamboo_h3_int::clickhouse::schema::CreateSchema;
 use bamboo_h3_int::clickhouse_rs::Pool;
 
 use crate::columnset::ColumnSet;
+use crate::schema::Schema;
 use crate::error::IntoPyResult;
 
 pub enum Query {
@@ -191,7 +193,7 @@ impl ClickhousePool {
     }
 
     pub fn create_schema(&self, schema: &Schema) -> PyResult<()> {
-        let mut statements = schema.create_statements().into_pyresult()?;
+        let mut statements = schema.inner.create_statements().into_pyresult()?;
         let p = &self.pool;
         self.runtime.block_on(async {
             let mut client = p.get_handle().await.into_pyresult()?;
@@ -199,6 +201,16 @@ impl ClickhousePool {
                 client.execute(s).await.into_pyresult()?
             }
             Ok(())
+        })
+    }
+
+    pub fn save_columnset(&self, schema: &Schema, columnset: &ColumnSet) -> PyResult<()> {
+        let p = &self.pool;
+        self.runtime.block_on(async {
+            let client = p.get_handle().await.into_pyresult()?;
+            save_columnset(client, &schema.inner, &columnset.inner)
+                .await
+                .into_pyresult()
         })
     }
 }
