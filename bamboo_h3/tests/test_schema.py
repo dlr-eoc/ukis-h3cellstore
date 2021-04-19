@@ -1,5 +1,6 @@
 import json
 
+from bamboo_h3 import TablesetNotFound
 from bamboo_h3.schema import CompactedTableSchemaBuilder, Schema
 
 # noinspection PyUnresolvedReferences
@@ -48,11 +49,15 @@ def test_schema_save_and_load():
 
 def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
     subset_df = naturalearth_africa_dataframe_4.loc[:, ("h3index", "pop_est", "country_id", "gdp_md_est")]
-    print(subset_df)
 
     # create schema
-    csb = CompactedTableSchemaBuilder("natural_earth_africa")
-    csb.h3_base_resolutions(list(range(0, 4 + 1)))
+    tableset_name = "natural_earth_africa"
+    try:
+        clickhouse_db.drop_tableset(tableset_name)
+    except TablesetNotFound:
+        pass
+    csb = CompactedTableSchemaBuilder(tableset_name)
+    csb.h3_base_resolutions([0, 1, 2, 3, 4])
     csb.add_column("pop_est", "i64")
     csb.add_column("country_id", "u16")
     csb.add_column("gdp_md_est", "f64")
@@ -61,3 +66,4 @@ def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
     # save
     clickhouse_db.save_dataframe(schema, subset_df)
     # TODO
+    clickhouse_db.drop_tableset(tableset_name)
