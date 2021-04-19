@@ -325,10 +325,23 @@ async fn save_columnset_to_compactedtables(
         MinMaxResult::OneElement(r) => (*r, *r),
         MinMaxResult::MinMax(mn, mx) => (*mn, *mx),
     };
-    let schema_max_res = ct_schema.max_h3_resolution()?;
+    let (schema_min_res, schema_max_res) = match ct_schema.h3_base_resolutions.iter().minmax() {
+        MinMaxResult::NoElements => return Err(Error::MixedResolutions), // TODO: better error
+        MinMaxResult::OneElement(r) => (*r, *r),
+        MinMaxResult::MinMax(mn, mx) => (*mn, *mx),
+    };
+    // TODO: improve resolution validation to take compacted vs base and holes into account.
     if max_res > schema_max_res {
-        log::error!("columnset included h3 resolution = {}, but the schema is only defined until {}", max_res, schema_max_res);
+        log::error!(
+            "columnset included h3 resolution = {}, but the schema is only defined until {}",
+            max_res,
+            schema_max_res
+        );
         return Err(Error::InvalidH3Resolution(max_res));
+    }
+    if min_res < schema_min_res {
+        log::error!("columnset included h3 resolution = {}, but the schema is only defined starting from {}", min_res, schema_min_res);
+        return Err(Error::InvalidH3Resolution(min_res));
     }
 
     // create the schema

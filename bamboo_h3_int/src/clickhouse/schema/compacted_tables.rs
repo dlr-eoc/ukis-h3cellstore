@@ -16,7 +16,7 @@ pub struct CompactedTableSchema {
     pub(crate) name: String,
     table_engine: TableEngine,
     compression_method: CompressionMethod,
-    h3_base_resolutions: Vec<u8>,
+    pub(crate) h3_base_resolutions: Vec<u8>,
     h3_compacted_resolutions: Vec<u8>,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,
@@ -132,13 +132,6 @@ impl CompactedTableSchema {
             }
         }
         Ok(partition_by)
-    }
-
-    pub fn max_h3_resolution(&self) -> Result<u8, Error> {
-        match self.h3_base_resolutions.iter().max() {
-            None => Err(Error::MixedResolutions), // TODO: better error
-            Some(h3res) =>Ok(*h3res)
-        }
     }
 }
 

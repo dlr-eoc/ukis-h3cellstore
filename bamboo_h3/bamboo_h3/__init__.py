@@ -230,7 +230,7 @@ class ClickhouseConnection:
                 tableset = self.list_tablesets()[tableset]
             except KeyError:
                 raise TablesetNotFound(tableset)
-            return tableset
+        return tableset
 
     def list_tablesets(self) -> Dict[str, TableSet]:
         """list all tablesets in the database"""
