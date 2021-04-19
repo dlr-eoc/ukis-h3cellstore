@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::fs::File;
 
+use chrono::{Date, DateTime, TimeZone, Utc};
+use chrono_tz::Tz;
 use itertools::Itertools;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::{PyObjectProtocol, PySequenceProtocol};
 
-use bamboo_h3_int::fileio::{deserialize_from, serialize_into};
 use bamboo_h3_int::ColVec;
 
 use crate::error::IntoPyResult;
@@ -53,6 +53,26 @@ impl From<DataFrameColumnData<'_>> for ColVec {
     }
 }
 
+#[inline]
+pub fn datetime_to_timestamp(dt: &DateTime<Tz>) -> i64 {
+    dt.timestamp()
+}
+
+#[inline]
+pub fn timestamp_to_datetime(timestamp: i64) -> DateTime<Tz> {
+    Utc.timestamp(timestamp, 0).with_timezone(&Tz::UTC)
+}
+
+#[inline]
+pub fn date_to_timestamp(d: &Date<Tz>) -> i64 {
+    d.and_hms(12, 0, 0).timestamp()
+}
+
+#[inline]
+pub fn timestamp_to_date(timestamp: i64) -> Date<Tz> {
+    Utc.timestamp(timestamp, 0).with_timezone(&Tz::UTC).date()
+}
+
 #[pyclass]
 pub struct ColumnSet {
     pub(crate) inner: bamboo_h3_int::ColumnSet,
@@ -73,6 +93,42 @@ impl ColumnSet {
             .into_pyresult()
     }
 
+    fn add_numpy_datetime_column(
+        &mut self,
+        column_name: String,
+        data: PyReadonlyArray1<i64>,
+    ) -> PyResult<()> {
+        self.inner
+            .add_column(
+                column_name,
+                ColVec::DateTime(
+                    data.as_array()
+                        .iter()
+                        .map(|timestamp| timestamp_to_datetime(*timestamp))
+                        .collect(),
+                ),
+            )
+            .into_pyresult()
+    }
+
+    fn add_numpy_date_column(
+        &mut self,
+        column_name: String,
+        data: PyReadonlyArray1<i64>,
+    ) -> PyResult<()> {
+        self.inner
+            .add_column(
+                column_name,
+                ColVec::Date(
+                    data.as_array()
+                        .iter()
+                        .map(|timestamp| timestamp_to_date(*timestamp))
+                        .collect(),
+                ),
+            )
+            .into_pyresult()
+    }
+
     #[getter]
     /// get the names and types of the columns in the df
     fn get_column_types(&self) -> HashMap<String, String> {
@@ -84,12 +140,6 @@ impl ColumnSet {
         self.inner.is_empty()
     }
 
-    fn write_to(&self, filename: String) -> PyResult<()> {
-        let outfile = File::create(filename).into_pyresult()?;
-        serialize_into(outfile, &self.inner).into_pyresult()?;
-        Ok(())
-    }
-
     fn to_compacted(&self, h3index_column_name: String) -> PyResult<Self> {
         Ok(Self {
             inner: self
@@ -99,15 +149,12 @@ impl ColumnSet {
         })
     }
 
-    #[staticmethod]
-    fn read_from(filename: String) -> PyResult<Self> {
-        let infile = File::open(filename).into_pyresult()?;
-        let inner: bamboo_h3_int::ColumnSet = deserialize_from(infile).into_pyresult()?;
-        Ok(Self { inner })
-    }
-
     #[args(validate_indexes = "true")]
-    fn split_by_resolution(&self, h3index_column_name: String, validate_indexes: bool) -> PyResult<HashMap<u8, Self>> {
+    fn split_by_resolution(
+        &self,
+        h3index_column_name: String,
+        validate_indexes: bool,
+    ) -> PyResult<HashMap<u8, Self>> {
         let out = self
             .inner
             .split_by_resolution(&h3index_column_name, validate_indexes)
@@ -164,8 +211,44 @@ columnset_drain_column_fn!(drain_column_u64, u64, U64);
 columnset_drain_column_fn!(drain_column_i64, i64, I64);
 columnset_drain_column_fn!(drain_column_f32, f32, F32);
 columnset_drain_column_fn!(drain_column_f64, f64, F64);
-columnset_drain_column_fn!(drain_column_date, i64, Date);
-columnset_drain_column_fn!(drain_column_datetime, i64, DateTime);
+
+macro_rules! columnset_drain_timestamp_column_fn {
+    ($fnname:ident, $cvtype:ident, $conv_closure:expr) => {
+        #[pymethods]
+        impl ColumnSet {
+            fn $fnname(&mut self, column_name: &str) -> PyResult<Py<PyArray<i64, Ix1>>> {
+                if let Some(cv) = self.inner.columns.get_mut(column_name) {
+                    if let ColVec::$cvtype(v) = cv {
+                        let mut data = std::mem::take(v);
+
+                        // remove the column completely as the type matches
+                        self.inner.columns.remove(column_name);
+                        if self.inner.columns.is_empty() {
+                            self.inner.size = None;
+                        }
+                        let timestamps = data.drain(..).map($conv_closure).collect();
+                        Ok(vec_to_numpy_owned(timestamps))
+                    } else {
+                        Err(PyValueError::new_err(format!(
+                            "column {} is not accessible as type {}",
+                            column_name,
+                            stringify!($dtype)
+                        )))
+                    }
+                } else {
+                    Err(PyIndexError::new_err(format!(
+                        "unknown column {}",
+                        column_name
+                    )))
+                }
+            }
+        }
+    };
+}
+columnset_drain_timestamp_column_fn!(drain_column_date, Date, |d| date_to_timestamp(&d));
+columnset_drain_timestamp_column_fn!(drain_column_datetime, DateTime, |d| datetime_to_timestamp(
+    &d
+));
 
 #[pyproto]
 impl PySequenceProtocol for ColumnSet {

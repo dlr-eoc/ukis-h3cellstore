@@ -81,12 +81,6 @@ pub(crate) fn check_same_h3_resolution<T: HasH3Index>(
     Ok(())
 }
 
-impl From<serde_cbor::Error> for Error {
-    fn from(se: serde_cbor::Error) -> Self {
-        Error::SerializationError(format!("cbor serialization failed: {:?}", se))
-    }
-}
-
 impl From<serde_json::error::Error> for Error {
     fn from(te: serde_json::error::Error) -> Self {
         Error::SerializationError(format!("{:?}", te))

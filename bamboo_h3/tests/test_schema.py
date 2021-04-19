@@ -1,5 +1,9 @@
 import json
 
+import h3.api.numpy_int as h3
+import numpy as np
+import pandas as pd
+import pytest
 from bamboo_h3 import TablesetNotFound
 from bamboo_h3.schema import CompactedTableSchemaBuilder, Schema
 
@@ -67,3 +71,36 @@ def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
     clickhouse_db.save_dataframe(schema, subset_df)
     # TODO
     clickhouse_db.drop_tableset(tableset_name)
+
+
+@pytest.mark.parametrize("input_date_string", ["2021-02-16T12:01:03", "2021-02-15"])
+def test_save_dataframe_datetime(clickhouse_db, input_date_string):
+    start_index = 596353829637718015
+    timestamp = pd.Timestamp(input_date_string, tz="UTC")
+    df = pd.DataFrame({
+        "h3index": np.array([start_index, ], dtype=np.uint64),
+        "dtime": np.array([timestamp, ])
+    })
+
+    # create schema
+    tableset_name = "timestamp_test"
+    try:
+        clickhouse_db.drop_tableset(tableset_name)
+    except TablesetNotFound:
+        pass
+    csb = CompactedTableSchemaBuilder(tableset_name)
+    csb.h3_base_resolutions(list(range(0, h3.h3_get_resolution(start_index) + 1)))
+    csb.add_column("dtime", "datetime")
+    schema = csb.build()
+
+    # save
+    clickhouse_db.save_dataframe(schema, df)
+
+    # check, should be the same value
+    loaded_df = clickhouse_db.tableset_fetch(tableset_name, df.h3index.to_numpy()).to_dataframe()
+    assert loaded_df.h3index[0] == start_index
+    assert loaded_df.dtime[0] == timestamp
+    clickhouse_db.drop_tableset(tableset_name)
+
+
+# TODO: convert to dates

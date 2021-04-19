@@ -13,10 +13,9 @@ pub use crate::columnset::Datatype;
 
 pub mod algorithm;
 pub mod clickhouse;
-mod columnset;
+pub mod columnset;
 mod common;
 pub mod error;
-pub mod fileio;
 mod iter;
 
 /// the column name which must be used for h3indexes.

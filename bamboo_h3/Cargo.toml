@@ -23,6 +23,13 @@ either = "^1.6"
 serde = "^1"
 itertools = "^0.10"
 
+[dependencies.chrono]
+version = "0.4"
+
+[dependencies.chrono-tz]
+version = "0.5"
+
+
 [dependencies.geojson]
 version = "^0.21"
 features = [

@@ -198,17 +198,17 @@ enum ColVecValue {
     F64(OrderedFloat<f64>),
     F64N(Option<OrderedFloat<f64>>),
     /// unix timestamp, as numpy has no native date type
-    Date(i64),
-    DateN(Option<i64>),
+    Date(Date<Tz>),
+    DateN(Option<Date<Tz>>),
     /// unix timestamp, as numpy has no native datetime type
-    DateTime(i64),
-    DateTimeN(Option<i64>),
+    DateTime(DateTime<Tz>),
+    DateTimeN(Option<DateTime<Tz>>),
 }
 
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum ColVec {
     U8(Vec<u8>),
     U8N(Vec<Option<u8>>),
@@ -231,11 +231,11 @@ pub enum ColVec {
     F64(Vec<f64>),
     F64N(Vec<Option<f64>>),
     /// unix timestamp, as numpy has no native date type
-    Date(Vec<i64>),
-    DateN(Vec<Option<i64>>),
+    Date(Vec<Date<Tz>>),
+    DateN(Vec<Option<Date<Tz>>>),
     /// unix timestamp, as numpy has no native datetime type
-    DateTime(Vec<i64>),
-    DateTimeN(Vec<Option<i64>>),
+    DateTime(Vec<DateTime<Tz>>),
+    DateTimeN(Vec<Option<DateTime<Tz>>>),
 }
 
 impl ColVec {
@@ -469,15 +469,6 @@ impl ColVec {
     }
 }
 
-#[inline]
-fn datetime_to_timestamp(dt: &DateTime<Tz>) -> i64 {
-    dt.timestamp()
-}
-
-#[inline]
-fn date_to_timestamp(d: &Date<Tz>) -> i64 {
-    d.and_hms(12, 0, 0).timestamp()
-}
 
 macro_rules! vec_to_colvec_from_impl {
     ($vt:ty, $cvtype:ident) => {
@@ -516,13 +507,19 @@ vec_to_colvec_from_impl!(Option<u64>, U64N);
 vec_to_colvec_from_impl!(Option<i64>, I64N);
 vec_to_colvec_from_impl!(Option<f32>, F32N);
 vec_to_colvec_from_impl!(Option<f64>, F64N);
+vec_to_colvec_from_impl!(Date<Tz>, Date);
+vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN);
+vec_to_colvec_from_impl!(DateTime<Tz>, DateTime);
+vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN);
+
+/*
 vec_to_colvec_from_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
 vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN, |d| d
     .map(|inner| date_to_timestamp(&inner)));
 vec_to_colvec_from_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
 vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
     .map(|inner| datetime_to_timestamp(&inner)));
-
+*/
 macro_rules! iter_to_colvec_fromiterator_impl {
     ($vt:ty, $cvtype:ident) => {
         impl FromIterator<$vt> for ColVec {
@@ -560,12 +557,18 @@ iter_to_colvec_fromiterator_impl!(Option<u64>, U64N);
 iter_to_colvec_fromiterator_impl!(Option<i64>, I64N);
 iter_to_colvec_fromiterator_impl!(Option<f32>, F32N);
 iter_to_colvec_fromiterator_impl!(Option<f64>, F64N);
+iter_to_colvec_fromiterator_impl!(Date<Tz>, Date);
+iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN);
+iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime);
+iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN);
+/*
 iter_to_colvec_fromiterator_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
 iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN, |d| d
     .map(|inner| date_to_timestamp(&inner)));
 iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
 iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
     .map(|inner| datetime_to_timestamp(&inner)));
+ */
 
 ///
 /// a set of columns with their values
@@ -573,7 +576,7 @@ iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
 /// This can be seen as the equivalent to the pandas DateFrame but limited
 /// to storage only. Additionally, this would be the point where arrow support
 /// could be added (using arrows RecordBatch https://docs.rs/arrow/2.0.0/arrow/record_batch/struct.RecordBatch.html)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
 
@@ -850,7 +853,6 @@ impl From<HashMap<String, ColVec>> for ColumnSet {
         Self::from_columns(columns)
     }
 }
-
 
 /// a cryptographically non-secure hashmap, mostly intended to be fast
 type NonSecureHashMap<K, V> = fnv::FnvHashMap<K, V>;
