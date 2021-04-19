@@ -36,6 +36,15 @@ __all__ = [
 __version__ = version()
 
 
+class AlreadyMovedError(Exception):
+    """
+    Data loaded can only be transformed once into a columnset or dataframe once.
+
+    repeated attempts to do tha t will result in this exception
+    """
+    pass
+
+
 class ClickhouseResultSet:
     resultset = None
 
@@ -69,7 +78,7 @@ class ClickhouseResultSet:
         """get the h3index of the window in case this resultset was fetched in a sliding window"""
         return self.resultset.window_index
 
-    def to_columnset(self) -> Optional[ColumnSet]:
+    def to_columnset(self) -> ColumnSet:
         """
         drains the resultset into a columnset.
 
@@ -79,11 +88,11 @@ class ClickhouseResultSet:
         This method will wait for asynchronous queries to be finished executing.
         """
         inner_cs = self.resultset.to_columnset()
-        if inner_cs is not None:
-            return ColumnSet(inner_cs)
-        return None
+        if inner_cs is None:
+            raise AlreadyMovedError()
+        return ColumnSet(inner_cs)
 
-    def to_dataframe(self) -> Optional[pd.DataFrame]:
+    def to_dataframe(self) -> pd.DataFrame:
         """
         drains the resultset into a pandas dataframe.
 
@@ -93,9 +102,7 @@ class ClickhouseResultSet:
         This method will wait for asynchronous queries to be finished executing.
         """
         cs = self.to_columnset()
-        if cs is not None:
-            return cs.to_dataframe()
-        return None
+        return cs.to_dataframe()
 
     @property
     def empty(self) -> bool:
