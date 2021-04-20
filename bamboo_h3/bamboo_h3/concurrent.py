@@ -8,8 +8,6 @@ from typing import Callable, List, Any
 
 from shapely.geometry import box, Polygon
 
-from . import ClickhouseResultSet
-
 
 def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygon]:
     """cut a shapely geometry into chunks to distribute it across multiple processes
@@ -51,7 +49,7 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygo
 
 
 def process_polygon(n_concurrent_processes: int, polygon: Polygon,
-                    processing_callback: Callable[[ClickhouseResultSet], Any],
+                    processing_callback: Callable[[Polygon], Any],
                     num_chunks_per_proccess_approx: int = 2) -> List[Any]:
     """cut the `polygon` into chunks and concurrently apply the `processing_callback`
         to each of the chunks using `n_concurrent_processes` subprocesses.

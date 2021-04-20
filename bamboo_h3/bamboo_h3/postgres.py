@@ -51,7 +51,7 @@ def __wkb_and_df_from_query(cur, wkb_column_name: str, query_str: str, *query_ar
 
 
 def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name: str, query_str: str,
-                                         *query_args) -> pd.DataFrame:
+                                       *query_args) -> pd.DataFrame:
     """
     execute a sql query and return the rows for all results intersecting with a h3index of the
      given numpy array
