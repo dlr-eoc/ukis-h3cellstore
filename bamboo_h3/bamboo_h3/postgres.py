@@ -4,11 +4,11 @@ postgres integration
 All parameters named `cur` in this module are expected to be pyscopg2 cursors.
 """
 
-import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 
-from . import Polygon, H3IndexesContainedIn
+from . import ColumnSet
+from .bamboo_h3 import intersect_columnset_with_indexes
 
 
 def as_bytes(in_val) -> bytes:
@@ -19,29 +19,12 @@ def as_bytes(in_val) -> bytes:
     raise ValueError("unable to convert to bytes")
 
 
-def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name: str, query_str: str, *query_args) -> pd.DataFrame:
-    """
-    execute a sql query and return the rows for all results intersecting with a h3index of the
-     given numpy array
-
-    :param cur:
-    :param h3indexes: numpy-array of h3indexes
-    :param wkb_column_name: the name of the column containing a polygon in WKB format
-    :param query_str: the query string to execute
-    :param query_args: arguments for the query string
-    :return:
-    """
-
+def __wkb_and_df_from_query(cur, wkb_column_name: str, query_str: str, *query_args):
     cur.execute(query_str, *query_args)
 
-    contained_in_check = H3IndexesContainedIn.from_array(h3indexes)
-
-    # list of dataframes, one for each intersecting row of the postgres query.
-    # It is far faster to create individual dataframes and to combine them once instead
-    # of appending to an existing dataframe. Each append requires the complete copy of all
-    # contents to new arrays of the new combined size.
-    dataframes = []
-
+    # assemble a dataframe and a list of wkbs from the query results
+    df_columns = {}
+    wkb_list = []
     column_names = []
     wkb_column_idx = None
     while True:
@@ -55,30 +38,32 @@ def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name
                 column_names.append(column_name)
                 if column_name == wkb_column_name:
                     wkb_column_idx = column_idx
+                else:
+                    df_columns[column_name] = []
             if wkb_column_idx is None:
-                raise IndexError("wkb column not found in query results")
+                raise IndexError(f"wkb column {wkb_column_name} not found in query results")
+        for (column_idx, value) in enumerate(row):
+            if column_idx == wkb_column_idx:
+                wkb_list.append(as_bytes(value))
+            else:
+                df_columns[column_names[column_idx]].append(value)
+    return pd.DataFrame(df_columns), wkb_list
 
-        # read the wkb into a geometry instance, if this fails
-        # the contents of the column a most certainly postgis EWKB instead of WKB
-        poly = Polygon.from_wkb(as_bytes(row[wkb_column_idx]))
 
-        # collect the h3indexes contained in the geometry of the row
-        h3index_column = contained_in_check.contained_h3indexes(poly)
+def fetch_using_intersecting_h3indexes(cur, h3indexes: np.array, wkb_column_name: str, query_str: str,
+                                         *query_args) -> pd.DataFrame:
+    """
+    execute a sql query and return the rows for all results intersecting with a h3index of the
+     given numpy array
 
-        if h3index_column.size > 0:
-            resultdict = {}
-            for (column_idx, value) in enumerate(row):
-                if column_idx == wkb_column_idx:
-                    continue
-                resultdict[column_names[column_idx]] = [value, ]
+    :param cur:
+    :param h3indexes: numpy-array of h3indexes
+    :param wkb_column_name: the name of the column containing a polygon in WKB format
+    :param query_str: the query string to execute
+    :param query_args: arguments for the query string
+    :return:
+    """
 
-            # this merge is more efficient than calling .insert() or .assign()
-            # for each column. Seems to be more optimized inside pandas.
-            df = pd.DataFrame(resultdict).merge(
-                pd.DataFrame({"h3index": h3index_column}),
-                how='cross' # pandas >=1.2
-            )
-            dataframes.append(df)
-    if dataframes:
-        return pd.concat(dataframes)
-    return pd.DataFrame({})
+    df, wkb_list = __wkb_and_df_from_query(cur, wkb_column_name, query_str, *query_args)
+    columnset = ColumnSet.from_dataframe(df, drain=True)
+    return ColumnSet(intersect_columnset_with_indexes(columnset.inner, wkb_list, h3indexes)).to_dataframe()

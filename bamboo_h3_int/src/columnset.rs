@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::Named;
 use crate::error::{check_same_h3_resolution, Error};
+use crate::iter::ItemRepeatingIterator;
 
 const DT_DATE_NAME: &str = "date";
 const DT_DATEN_NAME: &str = "date_n";
@@ -208,7 +209,7 @@ enum ColVecValue {
 /// a vector of column values
 ///
 /// all enum variants ending with "N" are nullable
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ColVec {
     U8(Vec<u8>),
     U8N(Vec<Option<u8>>),
@@ -467,6 +468,38 @@ impl ColVec {
             ColVecValue::DateTimeN(v) => ColVec::DateTimeN(vec![v]),
         }
     }
+
+    /**
+     * repeat the rows in the colvec according to the given number of repetitions
+     */
+    pub fn into_repeated_values(self, repetitions: &[usize], total_num: Option<usize>) -> ColVec {
+        match self {
+            ColVec::U8(mut v) => ColVec::U8(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U8N(mut v) => ColVec::U8N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I8(mut v) => ColVec::I8(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I8N(mut v) => ColVec::I8N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U16(mut v) => ColVec::U16(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U16N(mut v) => ColVec::U16N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I16(mut v) => ColVec::I16(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I16N(mut v) => ColVec::I16N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U32(mut v) => ColVec::U32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U32N(mut v) => ColVec::U32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I32(mut v) => ColVec::I32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I32N(mut v) => ColVec::I32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U64(mut v) => ColVec::U64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U64N(mut v) => ColVec::U64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I64(mut v) => ColVec::I64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::I64N(mut v) => ColVec::I64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::F32(mut v) => ColVec::F32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::F32N(mut v) => ColVec::F32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::F64(mut v) => ColVec::F64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::F64N(mut v) => ColVec::F64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::Date(mut v) => ColVec::Date(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::DateN(mut v) => ColVec::DateN(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::DateTime(mut v) => ColVec::DateTime(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::DateTimeN(mut v) => ColVec::DateTimeN(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+        }
+    }
 }
 
 
@@ -512,14 +545,6 @@ vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN);
 vec_to_colvec_from_impl!(DateTime<Tz>, DateTime);
 vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN);
 
-/*
-vec_to_colvec_from_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
-vec_to_colvec_from_impl!(Option<Date<Tz>>, DateN, |d| d
-    .map(|inner| date_to_timestamp(&inner)));
-vec_to_colvec_from_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
-vec_to_colvec_from_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
-    .map(|inner| datetime_to_timestamp(&inner)));
-*/
 macro_rules! iter_to_colvec_fromiterator_impl {
     ($vt:ty, $cvtype:ident) => {
         impl FromIterator<$vt> for ColVec {
@@ -561,14 +586,6 @@ iter_to_colvec_fromiterator_impl!(Date<Tz>, Date);
 iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN);
 iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime);
 iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN);
-/*
-iter_to_colvec_fromiterator_impl!(Date<Tz>, Date, |d| date_to_timestamp(&d));
-iter_to_colvec_fromiterator_impl!(Option<Date<Tz>>, DateN, |d| d
-    .map(|inner| date_to_timestamp(&inner)));
-iter_to_colvec_fromiterator_impl!(DateTime<Tz>, DateTime, |d| datetime_to_timestamp(&d));
-iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
-    .map(|inner| datetime_to_timestamp(&inner)));
- */
 
 ///
 /// a set of columns with their values
@@ -576,7 +593,7 @@ iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN, |d| d
 /// This can be seen as the equivalent to the pandas DateFrame but limited
 /// to storage only. Additionally, this would be the point where arrow support
 /// could be added (using arrows RecordBatch https://docs.rs/arrow/2.0.0/arrow/record_batch/struct.RecordBatch.html)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
 
@@ -783,6 +800,7 @@ impl ColumnSet {
             .map(|(h3_res, colmap)| (h3_res, colmap.into()))
             .collect())
     }
+
 }
 
 /// compact the given h3 indexes

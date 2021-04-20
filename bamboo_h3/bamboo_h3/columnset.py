@@ -28,14 +28,11 @@ class ColumnSet:
         """
         cs = lib.ColumnSet()
         for column_name in df.columns:
-            # TODO: convert numpy datetimes to datetime[s]
-            # numpy uses uint64 for all datetimes, see https://docs.scipy.org/doc/numpy-1.13.0/reference/arrays.datetime.html#datetime-units
-
             col = df[column_name]
             if isinstance(col.dtype, pd.DatetimeTZDtype):
-                # todo: convert timezone to UTC
                 # https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#from-timestamps-to-epoch
-                timestamps = ((col - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1s", tz="UTC")).to_numpy()
+                timestamps = ((col.dt.tz_convert("UTC") - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1s",
+                                                                                                                tz="UTC")).to_numpy()
                 cs.add_numpy_datetime_column(column_name, timestamps)
             else:
                 cs.add_numpy_column(column_name, col.to_numpy())
@@ -155,7 +152,7 @@ class ColumnSet:
                                        utc=True)
             elif column_type == 'datetime':
                 array = pd.to_datetime(np.asarray(self.inner.drain_column_datetime(column_name),
-                                   dtype='datetime64[s]'), utc=True)
+                                                  dtype='datetime64[s]'), utc=True)
             else:
                 raise NotImplementedError(f"unsupported column type: {column_type}")
             data[column_name] = array

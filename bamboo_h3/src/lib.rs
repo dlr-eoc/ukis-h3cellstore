@@ -44,6 +44,11 @@ fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo
     Ok(poly.into())
 }
 
+#[pyfunction]
+pub fn intersect_columnset_with_indexes(cs: &ColumnSet, wkbs: Vec<&[u8]>, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ColumnSet> {
+    crate::geo::intersect_columnset_with_indexes(cs, wkbs, h3indexes)
+}
+
 #[cfg(debug_assertions)]
 #[pyfunction]
 fn is_release_build() -> bool {
@@ -90,6 +95,7 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(create_connection, m)?)?;
     m.add_function(wrap_pyfunction!(h3indexes_convex_hull, m)?)?;
     m.add_function(wrap_pyfunction!(is_release_build, m)?)?;
+    m.add_function(wrap_pyfunction!(intersect_columnset_with_indexes, m)?)?;
 
     Ok(())
 }

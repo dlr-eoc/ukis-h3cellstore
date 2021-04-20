@@ -61,3 +61,13 @@ impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
         }
     }
 }
+
+impl<T> IntoPyResult<T> for Result<T, wkb::WKBReadError> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyValueError::new_err(format!("un-parsable wkb: {:?}", err))),
+        }
+    }
+}
+

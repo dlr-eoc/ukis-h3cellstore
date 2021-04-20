@@ -1,7 +1,6 @@
 ///
 /// geospatial primitives and algorithms
 ///
-
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -9,7 +8,7 @@ use std::iter::once;
 use std::str::FromStr;
 
 use geojson::GeoJson;
-use h3ron::{Index, ToCoordinate};
+use h3ron::{HasH3Index, Index, ToCoordinate};
 use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,
@@ -19,10 +18,13 @@ use pyo3::{
 };
 use wkb::WKBReadExt;
 
-use crate::columnset::vec_to_numpy_owned;
 use bamboo_h3_int::geo::algorithm::bounding_rect::BoundingRect;
 use bamboo_h3_int::geo::algorithm::contains::Contains;
-use bamboo_h3_int::geo_types as gt;
+use bamboo_h3_int::geo::algorithm::intersects::Intersects;
+use bamboo_h3_int::{geo_types as gt, ColVec, COL_NAME_H3INDEX};
+
+use crate::columnset::{vec_to_numpy_owned, ColumnSet};
+use crate::error::IntoPyResult;
 
 /// a polygon
 #[pyclass]
@@ -181,4 +183,46 @@ impl H3IndexesContainedIn {
 
         Ok(vec_to_numpy_owned(contained))
     }
+}
+
+pub fn intersect_columnset_with_indexes(
+    cs: &ColumnSet,
+    wkbs: Vec<&[u8]>,
+    h3indexes: PyReadonlyArray1<u64>,
+) -> PyResult<ColumnSet> {
+    let geoms: Vec<_> = wkbs
+        .iter()
+        .map(|wkb| {
+            let mut cursor = Cursor::new(wkb);
+            wkb::wkb_to_geom(&mut cursor).into_pyresult()
+        })
+        .collect::<PyResult<Vec<bamboo_h3_int::geo_types::Geometry<f64>>>>()?;
+
+    let h3index_coords: Vec<_> = h3indexes.as_array().iter().map(|h3index| {
+        let index = Index::new(*h3index);
+        index.validate().into_pyresult()?;
+        Ok((index.h3index(), index.to_coordinate()))
+    }).collect::<PyResult<Vec<(u64, bamboo_h3_int::geo_types::Coordinate<f64>)>>>()?;
+
+    let mut repetitions: Vec<usize> = Vec::with_capacity(wkbs.len());
+    let mut out_h3indexes = Vec::with_capacity(wkbs.len());
+    for geom in geoms.iter() {
+        let mut reps = 0_usize;
+        for (h3index, coord) in h3index_coords.iter() {
+            if geom.intersects(coord) {
+                reps += 1;
+                out_h3indexes.push(*h3index)
+            }
+        }
+        repetitions.push(reps)
+    }
+    let total_num: usize = repetitions.iter().sum();
+
+    let mut out_columns = HashMap::new();
+    for (col_name,  colvec) in cs.inner.columns.iter() {
+        let repeated = colvec.clone().into_repeated_values(&repetitions, Some(total_num));
+        out_columns.insert(col_name.clone(), repeated);
+    }
+    out_columns.insert(COL_NAME_H3INDEX.to_string(), ColVec::U64(out_h3indexes));
+    Ok(out_columns.into())
 }
