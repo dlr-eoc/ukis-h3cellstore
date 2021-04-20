@@ -158,39 +158,6 @@ class ColumnSet:
             data[column_name] = array
         return pd.DataFrame(data)
 
-    def write_to(self, filename: str) -> None:
-        """
-        serialize to a file.
-
-        Uses CBOR serialization with ZSTD compression
-        """
-        self.inner.write_to(filename)
-
-    @staticmethod
-    def read_from(filename: str) -> ColumnSet:
-        """
-        deserialize from a file.
-
-        expects CBOR serialization with ZSTD compression
-
-        >>> from tempfile import gettempdir
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> df = pd.DataFrame({"x": np.random.rand(2000)})
-        >>> column_set = ColumnSet.from_dataframe(df)
-        >>> column_set.column_types
-        {'x': 'f64'}
-        >>> filename = f"{gettempdir()}/columnset.cbor.zstd"
-        >>> column_set.write_to(filename)
-        >>> column_set2 = ColumnSet.read_from(filename)
-        >>> len(column_set2)
-        2000
-        >>> column_set2.column_types
-        {'x': 'f64'}
-        """
-        inner = lib.ColumnSet.read_from(filename)
-        return ColumnSet(inner)
-
     def __repr__(self) -> str:
         """
         Get a representation of the object.
