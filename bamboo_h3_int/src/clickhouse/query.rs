@@ -18,6 +18,7 @@ use crate::clickhouse::schema::{CreateSchema, GetSchemaColumns, Schema};
 use crate::error::Error;
 use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use crate::clickhouse::FromWithDatatypes;
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
@@ -285,20 +286,10 @@ pub async fn save_columnset(
     schema: &Schema,
     columnset: &ColumnSet,
 ) -> Result<(), Error> {
-    // validate the data for matching types
+    // validate the names of the columns
     let schema_columns = schema.get_columns();
-    for (column_name, column_data) in columnset.columns.iter() {
-        if let Some(column_def) = schema_columns.get(column_name) {
-            if column_data.datatype() != column_def.datatype() {
-                log::error!(
-                    "Schema defines datatype {} for column {}, but the data is typed as {}",
-                    column_def.datatype().to_string(),
-                    column_name,
-                    column_data.datatype().to_string()
-                );
-                return Err(Error::IncompatibleDatatype);
-            }
-        } else {
+    for (column_name, _) in columnset.columns.iter() {
+        if schema_columns.get(column_name).is_none() {
             return Err(Error::ColumnNotFound(column_name.to_string()));
         }
     }
@@ -349,6 +340,12 @@ async fn save_columnset_to_compactedtables(
         ch.execute(stmt).await?;
     }
 
+    let target_datatypes: HashMap<_, _> = ct_schema
+        .get_columns()
+        .drain()
+        .map(|(col_name, col_def)| (col_name, col_def.datatype()))
+        .collect();
+
     for (h3res, cs) in splitted.drain() {
         let table = Table {
             basename: ct_schema.name.clone(),
@@ -360,7 +357,8 @@ async fn save_columnset_to_compactedtables(
             },
         };
 
-        ch.insert(table.to_table_name(), Block::from(cs)).await?
+        ch.insert(table.to_table_name(), Block::from_with_datatypes(cs, &target_datatypes)?)
+            .await?
     }
 
     // TODO: create other base_table data

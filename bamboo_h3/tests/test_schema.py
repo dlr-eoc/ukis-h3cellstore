@@ -73,8 +73,7 @@ def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
     clickhouse_db.drop_tableset(tableset_name)
 
 
-@pytest.mark.parametrize("input_date_string", ["2021-02-16T12:01:03", "2021-02-15"])
-def test_save_dataframe_datetime(clickhouse_db, input_date_string):
+def __save_dataframe_datetime(clickhouse_db, input_date_string, column_type):
     start_index = 596353829637718015
     timestamp = pd.Timestamp(input_date_string, tz="UTC")
     df = pd.DataFrame({
@@ -90,7 +89,7 @@ def test_save_dataframe_datetime(clickhouse_db, input_date_string):
         pass
     csb = CompactedTableSchemaBuilder(tableset_name)
     csb.h3_base_resolutions(list(range(0, h3.h3_get_resolution(start_index) + 1)))
-    csb.add_column("dtime", "datetime")
+    csb.add_column("dtime", column_type)
     schema = csb.build()
 
     # save
@@ -103,4 +102,11 @@ def test_save_dataframe_datetime(clickhouse_db, input_date_string):
     clickhouse_db.drop_tableset(tableset_name)
 
 
-# TODO: convert to dates
+@pytest.mark.parametrize("input_date_string", ["2021-02-16T12:01:03", "2021-02-15"])
+def test_save_dataframe_datetime(clickhouse_db, input_date_string):
+    __save_dataframe_datetime(clickhouse_db, input_date_string, "datetime")
+
+
+@pytest.mark.parametrize("input_date_string", ["2021-02-16T00:00:00", "2021-02-15"])
+def test_save_dataframe_date(clickhouse_db, input_date_string):
+    __save_dataframe_datetime(clickhouse_db, input_date_string, "date")

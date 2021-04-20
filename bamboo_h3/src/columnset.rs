@@ -65,7 +65,7 @@ pub fn timestamp_to_datetime(timestamp: i64) -> DateTime<Tz> {
 
 #[inline]
 pub fn date_to_timestamp(d: &Date<Tz>) -> i64 {
-    d.and_hms(12, 0, 0).timestamp()
+    d.and_hms(0, 0, 0).timestamp()
 }
 
 #[inline]
