@@ -172,9 +172,8 @@ def process_window(window_geom: Polygon):
         detections_df = resultset.to_dataframe()
         print(f"query took {resultset.query_duration_secs} secs and returned {detections_df.size} rows")
 
-        recording_timestamps = [
-            datetime.utcfromtimestamp(ts.astype("O") / 1e9) for ts in detections_df.recorded_at.unique()
-        ]
+        # DatetimeArray to numpy to list
+        recording_timestamps = detections_df.recorded_at.unique().to_numpy().tolist()
 
         # to get missing values when there have been no detections, we must generate all timestamps when a index
         # has been covered by a scene - they are not stored. We just use the scene footprints to generate our subset of
@@ -204,8 +203,6 @@ def process_window(window_geom: Polygon):
             continue
 
         # join the two dataframes to get a time series
-        # cut of the timezone first, its UTC anyways. TODO: improve this
-        scene_h3indexes_df["recorded_at"] = scene_h3indexes_df["recorded_at"].dt.tz_localize(None)
         joined_df = pd.merge(scene_h3indexes_df, detections_df, how="left", on=["scene_id", "h3index", "recorded_at"])
         joined_df.sort_values(by=["h3index", "recorded_at"], inplace=True)
 
