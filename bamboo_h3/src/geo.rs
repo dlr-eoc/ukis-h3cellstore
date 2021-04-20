@@ -198,11 +198,15 @@ pub fn intersect_columnset_with_indexes(
         })
         .collect::<PyResult<Vec<bamboo_h3_int::geo_types::Geometry<f64>>>>()?;
 
-    let h3index_coords: Vec<_> = h3indexes.as_array().iter().map(|h3index| {
-        let index = Index::new(*h3index);
-        index.validate().into_pyresult()?;
-        Ok((index.h3index(), index.to_coordinate()))
-    }).collect::<PyResult<Vec<(u64, bamboo_h3_int::geo_types::Coordinate<f64>)>>>()?;
+    let h3index_coords: Vec<_> = h3indexes
+        .as_array()
+        .iter()
+        .map(|h3index| {
+            let index = Index::new(*h3index);
+            index.validate().into_pyresult()?;
+            Ok((index.h3index(), index.to_coordinate()))
+        })
+        .collect::<PyResult<Vec<(u64, bamboo_h3_int::geo_types::Coordinate<f64>)>>>()?;
 
     let mut repetitions: Vec<usize> = Vec::with_capacity(wkbs.len());
     let mut out_h3indexes = Vec::with_capacity(wkbs.len());
@@ -219,8 +223,10 @@ pub fn intersect_columnset_with_indexes(
     let total_num: usize = repetitions.iter().sum();
 
     let mut out_columns = HashMap::new();
-    for (col_name,  colvec) in cs.inner.columns.iter() {
-        let repeated = colvec.clone().into_repeated_values(&repetitions, Some(total_num));
+    for (col_name, colvec) in cs.inner.columns.iter() {
+        let repeated = colvec
+            .clone()
+            .into_repeated_values(&repetitions, Some(total_num));
         out_columns.insert(col_name.clone(), repeated);
     }
     out_columns.insert(COL_NAME_H3INDEX.to_string(), ColVec::U64(out_h3indexes));
