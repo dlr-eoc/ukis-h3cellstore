@@ -39,6 +39,12 @@ features = ["sink"]
 version = "1"
 features = [ "derive" ]
 
+[dependencies.uuid]
+version = "^0.8"
+features = [
+    "v4"
+]
+
 [dev-dependencies.criterion]
 version = "^0.3"
 features = [

@@ -22,6 +22,7 @@ pub struct CompactedTableSchema {
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     pub(crate) h3_base_resolutions: Vec<u8>,
+    max_h3_resolution: u8,
     pub(crate) use_compaction: bool,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,
@@ -64,6 +65,22 @@ impl PartialEq for ResolutionMetadata {
 }
 
 impl CompactedTableSchema {
+    fn build_table(
+        &self,
+        resolution_metadata: &ResolutionMetadata,
+        temporary_key: &Option<String>,
+    ) -> Table {
+        Table {
+            basename: self.name.clone(),
+            spec: TableSpec {
+                h3_resolution: resolution_metadata.h3_resolution,
+                is_compacted: resolution_metadata.is_compacted,
+                temporary_key: temporary_key.clone(),
+                has_base_suffix: self.has_base_suffix,
+            },
+        }
+    }
+
     /// columns to use for the order-by of the table
     pub fn order_by_column_names(&self) -> Vec<String> {
         let default_key_pos = 10;
@@ -199,11 +216,14 @@ impl CompactedTableSchema {
             .chain(compacted_resolutions)
             .collect())
     }
-}
 
-impl CreateSchema for CompactedTableSchema {
-    fn create_statements(&self) -> Result<Vec<String>, Error> {
-        let partition_by = self.partition_by_expressions()?.join(", ");
+    fn build_create_statement(&self, table: &Table) -> Result<String, Error> {
+        let partition_by = if table.spec.temporary_key.is_none() {
+            // partitioning is only relevant for non-temporary tables
+            Some(self.partition_by_expressions()?.join(", "))
+        } else {
+            None
+        };
         let order_by = self.order_by_column_names().join(", ");
         let engine = match &self.table_engine {
             TableEngine::ReplacingMergeTree => "ReplacingMergeTree".to_string(),
@@ -230,37 +250,40 @@ impl CreateSchema for CompactedTableSchema {
             })
             .join(",\n");
 
-        Ok(self
-            .get_resolution_metadata()?
-            .iter()
-            .map(|resolution_metadata| {
-                let table = Table {
-                    basename: self.name.clone(),
-                    spec: TableSpec {
-                        h3_resolution: resolution_metadata.h3_resolution,
-                        is_compacted: resolution_metadata.is_compacted,
-                        temporary_key: None,
-                        has_base_suffix: self.has_base_suffix,
-                    },
-                };
-
-                format!(
-                    "
+        Ok(format!(
+            "
 CREATE TABLE IF NOT EXISTS {} (
 {}
 )
 ENGINE {}
-PARTITION BY ({})
+{}
 ORDER BY ({});
 ",
-                    table.to_table_name(),
-                    columns,
-                    engine,
-                    partition_by,
-                    order_by
-                )
+            table.to_table_name(),
+            columns,
+            engine,
+            partition_by.map_or_else(|| "".to_string(), |pb| format!("PARTITION BY ({})", pb)),
+            order_by
+        ))
+    }
+
+    fn build_create_statements(
+        &self,
+        temporary_key: &Option<String>,
+    ) -> Result<Vec<String>, Error> {
+        self.get_resolution_metadata()?
+            .iter()
+            .map(|resolution_metadata| {
+                let table = self.build_table(resolution_metadata, temporary_key);
+                self.build_create_statement(&table)
             })
-            .collect())
+            .collect::<Result<Vec<String>, Error>>()
+    }
+}
+
+impl CreateSchema for CompactedTableSchema {
+    fn create_statements(&self) -> Result<Vec<String>, Error> {
+        self.build_create_statements(&None)
     }
 }
 
@@ -349,6 +372,7 @@ impl CompactedTableSchemaBuilder {
                 table_engine: Default::default(),
                 compression_method: Default::default(),
                 h3_base_resolutions: vec![],
+                max_h3_resolution: 0,
                 use_compaction: true,
                 temporal_resolution: Default::default(),
                 temporal_partitioning: Default::default(),
@@ -371,6 +395,12 @@ impl CompactedTableSchemaBuilder {
     }
 
     pub fn h3_base_resolutions(mut self, h3res: Vec<u8>) -> Self {
+        if !h3res.is_empty() {
+            self.schema.max_h3_resolution = *(h3res
+                .iter()
+                .max()
+                .expect("no resolutions to ge max res from"));
+        }
         self.schema.h3_base_resolutions = h3res;
         self
     }
@@ -409,50 +439,20 @@ impl CompactedTableSchemaBuilder {
 pub struct CompactedTableInserter<'a> {
     client: &'a mut ClientHandle,
     schema: &'a CompactedTableSchema,
-    schema_h3_max_res: Option<u8>,
 }
 
 impl<'a> CompactedTableInserter<'a> {
     pub fn new(client: &'a mut ClientHandle, schema: &'a CompactedTableSchema) -> Self {
-        Self {
-            client,
-            schema,
-            schema_h3_max_res: None,
-        }
+        Self { client, schema }
     }
 
-    fn schema_h3_max_resolution(&mut self) -> Result<u8, Error> {
-        match self.schema_h3_max_res {
-            Some(r) => Ok(r),
-            None => {
-                let r = self
-                    .schema
-                    .h3_base_resolutions
-                    .iter()
-                    .max()
-                    .cloned()
-                    .ok_or(Error::MixedResolutions)?; // TODO: Better error
-                self.schema_h3_max_res = Some(r);
-                Ok(r)
-            }
-        }
-    }
-
-    fn build_table(
-        &mut self,
-        h3_resolution: u8,
-        temporary_key: Option<String>,
-    ) -> Result<Table, Error> {
-        let table = Table {
-            basename: self.schema.name.clone(),
-            spec: TableSpec {
-                h3_resolution,
-                is_compacted: self.schema_h3_max_resolution()? != h3_resolution,
-                temporary_key,
-                has_base_suffix: self.schema.has_base_suffix,
-            },
-        };
-        Ok(table)
+    /// generate a temporary key to have out own tables to prepare the data in the db before
+    /// moving it the the final tables
+    fn generate_temporary_key(&self) -> String {
+        uuid::Uuid::new_v4()
+            .to_string()
+            .replace("-", "")
+            .to_lowercase()
     }
 
     async fn create_schema(&mut self) -> Result<(), Error> {
@@ -462,7 +462,7 @@ impl<'a> CompactedTableInserter<'a> {
         Ok(())
     }
 
-    pub async fn insert_columnset(&mut self, columnset: &ColumnSet) -> Result<(), Error> {
+    pub async fn insert_columnset(&'a mut self, columnset: &ColumnSet) -> Result<(), Error> {
         let mut splitted = columnset
             .to_compacted(&COL_NAME_H3INDEX)?
             .split_by_resolution(&COL_NAME_H3INDEX, true)?;
@@ -471,21 +471,19 @@ impl<'a> CompactedTableInserter<'a> {
             return Ok(()); // nothing to save
         }
 
-        let schema_max_res = self.schema_h3_max_resolution()?;
-
         // validate the received h3 resolutions
         for h3_res in splitted.keys() {
-            if h3_res > &schema_max_res {
+            if h3_res > &self.schema.max_h3_resolution {
                 log::error!(
                     "columnset included h3 resolution = {}, but the schema is only defined until {}",
                     h3_res,
-                    schema_max_res
+                    self.schema.max_h3_resolution
                 );
                 return Err(Error::InvalidH3Resolution(*h3_res));
-            } else if h3_res < &schema_max_res && !self.schema.use_compaction {
+            } else if h3_res < &self.schema.max_h3_resolution && !self.schema.use_compaction {
                 log::error!(
                     "columnset uses the max h3 resolution = {}, and does not allow compaction. Inserting h3 res = {} not possible",
-                    schema_max_res,
+                    self.schema.max_h3_resolution,
                     h3_res
                 );
                 return Err(Error::InvalidH3Resolution(*h3_res));
@@ -494,6 +492,8 @@ impl<'a> CompactedTableInserter<'a> {
 
         self.create_schema().await?;
 
+        let temporary_key = self.generate_temporary_key();
+
         let target_datatypes: HashMap<_, _> = self
             .schema
             .get_columns()
@@ -501,18 +501,116 @@ impl<'a> CompactedTableInserter<'a> {
             .map(|(col_name, col_def)| (col_name, col_def.datatype()))
             .collect();
 
-        for (h3res, cs) in splitted.drain() {
-            let table = self.build_table(h3res, None)?;
-            self.client
-                .insert(
-                    table.to_table_name(),
-                    Block::from_with_datatypes(cs, &target_datatypes)?,
-                )
-                .await?
+        let resolution_blocks = splitted
+            .drain()
+            .map(|(h3res, cs)| Ok((h3res, Block::from_with_datatypes(cs, &target_datatypes)?)))
+            .collect::<Result<HashMap<u8, Block>, Error>>()?;
+
+        log::debug!("Creating temporary tables for {} with temporary_key {}", self.schema.name, temporary_key);
+        for stmt in self.schema.build_create_statements(&Some(temporary_key.clone()))?.iter() {
+            self.client.execute(stmt).await?;
         }
 
+        match self
+            .insert_blocks(resolution_blocks, temporary_key.clone())
+            .await
+        {
+            Ok(()) => {
+                self.drop_temporary_tables(temporary_key.clone()).await?;
+                Ok(())
+            }
+            Err(e) => {
+                // attempt to restore the connection when it did break
+                self.client.check_connection().await?;
+                self.drop_temporary_tables(temporary_key.clone()).await?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn insert_blocks(
+        &mut self,
+        mut resolution_blocks: HashMap<u8, Block>,
+        temporary_key: String,
+    ) -> Result<(), Error> {
+        let temporary_key_opt = Some(temporary_key.clone());
+        for (h3res, block) in resolution_blocks.drain() {
+            let resolution_metadata = ResolutionMetadata {
+                h3_resolution: h3res,
+                is_compacted: self.schema.max_h3_resolution != h3res,
+            };
+            let table = self
+                .schema
+                .build_table(&resolution_metadata, &temporary_key_opt);
+            self.client.insert(table.to_table_name(), block).await?
+        }
+        let resolution_metadata_vec = self.schema.get_resolution_metadata()?;
+
         // TODO: create other base_table data
-        // TODO: deduplicate tables
+
+        // copy data to the non-temporary tables
+        self.copy_data_from_temporary(&resolution_metadata_vec, &temporary_key).await?;
+
+        // deduplicate tables
+        self.deduplicate(&resolution_metadata_vec, &temporary_key).await?;
+        Ok(())
+    }
+
+    async fn copy_data_from_temporary(&mut self, resolution_metadata_slice: &[ResolutionMetadata], temporary_key: &str) -> Result<(), Error> {
+        let temporary_key_opt = Some(temporary_key.to_string());
+        let columns = self.schema.columns.keys().join(", ");
+        for resolution_metadata in resolution_metadata_slice.iter() {
+            let table_from = self.schema.build_table(resolution_metadata, &temporary_key_opt).to_table_name();
+            let table_to = self.schema.build_table(resolution_metadata, &None).to_table_name();
+            log::debug!("copying data from {} to {}", table_from, table_to);
+            self.client.execute(format!("insert into {} ({}) select {} from {}", table_to, columns, columns, table_from)).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn deduplicate(&mut self, resolution_metadata_slice: &[ResolutionMetadata], temporary_key: &str) -> Result<(), Error> {
+        let part_expr = self.schema.partition_by_expressions()?;
+        if part_expr.is_empty() {
+            // without a partitioning expression we got to deduplicate all partitions
+            for resolution_metadata in resolution_metadata_slice.iter() {
+                let table_final = self.schema.build_table(resolution_metadata, &None).to_table_name();
+                self.client.execute(format!("optimize table {} deduplicate", table_final)).await?;
+            }
+        } else {
+            let part_expr_string = part_expr.iter().join(", ");
+            let temporary_key_opt = Some(temporary_key.to_string());
+            for resolution_metadata in resolution_metadata_slice.iter() {
+                let table_temp = self.schema.build_table(resolution_metadata, &temporary_key_opt).to_table_name();
+
+                // obtain the list of relevant partitions from the temporary table
+                let block = self.client.query(format!("select distinct toString(({})) pe from {}", part_expr_string, table_temp)).fetch_all().await?;
+                let mut partitions:Vec<String> = vec![];
+                for row in block.rows() {
+                    partitions.push(row.get("pe")?);
+                }
+
+                let table_final = self.schema.build_table(resolution_metadata, &None).to_table_name();
+                for partition in partitions.iter() {
+                    self.client.execute(format!("optimize table {} partition {} deduplicate", table_final, partition)).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn drop_temporary_tables(&mut self, temporary_key: String) -> Result<(), Error> {
+        let temporary_key_opt = Some(temporary_key);
+        for resolution_metadata in self.schema.get_resolution_metadata()?.iter() {
+            let table_name = self
+                .schema
+                .build_table(resolution_metadata, &temporary_key_opt)
+                .to_table_name();
+            log::debug!("dropping table {} when existing", &table_name);
+            self.client
+                .execute(format!("drop table if exists {}", table_name))
+                .await?;
+        }
         Ok(())
     }
 }
