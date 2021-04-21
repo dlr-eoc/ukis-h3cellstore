@@ -15,10 +15,10 @@ use log::{error, warn};
 use crate::clickhouse::compacted_tables::{find_tablesets, Table, TableSet, TableSpec};
 use crate::clickhouse::schema::compacted_tables::CompactedTableSchema;
 use crate::clickhouse::schema::{CreateSchema, GetSchemaColumns, Schema};
+use crate::clickhouse::FromWithDatatypes;
 use crate::error::Error;
 use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
-use crate::clickhouse::FromWithDatatypes;
 
 /// list all tablesets in the current database
 pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
@@ -311,28 +311,33 @@ async fn save_columnset_to_compactedtables(
         .to_compacted(&COL_NAME_H3INDEX)?
         .split_by_resolution(&COL_NAME_H3INDEX, true)?;
 
-    let (min_res, max_res) = match splitted.keys().minmax() {
-        MinMaxResult::NoElements => return Ok(()), // nothing to do, got no data to save
-        MinMaxResult::OneElement(r) => (*r, *r),
-        MinMaxResult::MinMax(mn, mx) => (*mn, *mx),
-    };
-    let (schema_min_res, schema_max_res) = match ct_schema.h3_base_resolutions.iter().minmax() {
+    if splitted.is_empty() {
+        return Ok(()) // nothing to save
+    }
+
+    let (_, schema_max_res) = match ct_schema.h3_base_resolutions.iter().minmax() {
         MinMaxResult::NoElements => return Err(Error::MixedResolutions), // TODO: better error
         MinMaxResult::OneElement(r) => (*r, *r),
         MinMaxResult::MinMax(mn, mx) => (*mn, *mx),
     };
-    // TODO: improve resolution validation to take compacted vs base and holes into account.
-    if max_res > schema_max_res {
-        log::error!(
-            "columnset included h3 resolution = {}, but the schema is only defined until {}",
-            max_res,
-            schema_max_res
-        );
-        return Err(Error::InvalidH3Resolution(max_res));
-    }
-    if min_res < schema_min_res {
-        log::error!("columnset included h3 resolution = {}, but the schema is only defined starting from {}", min_res, schema_min_res);
-        return Err(Error::InvalidH3Resolution(min_res));
+
+    // validate the received h3 resolutions
+    for h3_res in splitted.keys() {
+        if h3_res > &schema_max_res {
+            log::error!(
+                "columnset included h3 resolution = {}, but the schema is only defined until {}",
+                h3_res,
+                schema_max_res
+            );
+            return Err(Error::InvalidH3Resolution(*h3_res));
+        } else if h3_res < &schema_max_res && !ct_schema.use_compaction {
+            log::error!(
+                "columnset uses the max h3 resolution = {}, and does not allow compaction. Inserting h3 res = {} not possible",
+                schema_max_res,
+                h3_res
+            );
+            return Err(Error::InvalidH3Resolution(*h3_res));
+        }
     }
 
     // create the schema
@@ -357,8 +362,11 @@ async fn save_columnset_to_compactedtables(
             },
         };
 
-        ch.insert(table.to_table_name(), Block::from_with_datatypes(cs, &target_datatypes)?)
-            .await?
+        ch.insert(
+            table.to_table_name(),
+            Block::from_with_datatypes(cs, &target_datatypes)?,
+        )
+        .await?
     }
 
     // TODO: create other base_table data

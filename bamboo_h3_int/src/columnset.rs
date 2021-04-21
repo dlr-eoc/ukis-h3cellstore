@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
@@ -474,34 +474,81 @@ impl ColVec {
      */
     pub fn into_repeated_values(self, repetitions: &[usize], total_num: Option<usize>) -> ColVec {
         match self {
-            ColVec::U8(mut v) => ColVec::U8(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U8N(mut v) => ColVec::U8N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I8(mut v) => ColVec::I8(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I8N(mut v) => ColVec::I8N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U16(mut v) => ColVec::U16(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U16N(mut v) => ColVec::U16N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I16(mut v) => ColVec::I16(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I16N(mut v) => ColVec::I16N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U32(mut v) => ColVec::U32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U32N(mut v) => ColVec::U32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I32(mut v) => ColVec::I32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I32N(mut v) => ColVec::I32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U64(mut v) => ColVec::U64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::U64N(mut v) => ColVec::U64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I64(mut v) => ColVec::I64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::I64N(mut v) => ColVec::I64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::F32(mut v) => ColVec::F32(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::F32N(mut v) => ColVec::F32N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::F64(mut v) => ColVec::F64(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::F64N(mut v) => ColVec::F64N(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::Date(mut v) => ColVec::Date(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::DateN(mut v) => ColVec::DateN(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::DateTime(mut v) => ColVec::DateTime(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
-            ColVec::DateTimeN(mut v) => ColVec::DateTimeN(ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect()),
+            ColVec::U8(mut v) => ColVec::U8(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U8N(mut v) => ColVec::U8N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I8(mut v) => ColVec::I8(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I8N(mut v) => ColVec::I8N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U16(mut v) => ColVec::U16(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U16N(mut v) => ColVec::U16N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I16(mut v) => ColVec::I16(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I16N(mut v) => ColVec::I16N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U32(mut v) => ColVec::U32(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U32N(mut v) => ColVec::U32N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I32(mut v) => ColVec::I32(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I32N(mut v) => ColVec::I32N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U64(mut v) => ColVec::U64(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::U64N(mut v) => ColVec::U64N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I64(mut v) => ColVec::I64(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::I64N(mut v) => ColVec::I64N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::F32(mut v) => ColVec::F32(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::F32N(mut v) => ColVec::F32N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::F64(mut v) => ColVec::F64(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::F64N(mut v) => ColVec::F64N(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::Date(mut v) => ColVec::Date(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::DateN(mut v) => ColVec::DateN(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::DateTime(mut v) => ColVec::DateTime(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
+            ColVec::DateTimeN(mut v) => ColVec::DateTimeN(
+                ItemRepeatingIterator::new(v.drain(..), repetitions, total_num).collect(),
+            ),
         }
     }
 }
-
 
 macro_rules! vec_to_colvec_from_impl {
     ($vt:ty, $cvtype:ident) => {
@@ -655,6 +702,19 @@ impl ColumnSet {
         }
     }
 
+    pub fn get_h3_resolutions<T>(&self, h3index_column: &T) -> Result<Vec<u8>, Error>
+    where
+        T: ToString,
+    {
+        let (_, h3index_vec) = self.get_h3index_vec(h3index_column)?;
+        let mut resolutions = HashSet::new();
+        for h3index in h3index_vec {
+            let index = Index::try_from(*h3index)?;
+            resolutions.insert(index.resolution());
+        }
+        Ok(resolutions.drain().collect())
+    }
+
     /// get the names
     fn get_column_names_except(&self, except_column: &str) -> Vec<String> {
         self.columns
@@ -800,7 +860,6 @@ impl ColumnSet {
             .map(|(h3_res, colmap)| (h3_res, colmap.into()))
             .collect())
     }
-
 }
 
 /// compact the given h3 indexes

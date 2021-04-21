@@ -6,7 +6,10 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
-use crate::clickhouse::schema::{validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema, GetSchemaColumns};
+use crate::clickhouse::schema::{
+    validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSchemaColumns,
+    GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
+};
 use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
 use crate::COL_NAME_H3INDEX;
@@ -17,7 +20,7 @@ pub struct CompactedTableSchema {
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     pub(crate) h3_base_resolutions: Vec<u8>,
-    h3_compacted_resolutions: Vec<u8>,
+    pub(crate) use_compaction: bool,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,
     columns: HashMap<String, ColumnDefinition>,
@@ -164,11 +167,22 @@ impl CreateSchema for CompactedTableSchema {
             })
             .join(",\n");
 
+        let compacted_resolutions: Vec<_> = if self.use_compaction {
+            let max_res = *self
+                .h3_base_resolutions
+                .iter()
+                .max()
+                .ok_or(Error::MixedResolutions)?; // TODO: better error
+            (0..=max_res).map(|r| (r, true)).collect()
+        } else {
+            vec![]
+        };
         Ok(self
             .h3_base_resolutions
             .iter()
-            .map(|r| (*r, false))
-            .chain(self.h3_compacted_resolutions.iter().map(|r| (*r, true)))
+            .cloned()
+            .map(|r| (r, false))
+            .chain(compacted_resolutions)
             .map(|(h3_resolution, is_compacted)| {
                 let table = Table {
                     basename: self.name.clone(),
@@ -255,21 +269,6 @@ impl ValidateSchema for CompactedTableSchema {
                 "at least one h3 base resolution is required".to_string(),
             ));
         }
-        let compacted_resolutions = ordered_h3_resolutions(&self.h3_compacted_resolutions)?;
-        if !compacted_resolutions.is_empty() {
-            if let (Some(base_max), Some(compacted_max)) = (
-                base_resolutions.iter().max(),
-                compacted_resolutions.iter().max(),
-            ) {
-                if compacted_max > base_max {
-                    return Err(Error::SchemaValidationError(
-                        type_name::<Self>(),
-                        "compacted h3 resolutions may not be greater than the max base resolution"
-                            .to_string(),
-                    ));
-                }
-            }
-        }
 
         // a useful partitioning can be created
         self.partition_by_expressions()?;
@@ -277,7 +276,6 @@ impl ValidateSchema for CompactedTableSchema {
         Ok(())
     }
 }
-
 
 impl GetSchemaColumns for CompactedTableSchema {
     fn get_columns(&self) -> HashMap<String, ColumnDefinition> {
@@ -301,12 +299,12 @@ impl CompactedTableSchemaBuilder {
                 table_engine: Default::default(),
                 compression_method: Default::default(),
                 h3_base_resolutions: vec![],
-                h3_compacted_resolutions: vec![],
+                use_compaction: true,
                 temporal_resolution: Default::default(),
                 temporal_partitioning: Default::default(),
                 partition_by_columns: Default::default(),
                 columns,
-                has_base_suffix: true
+                has_base_suffix: true,
             },
             use_compaction: true,
         }
@@ -323,20 +321,12 @@ impl CompactedTableSchemaBuilder {
     }
 
     pub fn h3_base_resolutions(mut self, h3res: Vec<u8>) -> Self {
-        if self.use_compaction {
-            self.schema.h3_compacted_resolutions = h3res.clone();
-        }
         self.schema.h3_base_resolutions = h3res;
         self
     }
 
     pub fn use_compacted_resolutions(mut self, use_compaction: bool) -> Self {
         self.use_compaction = use_compaction;
-        if use_compaction {
-            self.schema.h3_compacted_resolutions = self.schema.h3_base_resolutions.clone();
-        } else {
-            self.schema.h3_compacted_resolutions = vec![];
-        }
         self
     }
 

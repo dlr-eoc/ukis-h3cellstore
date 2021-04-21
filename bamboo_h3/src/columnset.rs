@@ -32,7 +32,7 @@ pub enum DataFrameColumnData<'a> {
     I64(PyReadonlyArray1<'a, i64>),
     F32(PyReadonlyArray1<'a, f32>),
     F64(PyReadonlyArray1<'a, f64>),
-    // TODO: Date and DateTime
+    // Date and DateTime are handled via ColumnSet.add_numpy_date[time]_column
 }
 
 impl From<DataFrameColumnData<'_>> for ColVec {
@@ -48,7 +48,7 @@ impl From<DataFrameColumnData<'_>> for ColVec {
             DataFrameColumnData::I64(ra) => ColVec::I64(ra.as_array().to_vec()),
             DataFrameColumnData::F32(ra) => ColVec::F32(ra.as_array().to_vec()),
             DataFrameColumnData::F64(ra) => ColVec::F64(ra.as_array().to_vec()),
-            // TODO: Date and DateTime
+            // Date and DateTime are handled via ColumnSet.add_numpy_date[time]_column
         }
     }
 }
@@ -93,6 +93,7 @@ impl ColumnSet {
             .into_pyresult()
     }
 
+    /// add a datetime column using UTC UNIX timestamps
     fn add_numpy_datetime_column(
         &mut self,
         column_name: String,
@@ -111,6 +112,7 @@ impl ColumnSet {
             .into_pyresult()
     }
 
+    /// add a date column using UTC UNIX timestamps
     fn add_numpy_date_column(
         &mut self,
         column_name: String,
