@@ -2,6 +2,7 @@ use std::any::type_name;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use clickhouse_rs::{Block, ClientHandle};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -10,9 +11,10 @@ use crate::clickhouse::schema::{
     validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSchemaColumns,
     GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
 };
+use crate::clickhouse::FromWithDatatypes;
 use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
-use crate::COL_NAME_H3INDEX;
+use crate::{ColumnSet, COL_NAME_H3INDEX};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
@@ -26,6 +28,39 @@ pub struct CompactedTableSchema {
     columns: HashMap<String, ColumnDefinition>,
     partition_by_columns: Vec<String>,
     pub(crate) has_base_suffix: bool,
+}
+
+#[derive(Eq)]
+struct ResolutionMetadata {
+    h3_resolution: u8,
+    is_compacted: bool,
+}
+impl PartialOrd for ResolutionMetadata {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ResolutionMetadata {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.h3_resolution < other.h3_resolution {
+            Ordering::Less
+        } else if self.h3_resolution > other.h3_resolution {
+            Ordering::Greater
+        } else if self.is_compacted == other.is_compacted {
+            Ordering::Equal
+        } else if self.is_compacted && !other.is_compacted {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
+    }
+}
+
+impl PartialEq for ResolutionMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_compacted == other.is_compacted && self.h3_resolution == other.h3_resolution
+    }
 }
 
 impl CompactedTableSchema {
@@ -136,6 +171,34 @@ impl CompactedTableSchema {
         }
         Ok(partition_by)
     }
+
+    fn get_resolution_metadata(&self) -> Result<Vec<ResolutionMetadata>, Error> {
+        let compacted_resolutions: Vec<_> = if self.use_compaction {
+            let max_res = *self
+                .h3_base_resolutions
+                .iter()
+                .max()
+                .ok_or(Error::MixedResolutions)?; // TODO: better error
+            (0..=max_res)
+                .map(|r| ResolutionMetadata {
+                    h3_resolution: r,
+                    is_compacted: true,
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        Ok(self
+            .h3_base_resolutions
+            .iter()
+            .cloned()
+            .map(|r| ResolutionMetadata {
+                h3_resolution: r,
+                is_compacted: false,
+            })
+            .chain(compacted_resolutions)
+            .collect())
+    }
 }
 
 impl CreateSchema for CompactedTableSchema {
@@ -167,28 +230,15 @@ impl CreateSchema for CompactedTableSchema {
             })
             .join(",\n");
 
-        let compacted_resolutions: Vec<_> = if self.use_compaction {
-            let max_res = *self
-                .h3_base_resolutions
-                .iter()
-                .max()
-                .ok_or(Error::MixedResolutions)?; // TODO: better error
-            (0..=max_res).map(|r| (r, true)).collect()
-        } else {
-            vec![]
-        };
         Ok(self
-            .h3_base_resolutions
+            .get_resolution_metadata()?
             .iter()
-            .cloned()
-            .map(|r| (r, false))
-            .chain(compacted_resolutions)
-            .map(|(h3_resolution, is_compacted)| {
+            .map(|resolution_metadata| {
                 let table = Table {
                     basename: self.name.clone(),
                     spec: TableSpec {
-                        h3_resolution,
-                        is_compacted,
+                        h3_resolution: resolution_metadata.h3_resolution,
+                        is_compacted: resolution_metadata.is_compacted,
                         temporary_key: None,
                         has_base_suffix: self.has_base_suffix,
                     },
@@ -356,9 +406,122 @@ impl CompactedTableSchemaBuilder {
     }
 }
 
+pub struct CompactedTableInserter<'a> {
+    client: &'a mut ClientHandle,
+    schema: &'a CompactedTableSchema,
+    schema_h3_max_res: Option<u8>,
+}
+
+impl<'a> CompactedTableInserter<'a> {
+    pub fn new(client: &'a mut ClientHandle, schema: &'a CompactedTableSchema) -> Self {
+        Self {
+            client,
+            schema,
+            schema_h3_max_res: None,
+        }
+    }
+
+    fn schema_h3_max_resolution(&mut self) -> Result<u8, Error> {
+        match self.schema_h3_max_res {
+            Some(r) => Ok(r),
+            None => {
+                let r = self
+                    .schema
+                    .h3_base_resolutions
+                    .iter()
+                    .max()
+                    .cloned()
+                    .ok_or(Error::MixedResolutions)?; // TODO: Better error
+                self.schema_h3_max_res = Some(r);
+                Ok(r)
+            }
+        }
+    }
+
+    fn build_table(
+        &mut self,
+        h3_resolution: u8,
+        temporary_key: Option<String>,
+    ) -> Result<Table, Error> {
+        let table = Table {
+            basename: self.schema.name.clone(),
+            spec: TableSpec {
+                h3_resolution,
+                is_compacted: self.schema_h3_max_resolution()? != h3_resolution,
+                temporary_key,
+                has_base_suffix: self.schema.has_base_suffix,
+            },
+        };
+        Ok(table)
+    }
+
+    async fn create_schema(&mut self) -> Result<(), Error> {
+        for stmt in self.schema.create_statements()?.iter() {
+            self.client.execute(stmt).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn insert_columnset(&mut self, columnset: &ColumnSet) -> Result<(), Error> {
+        let mut splitted = columnset
+            .to_compacted(&COL_NAME_H3INDEX)?
+            .split_by_resolution(&COL_NAME_H3INDEX, true)?;
+
+        if splitted.is_empty() {
+            return Ok(()); // nothing to save
+        }
+
+        let schema_max_res = self.schema_h3_max_resolution()?;
+
+        // validate the received h3 resolutions
+        for h3_res in splitted.keys() {
+            if h3_res > &schema_max_res {
+                log::error!(
+                    "columnset included h3 resolution = {}, but the schema is only defined until {}",
+                    h3_res,
+                    schema_max_res
+                );
+                return Err(Error::InvalidH3Resolution(*h3_res));
+            } else if h3_res < &schema_max_res && !self.schema.use_compaction {
+                log::error!(
+                    "columnset uses the max h3 resolution = {}, and does not allow compaction. Inserting h3 res = {} not possible",
+                    schema_max_res,
+                    h3_res
+                );
+                return Err(Error::InvalidH3Resolution(*h3_res));
+            }
+        }
+
+        self.create_schema().await?;
+
+        let target_datatypes: HashMap<_, _> = self
+            .schema
+            .get_columns()
+            .drain()
+            .map(|(col_name, col_def)| (col_name, col_def.datatype()))
+            .collect();
+
+        for (h3res, cs) in splitted.drain() {
+            let table = self.build_table(h3res, None)?;
+            self.client
+                .insert(
+                    table.to_table_name(),
+                    Block::from_with_datatypes(cs, &target_datatypes)?,
+                )
+                .await?
+        }
+
+        // TODO: create other base_table data
+        // TODO: deduplicate tables
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::clickhouse::schema::compacted_tables::CompactedTableSchemaBuilder;
+    use crate::clickhouse::schema::compacted_tables::{
+        CompactedTableSchemaBuilder, ResolutionMetadata,
+    };
     use crate::clickhouse::schema::{
         AggregationMethod, ColumnDefinition, CompactedTableSchema, CreateSchema, Schema,
         SimpleColumn, TemporalPartitioning,
@@ -419,5 +582,36 @@ mod tests {
                 "toString(toMonth(observed_on))".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn resolution_metadata_sort() {
+        let mut v1 = vec![
+            ResolutionMetadata {
+                h3_resolution: 4,
+                is_compacted: false,
+            },
+            ResolutionMetadata {
+                h3_resolution: 3,
+                is_compacted: false,
+            },
+        ];
+        v1.sort_unstable();
+        assert_eq!(v1[0].h3_resolution, 3);
+        assert_eq!(v1[1].h3_resolution, 4);
+
+        let mut v2 = vec![
+            ResolutionMetadata {
+                h3_resolution: 3,
+                is_compacted: true,
+            },
+            ResolutionMetadata {
+                h3_resolution: 3,
+                is_compacted: false,
+            },
+        ];
+        v2.sort_unstable();
+        assert_eq!(v2[0].is_compacted, false);
+        assert_eq!(v2[1].is_compacted, true);
     }
 }
