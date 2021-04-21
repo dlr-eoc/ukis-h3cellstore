@@ -506,8 +506,16 @@ impl<'a> CompactedTableInserter<'a> {
             .map(|(h3res, cs)| Ok((h3res, Block::from_with_datatypes(cs, &target_datatypes)?)))
             .collect::<Result<HashMap<u8, Block>, Error>>()?;
 
-        log::debug!("Creating temporary tables for {} with temporary_key {}", self.schema.name, temporary_key);
-        for stmt in self.schema.build_create_statements(&Some(temporary_key.clone()))?.iter() {
+        log::debug!(
+            "Creating temporary tables for {} with temporary_key {}",
+            self.schema.name,
+            temporary_key
+        );
+        for stmt in self
+            .schema
+            .build_create_statements(&Some(temporary_key.clone()))?
+            .iter()
+        {
             self.client.execute(stmt).await?;
         }
 
@@ -521,8 +529,10 @@ impl<'a> CompactedTableInserter<'a> {
             }
             Err(e) => {
                 // attempt to restore the connection when it did break
-                self.client.check_connection().await?;
-                self.drop_temporary_tables(temporary_key.clone()).await?;
+                // todo: currently clickhouse_rs is unable to recover the connection and the
+                //   following will only hide the true error, so it is commented out.
+                // self.client.check_connection().await?;
+                // self.drop_temporary_tables(temporary_key.clone()).await?;
                 Err(e)
             }
         }
@@ -548,51 +558,96 @@ impl<'a> CompactedTableInserter<'a> {
 
         // TODO: create other base_table data
 
-        // copy data to the non-temporary tables
-        self.copy_data_from_temporary(&resolution_metadata_vec, &temporary_key).await?;
+        // copy data to the non-temporary tables to the final tables
+        self.copy_data_from_temporary(&resolution_metadata_vec, &temporary_key)
+            .await?;
 
         // deduplicate tables
-        self.deduplicate(&resolution_metadata_vec, &temporary_key).await?;
+        self.deduplicate(&resolution_metadata_vec, &temporary_key)
+            .await?;
         Ok(())
     }
 
-    async fn copy_data_from_temporary(&mut self, resolution_metadata_slice: &[ResolutionMetadata], temporary_key: &str) -> Result<(), Error> {
+    async fn copy_data_from_temporary(
+        &mut self,
+        resolution_metadata_slice: &[ResolutionMetadata],
+        temporary_key: &str,
+    ) -> Result<(), Error> {
         let temporary_key_opt = Some(temporary_key.to_string());
         let columns = self.schema.columns.keys().join(", ");
         for resolution_metadata in resolution_metadata_slice.iter() {
-            let table_from = self.schema.build_table(resolution_metadata, &temporary_key_opt).to_table_name();
-            let table_to = self.schema.build_table(resolution_metadata, &None).to_table_name();
+            let table_from = self
+                .schema
+                .build_table(resolution_metadata, &temporary_key_opt)
+                .to_table_name();
+            let table_to = self
+                .schema
+                .build_table(resolution_metadata, &None)
+                .to_table_name();
             log::debug!("copying data from {} to {}", table_from, table_to);
-            self.client.execute(format!("insert into {} ({}) select {} from {}", table_to, columns, columns, table_from)).await?;
+            self.client
+                .execute(format!(
+                    "insert into {} ({}) select {} from {}",
+                    table_to, columns, columns, table_from
+                ))
+                .await?;
         }
-
         Ok(())
     }
 
-    async fn deduplicate(&mut self, resolution_metadata_slice: &[ResolutionMetadata], temporary_key: &str) -> Result<(), Error> {
+    async fn deduplicate(
+        &mut self,
+        resolution_metadata_slice: &[ResolutionMetadata],
+        temporary_key: &str,
+    ) -> Result<(), Error> {
         let part_expr = self.schema.partition_by_expressions()?;
         if part_expr.is_empty() {
             // without a partitioning expression we got to deduplicate all partitions
             for resolution_metadata in resolution_metadata_slice.iter() {
-                let table_final = self.schema.build_table(resolution_metadata, &None).to_table_name();
-                self.client.execute(format!("optimize table {} deduplicate", table_final)).await?;
+                let table_final = self
+                    .schema
+                    .build_table(resolution_metadata, &None)
+                    .to_table_name();
+                log::debug!("de-duplicating the complete {} table :(", table_final);
+                self.client
+                    .execute(format!("optimize table {} deduplicate", table_final))
+                    .await?;
             }
         } else {
             let part_expr_string = part_expr.iter().join(", ");
             let temporary_key_opt = Some(temporary_key.to_string());
             for resolution_metadata in resolution_metadata_slice.iter() {
-                let table_temp = self.schema.build_table(resolution_metadata, &temporary_key_opt).to_table_name();
+                let table_temp = self
+                    .schema
+                    .build_table(resolution_metadata, &temporary_key_opt)
+                    .to_table_name();
 
                 // obtain the list of relevant partitions from the temporary table
-                let block = self.client.query(format!("select distinct toString(({})) pe from {}", part_expr_string, table_temp)).fetch_all().await?;
-                let mut partitions:Vec<String> = vec![];
+                let block = self
+                    .client
+                    .query(format!(
+                        "select distinct toString(({})) pe from {}",
+                        part_expr_string, table_temp
+                    ))
+                    .fetch_all()
+                    .await?;
+                let mut partitions: Vec<String> = vec![];
                 for row in block.rows() {
                     partitions.push(row.get("pe")?);
                 }
 
-                let table_final = self.schema.build_table(resolution_metadata, &None).to_table_name();
+                let table_final = self
+                    .schema
+                    .build_table(resolution_metadata, &None)
+                    .to_table_name();
                 for partition in partitions.iter() {
-                    self.client.execute(format!("optimize table {} partition {} deduplicate", table_final, partition)).await?;
+                    log::debug!("de-duplicating partition ({}) of the {} table", partition, table_final);
+                    self.client
+                        .execute(format!(
+                            "optimize table {} partition {} deduplicate",
+                            table_final, partition
+                        ))
+                        .await?;
                 }
             }
         }
