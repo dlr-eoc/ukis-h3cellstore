@@ -710,7 +710,7 @@ impl<'a> CompactedTableInserter<'a> {
             .cloned()
             .collect();
         if resolutions_to_aggregate.len() <= 1 {
-            // one or less resolutions require no aggregation
+            // having just one or zero resolutions require no aggregation
             return Ok(());
         }
 
@@ -747,20 +747,21 @@ impl<'a> CompactedTableInserter<'a> {
                 )
                 .to_table_name();
             let source_tables: Vec<_> = {
-                let mut source_tables = vec![];
-                // the source base table
-                source_tables.push((
-                    source_resolution,
-                    self.schema
-                        .build_table(
-                            &ResolutionMetadata {
-                                h3_resolution: source_resolution,
-                                is_compacted: false,
-                            },
-                            temporary_key,
-                        )
-                        .to_table_name(),
-                ));
+                let mut source_tables = vec![
+                    // the source base table
+                    (
+                        source_resolution,
+                        self.schema
+                            .build_table(
+                                &ResolutionMetadata {
+                                    h3_resolution: source_resolution,
+                                    is_compacted: false,
+                                },
+                                temporary_key,
+                            )
+                            .to_table_name(),
+                    ),
+                ];
 
                 // the compacted tables in between
                 for r in (target_resolution + 1)..=source_resolution {
@@ -786,7 +787,7 @@ impl<'a> CompactedTableInserter<'a> {
             let num_batches = {
                 let subqueries: Vec<_> = source_tables
                     .iter()
-                    .map(|(_, table_name)| format!("(select count(*) from {})", target_table_name))
+                    .map(|(_, table_name)| format!("(select count(*) from {})", table_name))
                     .collect();
                 let q = format!("select ({})", subqueries.join(" + "));
                 if let Some(row) = self.client.query(q).fetch_all().await?.rows().next() {
@@ -813,7 +814,8 @@ impl<'a> CompactedTableInserter<'a> {
 
             for batch in 0..num_batches {
 
-
+                // batching is to be used on the parent indexes to always aggregate everything belonging
+                // in the same row in the same batch. this ensures nothing get overwritten.
             }
         }
 
