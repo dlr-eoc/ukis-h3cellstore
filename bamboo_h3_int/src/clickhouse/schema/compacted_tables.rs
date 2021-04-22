@@ -600,6 +600,13 @@ impl<'a> CompactedTableInserter<'a> {
         resolution_metadata_slice: &[ResolutionMetadata],
         temporary_key: &str,
     ) -> Result<(), Error> {
+        // this could also be implemented by obtaining the partition expression from
+        // the clickhouse `system.parts` using a query like this one:
+        //
+        // `select name, partition_key from system.tables where name = 'timestamp_test_04_base';`
+        //
+        // that solution would be more resilient in case the schema description in this library
+        // has diverged from the database tables.
         let part_expr = self.schema.partition_by_expressions()?;
         if part_expr.is_empty() {
             // without a partitioning expression we got to deduplicate all partitions

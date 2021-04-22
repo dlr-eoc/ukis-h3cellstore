@@ -25,6 +25,7 @@ __all__ = [
     "AlreadyMoved",
     "TablesetNotFound",
     "TableSetLike",
+    "is_release_build",
 
     # accessing the imported function and classes to let IDEs know these are not
     # unused imports. They are only re-exported, but not used in this file.
@@ -38,6 +39,17 @@ __all__ = [
 ]
 
 __version__ = version()
+
+
+def is_release_build() -> bool:
+    from .bamboo_h3 import is_release_build as __bin_is_release_build
+    return __bin_is_release_build()
+
+
+if not is_release_build():
+    import warnings
+
+    warnings.warn("bamboo_h3 is not compiled in release mode. Performance will be degraded.", RuntimeWarning)
 
 TableSetLike = Union[TableSet, str]
 

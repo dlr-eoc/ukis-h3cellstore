@@ -2,9 +2,8 @@ import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 import pytest
-from bamboo_h3 import ColumnSet
+from bamboo_h3 import ColumnSet, is_release_build
 
-from . import is_release_build
 # noinspection PyUnresolvedReferences
 from .fixtures import naturalearth_africa_dataframe_4, r_tiff_dataframe_uncompacted_8, naturalearth_africa_dataframe_8, \
     r_tiff_dataframe_compacted_8
