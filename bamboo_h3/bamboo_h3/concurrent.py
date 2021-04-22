@@ -19,15 +19,17 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygo
     width = xmax - xmin
     height = ymax - ymin
 
-    cell_size = min(height, width) / max(height, width) * float(math.sqrt(num_chunks_approx)) / 2.0
+    cell_width = width / math.sqrt(num_chunks_approx)
+    cell_height = height / math.sqrt(num_chunks_approx)
+
     chunks = []
-    for i in range(math.ceil(width / cell_size)):
-        for j in range(math.ceil(height / cell_size)):
+    for x in range(math.ceil(math.sqrt(num_chunks_approx))):
+        for y in range(math.ceil(math.sqrt(num_chunks_approx))):
             b = box(
-                xmin + i * cell_size,
-                ymin + j * cell_size,
-                xmin + (i + 1) * cell_size,
-                ymin + (j + 1) * cell_size
+                xmin + x * cell_width,
+                ymin + y * cell_height,
+                xmin + (x + 1) * cell_width,
+                ymin + (y + 1) * cell_height,
             )
             g = geometry.intersection(b)
             if g.is_empty:
