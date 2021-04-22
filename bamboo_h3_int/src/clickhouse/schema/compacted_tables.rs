@@ -16,6 +16,9 @@ use crate::common::ordered_h3_resolutions;
 use crate::error::Error;
 use crate::{ColumnSet, COL_NAME_H3INDEX};
 
+/// the name of the parent h3index column used for aggregation
+const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
     pub(crate) name: String,
@@ -524,7 +527,8 @@ impl<'a> CompactedTableInserter<'a> {
             .await
         {
             Ok(()) => {
-                self.drop_temporary_tables(temporary_key.clone()).await?;
+                self.drop_temporary_tables(&Some(temporary_key.clone()))
+                    .await?;
                 Ok(())
             }
             Err(e) => {
@@ -556,14 +560,16 @@ impl<'a> CompactedTableInserter<'a> {
         }
         let resolution_metadata_vec = self.schema.get_resolution_metadata()?;
 
-        // TODO: create other base_table data
+        // apply all aggegations
+        self.build_aggregated_resolutions(&resolution_metadata_vec, &temporary_key_opt)
+            .await?;
 
         // copy data to the non-temporary tables to the final tables
-        self.copy_data_from_temporary(&resolution_metadata_vec, &temporary_key)
+        self.copy_data_from_temporary(&resolution_metadata_vec, &temporary_key_opt)
             .await?;
 
         // deduplicate tables
-        self.deduplicate(&resolution_metadata_vec, &temporary_key)
+        self.deduplicate(&resolution_metadata_vec, &temporary_key_opt)
             .await?;
         Ok(())
     }
@@ -571,14 +577,17 @@ impl<'a> CompactedTableInserter<'a> {
     async fn copy_data_from_temporary(
         &mut self,
         resolution_metadata_slice: &[ResolutionMetadata],
-        temporary_key: &str,
+        temporary_key: &Option<String>,
     ) -> Result<(), Error> {
-        let temporary_key_opt = Some(temporary_key.to_string());
+        if temporary_key.is_none() {
+            // nothing to do without a temporary_key
+            return Ok(());
+        }
         let columns = self.schema.columns.keys().join(", ");
         for resolution_metadata in resolution_metadata_slice.iter() {
             let table_from = self
                 .schema
-                .build_table(resolution_metadata, &temporary_key_opt)
+                .build_table(resolution_metadata, temporary_key)
                 .to_table_name();
             let table_to = self
                 .schema
@@ -598,7 +607,7 @@ impl<'a> CompactedTableInserter<'a> {
     async fn deduplicate(
         &mut self,
         resolution_metadata_slice: &[ResolutionMetadata],
-        temporary_key: &str,
+        temporary_key: &Option<String>,
     ) -> Result<(), Error> {
         // this could also be implemented by obtaining the partition expression from
         // the clickhouse `system.parts` using a query like this one:
@@ -608,7 +617,7 @@ impl<'a> CompactedTableInserter<'a> {
         // that solution would be more resilient in case the schema description in this library
         // has diverged from the database tables.
         let part_expr = self.schema.partition_by_expressions()?;
-        if part_expr.is_empty() {
+        if part_expr.is_empty() || temporary_key.is_none() {
             // without a partitioning expression we got to deduplicate all partitions
             for resolution_metadata in resolution_metadata_slice.iter() {
                 let table_final = self
@@ -622,14 +631,14 @@ impl<'a> CompactedTableInserter<'a> {
             }
         } else {
             let part_expr_string = part_expr.iter().join(", ");
-            let temporary_key_opt = Some(temporary_key.to_string());
             for resolution_metadata in resolution_metadata_slice.iter() {
                 let table_temp = self
                     .schema
-                    .build_table(resolution_metadata, &temporary_key_opt)
+                    .build_table(resolution_metadata, temporary_key)
                     .to_table_name();
 
-                // obtain the list of relevant partitions from the temporary table
+                // obtain the list of relevant partitions which did receive changes by running
+                // the partition expression on the temporary table.
                 let block = self
                     .client
                     .query(format!(
@@ -648,7 +657,11 @@ impl<'a> CompactedTableInserter<'a> {
                     .build_table(resolution_metadata, &None)
                     .to_table_name();
                 for partition in partitions.iter() {
-                    log::debug!("de-duplicating partition ({}) of the {} table", partition, table_final);
+                    log::debug!(
+                        "de-duplicating partition ({}) of the {} table",
+                        partition,
+                        table_final
+                    );
                     self.client
                         .execute(format!(
                             "optimize table {} partition {} deduplicate",
@@ -661,18 +674,149 @@ impl<'a> CompactedTableInserter<'a> {
         Ok(())
     }
 
-    async fn drop_temporary_tables(&mut self, temporary_key: String) -> Result<(), Error> {
-        let temporary_key_opt = Some(temporary_key);
+    async fn drop_temporary_tables(&mut self, temporary_key: &Option<String>) -> Result<(), Error> {
+        if temporary_key.is_none() {
+            // nothing to do without a temporary_key
+            return Ok(());
+        }
         for resolution_metadata in self.schema.get_resolution_metadata()?.iter() {
             let table_name = self
                 .schema
-                .build_table(resolution_metadata, &temporary_key_opt)
+                .build_table(resolution_metadata, temporary_key)
                 .to_table_name();
             log::debug!("dropping table {} when existing", &table_name);
             self.client
                 .execute(format!("drop table if exists {}", table_name))
                 .await?;
         }
+        Ok(())
+    }
+
+    async fn build_aggregated_resolutions(
+        &mut self,
+        resolution_metadata_slice: &[ResolutionMetadata],
+        temporary_key: &Option<String>,
+    ) -> Result<(), Error> {
+        if temporary_key.is_none() {
+            log::warn!("Aggregations can only build in temporary tables. Doing nothing ...");
+            return Ok(());
+        }
+        let resolutions_to_aggregate: Vec<_> = self
+            .schema
+            .h3_base_resolutions
+            .iter()
+            .sorted()
+            .rev()
+            .cloned()
+            .collect();
+        if resolutions_to_aggregate.len() <= 1 {
+            // one or less resolutions require no aggregation
+            return Ok(());
+        }
+
+        let column_names_with_aggregation: HashMap<_, _> = self
+            .schema
+            .get_columns()
+            .drain()
+            .map(|(col_name, def)| {
+                let agg_method = match def {
+                    ColumnDefinition::WithAggregation(_, agg_method) => Some(agg_method),
+                    _ => None,
+                };
+                (col_name, agg_method)
+            })
+            .collect();
+
+        // TODO: switch to https://doc.rust-lang.org/std/primitive.slice.html#method.array_windows when that is stabilized.
+        for agg_resolutions in resolutions_to_aggregate.windows(2) {
+            let source_resolution = agg_resolutions[0];
+            let target_resolution = agg_resolutions[1];
+            log::debug!(
+                "aggregating resolution {} into resolution {}",
+                source_resolution,
+                target_resolution
+            );
+            let target_table_name = self
+                .schema
+                .build_table(
+                    &ResolutionMetadata {
+                        h3_resolution: target_resolution,
+                        is_compacted: false,
+                    },
+                    temporary_key,
+                )
+                .to_table_name();
+            let source_tables: Vec<_> = {
+                let mut source_tables = vec![];
+                // the source base table
+                source_tables.push((
+                    source_resolution,
+                    self.schema
+                        .build_table(
+                            &ResolutionMetadata {
+                                h3_resolution: source_resolution,
+                                is_compacted: false,
+                            },
+                            temporary_key,
+                        )
+                        .to_table_name(),
+                ));
+
+                // the compacted tables in between
+                for r in (target_resolution + 1)..=source_resolution {
+                    source_tables.push((
+                        r,
+                        self.schema
+                            .build_table(
+                                &ResolutionMetadata {
+                                    h3_resolution: r,
+                                    is_compacted: true,
+                                },
+                                temporary_key,
+                            )
+                            .to_table_name(),
+                    ));
+                }
+                source_tables
+            };
+
+            //dbg!((&target_table_name, &source_tables));
+            // estimate a number of batches to use to avoid moving large amounts of data at once. This slows
+            // things down a bit, but helps when not too much memory is available on the db server.
+            let num_batches = {
+                let subqueries: Vec<_> = source_tables
+                    .iter()
+                    .map(|(_, table_name)| format!("(select count(*) from {})", target_table_name))
+                    .collect();
+                let q = format!("select ({})", subqueries.join(" + "));
+                if let Some(row) = self.client.query(q).fetch_all().await?.rows().next() {
+                    let num_rows: u64 = row.get(0)?;
+                    (num_rows as usize / 1_000_000) + 1
+                } else {
+                    1_usize
+                }
+            };
+            log::debug!("using {} batches for aggregation", num_batches);
+
+            // append a parent index column to use for the aggregation to the source tables
+            for (_, table_name) in source_tables.iter() {
+                self.client
+                    .execute(format!(
+                    "alter table {} add column if not exists {} UInt64 default h3ToParent({},{})", 
+                    table_name,
+                    COL_NAME_H3INDEX_PARENT_AGG,
+                    COL_NAME_H3INDEX,
+                    target_resolution
+                ))
+                    .await?;
+            }
+
+            for batch in 0..num_batches {
+
+
+            }
+        }
+
         Ok(())
     }
 }

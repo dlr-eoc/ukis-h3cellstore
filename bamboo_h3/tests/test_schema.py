@@ -88,7 +88,9 @@ def __save_dataframe_datetime(clickhouse_db, input_date_string, column_type):
     except TablesetNotFound:
         pass
     csb = CompactedTableSchemaBuilder(tableset_name)
-    csb.h3_base_resolutions(list(range(0, h3.h3_get_resolution(start_index) + 1)))
+    resolutions = list(range(0, h3.h3_get_resolution(start_index) + 1))
+    resolutions.remove(1)  # leave on resolution out to test skipping resolutions
+    csb.h3_base_resolutions(resolutions)
     csb.add_column("dtime", column_type)
     schema = csb.build()
 
