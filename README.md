@@ -21,7 +21,7 @@ This library uses [clickhouse_rs], so all the connection options from [the docum
 can be used. A few things to keep in mind:
 
 * Always use the cheap `lz4` compression. This reduces the amount of data to be transfered over the network.
-* The default `connection_timeout` is quite low for large amounts of geodata. You may want to increase that, but it also should be multiple minutes.
+* The default `connection_timeout` is quite low for large amounts of geodata. You may want to increase that.
 
 
 ## Logging
