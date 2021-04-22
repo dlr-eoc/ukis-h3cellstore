@@ -149,10 +149,10 @@ class ColumnSet:
                 array = self.inner.drain_column_f64(column_name)
             elif column_type == 'date':
                 array = pd.to_datetime(np.asarray(self.inner.drain_column_date(column_name), dtype='datetime64[s]'),
-                                       utc=True)
+                                       utc=True, infer_datetime_format=True)
             elif column_type == 'datetime':
                 array = pd.to_datetime(np.asarray(self.inner.drain_column_datetime(column_name),
-                                                  dtype='datetime64[s]'), utc=True)
+                                                  dtype='datetime64[s]'), utc=True, infer_datetime_format=True)
             else:
                 raise NotImplementedError(f"unsupported column type: {column_type}")
             data[column_name] = array
