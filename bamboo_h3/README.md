@@ -11,7 +11,7 @@ There are three main commands:
 For just using with python, build with
 
 ```
-maturin build --release
+maturin build --release --strip
 ```
 
 to get an optimized build.
