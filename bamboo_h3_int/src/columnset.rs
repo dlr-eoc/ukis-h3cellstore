@@ -798,13 +798,32 @@ impl ColumnSet {
         }
     }
 
-    /// split the columnset into parts depending on the h3 resolution used
-    /// in the given h3index column
     pub fn split_by_resolution<T>(
         &self,
         h3index_column: &T,
         validate_indexes: bool,
     ) -> Result<HashMap<u8, Self>, Error>
+        where
+            T: ToString,
+    {
+        let out: HashMap<_, _> = self
+            .split_by_resolution_chunked(h3index_column, validate_indexes, None)?
+            .drain()
+            .filter_map(|(h3res, mut columnsets)| {
+                columnsets.pop().map(|columnset| (h3res, columnset))
+            })
+            .collect();
+        Ok(out)
+    }
+
+    /// split the columnset into parts depending on the h3 resolution used
+    /// in the given h3index column
+    pub fn split_by_resolution_chunked<T>(
+        &self,
+        h3index_column: &T,
+        validate_indexes: bool,
+        chunk_size: Option<usize>,
+    ) -> Result<HashMap<u8, Vec<Self>>, Error>
     where
         T: ToString,
     {
@@ -818,47 +837,75 @@ impl ColumnSet {
             })
             .collect();
 
+        let mut finished_outputs: HashMap<u8, Vec<Self>> = Default::default();
         // TODO: not relying on nested maps would surely be faster
-        let mut outmaps: NonSecureHashMap<u8, NonSecureHashMap<String, ColVec>> =
+        let mut current_chunkmaps: NonSecureHashMap<u8, NonSecureHashMap<String, ColVec>> =
             Default::default();
         for (i, h3index) in h3index_vec.iter().enumerate() {
-            let index = if validate_indexes {
-                Index::try_from(*h3index)?
-            } else {
-                Index::new(*h3index)
-            };
-            let resmap = outmaps
-                .entry(index.resolution())
-                .or_insert_with(Default::default);
+            let (chunk_is_finished, chunk_resolution) = {
+                let index = if validate_indexes {
+                    Index::try_from(*h3index)?
+                } else {
+                    Index::new(*h3index)
+                };
+                let h3_resolution = index.resolution();
+                let resmap = current_chunkmaps
+                    .entry(h3_resolution)
+                    .or_insert_with(Default::default);
 
-            // push the h3index
-            match resmap.get_mut(&h3index_column_name) {
-                Some(cv) => cv.push(ColVecValue::U64(index.h3index()))?,
-                None => {
-                    resmap.insert(
-                        h3index_column_name.clone(),
-                        ColVec::U64(vec![index.h3index()]),
-                    );
-                }
-            }
-
-            // push all remaining
-            for (column_name, column_colvec) in other_columns.iter() {
-                let val = column_colvec.value_at(i).expect("column vec too short");
-
-                match resmap.get_mut(column_name) {
-                    Some(cv) => cv.push(val)?,
-                    None => {
-                        resmap.insert(column_name.clone(), ColVec::from_cvv(val));
+                // push the h3index
+                let current_size = match resmap.get_mut(&h3index_column_name) {
+                    Some(cv) => {
+                        cv.push(ColVecValue::U64(index.h3index()))?;
+                        if chunk_size.is_some() {
+                            cv.len()
+                        } else {
+                            1_usize
+                        }
                     }
+                    None => {
+                        resmap.insert(
+                            h3index_column_name.clone(),
+                            ColVec::U64(vec![index.h3index()]),
+                        );
+                        1_usize
+                    }
+                };
+
+                // push all remaining
+                for (column_name, column_colvec) in other_columns.iter() {
+                    let val = column_colvec.value_at(i).expect("column vec too short");
+
+                    match resmap.get_mut(column_name) {
+                        Some(cv) => cv.push(val)?,
+                        None => {
+                            resmap.insert(column_name.clone(), ColVec::from_cvv(val));
+                        }
+                    }
+                }
+                (
+                    chunk_size.map_or(false, |cs| current_size >= cs),
+                    h3_resolution,
+                )
+            };
+
+            if chunk_is_finished {
+                if let Some(chunkmap) = current_chunkmaps.remove(&chunk_resolution) {
+                    finished_outputs
+                        .entry(chunk_resolution)
+                        .or_insert_with(Default::default)
+                        .push(chunkmap.into())
                 }
             }
         }
-
-        Ok(outmaps
-            .drain()
-            .map(|(h3_res, colmap)| (h3_res, colmap.into()))
-            .collect())
+        // add the currently unfinished chunks
+        for (h3_resolution, chunkmap) in current_chunkmaps.drain() {
+            finished_outputs
+                .entry(h3_resolution)
+                .or_insert_with(Default::default)
+                .push(chunkmap.into())
+        }
+        Ok(finished_outputs)
     }
 }
 

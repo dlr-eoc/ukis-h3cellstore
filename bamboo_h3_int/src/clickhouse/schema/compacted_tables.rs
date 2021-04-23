@@ -468,7 +468,7 @@ impl<'a> CompactedTableInserter<'a> {
     pub async fn insert_columnset(&'a mut self, columnset: &ColumnSet) -> Result<(), Error> {
         let mut splitted = columnset
             .to_compacted(&COL_NAME_H3INDEX)?
-            .split_by_resolution(&COL_NAME_H3INDEX, true)?;
+            .split_by_resolution_chunked(&COL_NAME_H3INDEX, true, Some(500_000))?;
 
         if splitted.is_empty() {
             return Ok(()); // nothing to save
@@ -506,8 +506,14 @@ impl<'a> CompactedTableInserter<'a> {
 
         let resolution_blocks = splitted
             .drain()
-            .map(|(h3res, cs)| Ok((h3res, Block::from_with_datatypes(cs, &target_datatypes)?)))
-            .collect::<Result<HashMap<u8, Block>, Error>>()?;
+            .map(|(h3res, mut cs_vec)| {
+                let blocks: Vec<_> = cs_vec
+                    .drain(..)
+                    .map(|cs| Block::from_with_datatypes(cs, &target_datatypes))
+                    .collect::<Result<Vec<Block>, Error>>()?;
+                Ok((h3res, blocks))
+            })
+            .collect::<Result<HashMap<u8, Vec<Block>>, Error>>()?;
 
         log::debug!(
             "Creating temporary tables for {} with temporary_key {}",
@@ -544,11 +550,11 @@ impl<'a> CompactedTableInserter<'a> {
 
     async fn insert_blocks(
         &mut self,
-        mut resolution_blocks: HashMap<u8, Block>,
+        mut resolution_blocks: HashMap<u8, Vec<Block>>,
         temporary_key: String,
     ) -> Result<(), Error> {
         let temporary_key_opt = Some(temporary_key.clone());
-        for (h3res, block) in resolution_blocks.drain() {
+        for (h3res, mut blocks) in resolution_blocks.drain() {
             let resolution_metadata = ResolutionMetadata {
                 h3_resolution: h3res,
                 is_compacted: self.schema.max_h3_resolution != h3res,
@@ -556,7 +562,9 @@ impl<'a> CompactedTableInserter<'a> {
             let table = self
                 .schema
                 .build_table(&resolution_metadata, &temporary_key_opt);
-            self.client.insert(table.to_table_name(), block).await?
+            for block in blocks.drain(..) {
+                self.client.insert(table.to_table_name(), block).await?
+            }
         }
         let resolution_metadata_vec = self.schema.get_resolution_metadata()?;
 
