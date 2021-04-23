@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 use chrono::{Date, DateTime};
 use chrono_tz::Tz;
 use h3ron::{HasH3Index, Index};
-use itertools::{repeat_n, Itertools};
+use itertools::repeat_n;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -732,16 +732,8 @@ impl ColumnSet {
         let (h3index_column_name, h3index_vec) = self.get_h3index_vec(h3index_column)?;
 
         // validate that this columnset is not already compacted
-        if let Some(first_h3index) = h3index_vec.first() {
-            let expected_resolution =  Index::try_from(*first_h3index)?.resolution();
-            for h3index in h3index_vec.iter().dropping(1) {
-                let index =  Index::try_from(*h3index)?;
-                if index.resolution() != expected_resolution {
-                    // TODO: not sure if this should not just be a no-op or an error
-                    return Err(Error::MixedResolutions)
-                }
-            }
-        }
+        // TODO: not sure if this should not just be a no-op or an error
+        check_same_h3_resolution(&h3index_vec)?;
 
         let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
 
@@ -782,7 +774,7 @@ impl ColumnSet {
             let parallelize = self.len() > 100000 && groups.len() > 1;
 
             let mut outmap: HashMap<String, ColVec> = Default::default();
-            for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize)? {
+            for (mut group, h3indexes_compacted) in compact_groups(groups, parallelize) {
                 // repeat each column value according to the number of h3indexes in the group
                 for (col_index, col_value) in group.drain(..).enumerate() {
                     let mut col_cv = colvecvalue_to_colvec(col_value, h3indexes_compacted.len());
@@ -816,8 +808,8 @@ impl ColumnSet {
         h3index_column: &T,
         validate_indexes: bool,
     ) -> Result<HashMap<u8, Self>, Error>
-        where
-            T: ToString,
+    where
+        T: ToString,
     {
         let out: HashMap<_, _> = self
             .split_by_resolution_chunked(h3index_column, validate_indexes, None)?
@@ -926,24 +918,20 @@ impl ColumnSet {
 ///
 /// prepares for compacting by removing all eventual duplicates as
 /// this is nothing upstream `compact` can handle
-fn compact(mut h3indexes: Vec<u64>) -> Result<Vec<u64>, Error> {
+fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
     h3indexes.sort_unstable();
     h3indexes.dedup();
-    check_same_h3_resolution(&h3indexes)?;
-    Ok(h3ron::compact(&h3indexes))
+    h3ron::compact(&h3indexes)
 }
 
 fn compact_groups(
     mut groups: HashMap<Vec<ColVecValue>, Vec<u64>>,
     parallelize: bool,
-) -> Result<HashMap<Vec<ColVecValue>, Vec<u64>>, Error> {
+) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
     if parallelize {
-        groups
-            .par_drain()
-            .map(|(k, v)| Ok((k, compact(v)?)))
-            .collect()
+        groups.par_drain().map(|(k, v)| (k, compact(v))).collect()
     } else {
-        groups.drain().map(|(k, v)| Ok((k, compact(v)?))).collect()
+        groups.drain().map(|(k, v)| (k, compact(v))).collect()
     }
 }
 
