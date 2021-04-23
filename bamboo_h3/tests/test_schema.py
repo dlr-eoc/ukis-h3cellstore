@@ -4,9 +4,12 @@ import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 import pytest
-from bamboo_h3 import TablesetNotFound
+import rasterio
+from bamboo_h3 import TablesetNotFound, typeid_from_numpy_dtype
+from bamboo_h3.raster import raster_to_dataframe
 from bamboo_h3.schema import CompactedTableSchemaBuilder, Schema
 
+from . import TESTDATA_PATH
 # noinspection PyUnresolvedReferences
 from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
 
@@ -112,3 +115,27 @@ def test_save_dataframe_datetime(clickhouse_db, input_date_string):
 @pytest.mark.parametrize("input_date_string", ["2021-02-16T00:00:00", "2021-02-15"])
 def test_save_dataframe_date(clickhouse_db, input_date_string):
     __save_dataframe_datetime(clickhouse_db, input_date_string, "date")
+
+
+def test_save_raster_complete_example(clickhouse_db):
+    # load a raster dataset and transform it into a h3 dataframe
+    dataset = rasterio.open(TESTDATA_PATH / "r.tiff")
+    band = dataset.read(1)
+    h3_resolution = 7
+    dataframe = raster_to_dataframe(band, dataset.transform, h3_resolution, nodata_value=0, compacted=False,
+                                    geo=False)
+    # the value of the pixel is now stored in the column named "value"
+
+    # setup a schema for the database tables
+    tableset_name = "my_tiffs"
+    csb = CompactedTableSchemaBuilder(tableset_name)
+    resolutions = list(range(h3_resolution + 1))
+    csb.h3_base_resolutions(resolutions)
+    csb.add_column("value", typeid_from_numpy_dtype(dataframe.value.dtype))
+    schema = csb.build()
+
+    # save
+    clickhouse_db.save_dataframe(schema, dataframe)
+
+    # cleanup after this unittest
+    clickhouse_db.drop_tableset(tableset_name)

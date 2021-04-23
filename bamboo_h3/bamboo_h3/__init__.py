@@ -26,6 +26,7 @@ __all__ = [
     "TablesetNotFound",
     "TableSetLike",
     "is_release_build",
+    "typeid_from_numpy_dtype",
 
     # accessing the imported function and classes to let IDEs know these are not
     # unused imports. They are only re-exported, but not used in this file.
@@ -298,3 +299,37 @@ class ClickhouseConnection:
 
     def save_dataframe(self, schema: Schema, dataframe: pd.DataFrame, drain: bool = False):
         return self.save_columnset(schema, ColumnSet.from_dataframe(dataframe, drain=drain))
+
+
+__TYPE_MAP = {
+    "u8": "u8",
+    "uint8": "u8",
+    "i8": "i8",
+    "int8": "i8",
+    "u16": "u16",
+    "uint16": "u16",
+    "i16": "i16",
+    "int16": "i16",
+    "u32": "u32",
+    "uint32": "u32",
+    "i32": "i32",
+    "int32": "i32",
+    "u64": "u64",
+    "uint64": "u64",
+    "i64": "i64",
+    "int64": "i64",
+    "f64": "f64",
+    "float64": "f64",
+    "f32": "f32",
+    "float32": "f32",
+    "datetime64[s]": "datetime",
+}
+
+
+def typeid_from_numpy_dtype(dtype: Union[np.dtype, str]) -> str:
+    """get the bamboo_h3 type id for the given type"""
+    dtype = str(dtype).lower()
+    try:
+        return __TYPE_MAP[dtype]
+    except KeyError:
+        raise BambooH3Error(f"unsupported datatype: {dtype}, you may need to do a manual conversion")

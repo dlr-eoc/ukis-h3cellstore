@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 use chrono::{Date, DateTime};
 use chrono_tz::Tz;
 use h3ron::{HasH3Index, Index};
-use itertools::repeat_n;
+use itertools::{repeat_n, Itertools};
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -730,6 +730,19 @@ impl ColumnSet {
         T: ToString,
     {
         let (h3index_column_name, h3index_vec) = self.get_h3index_vec(h3index_column)?;
+
+        // validate that this columnset is not already compacted
+        if let Some(first_h3index) = h3index_vec.first() {
+            let expected_resolution =  Index::try_from(*first_h3index)?.resolution();
+            for h3index in h3index_vec.iter().dropping(1) {
+                let index =  Index::try_from(*h3index)?;
+                if index.resolution() != expected_resolution {
+                    // TODO: not sure if this should not just be a no-op or an error
+                    return Err(Error::MixedResolutions)
+                }
+            }
+        }
+
         let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
 
         if other_columns.is_empty() {

@@ -466,9 +466,21 @@ impl<'a> CompactedTableInserter<'a> {
     }
 
     pub async fn insert_columnset(&'a mut self, columnset: &ColumnSet) -> Result<(), Error> {
-        let mut splitted = columnset
-            .to_compacted(&COL_NAME_H3INDEX)?
-            .split_by_resolution_chunked(&COL_NAME_H3INDEX, true, Some(500_000))?;
+        let chunk_size = 500_000;
+        let mut splitted = match columnset.to_compacted(&COL_NAME_H3INDEX) {
+            Ok(cs) => cs.split_by_resolution_chunked(&COL_NAME_H3INDEX, true, Some(chunk_size)),
+            Err(err) => match err {
+                Error::MixedResolutions => {
+                    // seems to be already compacted
+                    columnset.split_by_resolution_chunked(
+                        &COL_NAME_H3INDEX,
+                        true,
+                        Some(chunk_size),
+                    )
+                }
+                _ => return Err(err),
+            },
+        }?;
 
         if splitted.is_empty() {
             return Ok(()); // nothing to save
@@ -559,11 +571,17 @@ impl<'a> CompactedTableInserter<'a> {
                 h3_resolution: h3res,
                 is_compacted: self.schema.max_h3_resolution != h3res,
             };
-            let table = self
+            let table_name = self
                 .schema
-                .build_table(&resolution_metadata, &temporary_key_opt);
+                .build_table(&resolution_metadata, &temporary_key_opt)
+                .to_table_name();
             for block in blocks.drain(..) {
-                self.client.insert(table.to_table_name(), block).await?
+                log::debug!(
+                    "inserting a block of {} rows into {}",
+                    block.row_count(),
+                    table_name
+                );
+                self.client.insert(&table_name, block).await?
             }
         }
         let resolution_metadata_vec = self.schema.get_resolution_metadata()?;
