@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
-use h3ron::{polyfill, HasH3Index, Index, ToPolygon};
+use h3ron::{polyfill, HasH3Index, Index, ToCoordinate};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
@@ -158,7 +158,10 @@ fn next_window_queryparameters(
             // worth the effort, but it allows to relocate some load from the DB server
             // to the users machine.
             .filter(|ci| {
-                let p = ci.to_polygon();
+                // using coordinate instead of the polygon to avoid having duplicated h3 cells
+                // when window_polygon is a tile of a larger polygon. Using Index.to_polygon
+                // would result in one line of h3 cells overlap between neighboring tiles.
+                let p = ci.to_coordinate();
                 sliding_window.window_polygon.intersects(&p)
             })
             .map(|i| i.h3index())
