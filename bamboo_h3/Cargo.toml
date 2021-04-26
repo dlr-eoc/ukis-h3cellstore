@@ -1,6 +1,6 @@
 [package]
 name = "bamboo_h3"
-version = "0.6.5"
+version = "0.7.0"
 edition = "2018"
 authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
