@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use either::Either;
-use h3ron::{HasH3Index, Index};
+use h3ron::{H3Cell, Index};
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{prelude::*, PyResult, Python};
@@ -110,7 +110,7 @@ impl ClickhouseConnection {
         h3index: u64,
         query_template: Option<String>,
     ) -> PyResult<bool> {
-        let index = Index::try_from(h3index).into_pyresult()?;
+        let index = H3Cell::try_from(h3index).into_pyresult()?;
         let tablesetquery = match query_template {
             Some(qs) => TableSetQuery::TemplatedSelect(format!("{} limit 1", qs)),
             None => TableSetQuery::TemplatedSelect(format!(

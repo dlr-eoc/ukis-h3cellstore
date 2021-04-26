@@ -8,7 +8,7 @@ use std::iter::once;
 use std::str::FromStr;
 
 use geojson::GeoJson;
-use h3ron::{HasH3Index, Index, ToCoordinate};
+use h3ron::{H3Cell, ToCoordinate, Index};
 use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,
@@ -144,7 +144,7 @@ impl H3IndexesContainedIn {
 
         let mut h3indexes_coords = Vec::with_capacity(h3indexes.len());
         for h3index in h3indexes.iter() {
-            h3indexes_coords.push(Index::new(*h3index).to_coordinate())
+            h3indexes_coords.push(H3Cell::new(*h3index).to_coordinate())
         }
         let bounding_poly = gt::MultiPoint(
             h3indexes_coords
@@ -202,7 +202,7 @@ pub fn intersect_columnset_with_indexes(
         .as_array()
         .iter()
         .map(|h3index| {
-            let index = Index::new(*h3index);
+            let index = H3Cell::new(*h3index);
             index.validate().into_pyresult()?;
             Ok((index.h3index(), index.to_coordinate()))
         })

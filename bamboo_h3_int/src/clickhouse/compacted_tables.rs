@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use h3ron::{Index, H3_MIN_RESOLUTION, HasH3Index};
+use h3ron::{H3Cell, H3_MIN_RESOLUTION, Index};
 use itertools::Itertools;
 use regex::Regex;
 
@@ -210,9 +210,9 @@ impl TableSet {
 
         // use the h3 resolution of the first index as the target resolution
         let h3_resolution = if let Some(h3index) = h3indexes.first() {
-            let index: Index = Index::try_from(*h3index)?;
-            check_index_valid(&index)?;
-            index.resolution()
+            let cell = H3Cell::try_from(*h3index)?;
+            check_index_valid(&cell)?;
+            cell.resolution()
         } else {
             return Err(Error::EmptyIndexes);
         };
@@ -226,13 +226,13 @@ impl TableSet {
             .map(|(r, _)| (*r, HashSet::new()))
             .collect();
         for h3index in h3indexes {
-            let index = Index::try_from(*h3index)?;
-            check_index_valid(&index)?;
-            if index.resolution() != h3_resolution {
+            let cell = H3Cell::try_from(*h3index)?;
+            check_index_valid(&cell)?;
+            if cell.resolution() != h3_resolution {
                 return Err(Error::MixedResolutions);
             }
             queryable_h3indexes.iter_mut().for_each(|(r, r_indexes)| {
-                r_indexes.insert(index.get_parent_unchecked(*r).h3index());
+                r_indexes.insert(cell.get_parent_unchecked(*r).h3index());
             })
         }
         if queryable_h3indexes.is_empty() {
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_table_to_name() {
-        let table = Table {
+        let mut table = Table {
             basename: "some_table".to_string(),
             spec: TableSpec {
                 h3_resolution: 5,
@@ -343,9 +343,8 @@ mod tests {
 
         assert_eq!(table.to_table_name(), "some_table_05_base");
 
-        let mut table2 = table.clone();
-        table2.spec.has_base_suffix = false;
-        assert_eq!(table2.to_table_name(), "some_table_05");
+        table.spec.has_base_suffix = false;
+        assert_eq!(table.to_table_name(), "some_table_05");
     }
 
     #[test]

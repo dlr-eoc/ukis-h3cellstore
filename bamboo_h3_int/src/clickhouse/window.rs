@@ -3,13 +3,12 @@
 ///
 /// This currently lacks behind the implementation for python in the `bamboo_h3` crate as
 /// this here is currently not used.
-
 use std::collections::HashSet;
 
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::intersects::Intersects;
 use geo_types::Polygon;
-use h3ron::{polyfill, Index, ToPolygon, HasH3Index};
+use h3ron::{polyfill, H3Cell, Index, ToPolygon};
 use h3ron_h3_sys::H3Index;
 
 use crate::clickhouse::compacted_tables::TableSet;
@@ -44,7 +43,7 @@ pub fn window_index_resolution(
 
 pub trait WindowFilter {
     /// return true when the window should be used, return false when not
-    fn filter(&self, window_index: &Index) -> bool;
+    fn filter(&self, window_index: &H3Cell) -> bool;
 }
 
 pub struct WindowIterator<F: WindowFilter> {
@@ -72,7 +71,7 @@ impl<F: WindowFilter> WindowIterator<F> {
             // polyfill just uses the centroid to determinate if an index is convert,
             // but we also want intersecting h3 cells where the centroid may be outside
             // of the polygon, so we add the direct neighbors as well.
-            for ring_h3index in Index::new(h3index).k_ring(1) {
+            for ring_h3index in H3Cell::new(h3index).k_ring(1) {
                 window_index_set.insert(ring_h3index.h3index());
             }
         }
@@ -88,8 +87,8 @@ impl<F: WindowFilter> WindowIterator<F> {
 }
 
 pub struct Window {
-    pub window_index: Index,
-    pub indexes: Vec<Index>,
+    pub window_index: H3Cell,
+    pub indexes: Vec<H3Cell>,
 }
 
 impl<F: WindowFilter> Iterator for WindowIterator<F> {
@@ -98,7 +97,7 @@ impl<F: WindowFilter> Iterator for WindowIterator<F> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(h3index) = self.window_indexes.get(self.iter_pos) {
             self.iter_pos += 1;
-            let window_index = Index::new(*h3index);
+            let window_index = H3Cell::new(*h3index);
 
             // window_h3index must really intersect with the window
             if !self.window_polygon.intersects(&window_index.to_polygon()) {
@@ -141,7 +140,7 @@ mod tests {
     use std::collections::HashMap;
 
     use geo_types::{LineString, Polygon};
-    use h3ron::{Index, HasH3Index};
+    use h3ron::{H3Cell, Index};
 
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
     use crate::clickhouse::window::{window_index_resolution, WindowFilter, WindowIterator};
@@ -178,7 +177,7 @@ mod tests {
     struct OddFilter {}
 
     impl WindowFilter for OddFilter {
-        fn filter(&self, window_index: &Index) -> bool {
+        fn filter(&self, window_index: &H3Cell) -> bool {
             (window_index.h3index() % 2) == 1
         }
     }

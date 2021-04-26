@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::fmt;
 
-use h3ron::{HasH3Index, Index};
+use h3ron::{H3Cell, Index};
 
 #[derive(Debug)]
 pub enum Error {
     EmptyIndexes,
-    InvalidH3Index(Index),
+    InvalidH3Index(u64),
     MixedResolutions,
     NoQueryableTables,
     MissingQueryPlaceholder(String),
@@ -27,7 +27,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::EmptyIndexes => write!(f, "empty h3indexes"),
-            Error::InvalidH3Index(index) => write!(f, "invalid h3indexes: {}", index.h3index()),
+            Error::InvalidH3Index(index) => write!(f, "invalid h3indexes: {}", index),
             Error::MixedResolutions => write!(f, "h3indexes with mixed resolutions"),
             Error::NoQueryableTables => write!(f, "no queryable tables found"),
             Error::MissingQueryPlaceholder(placeholder) => {
@@ -59,20 +59,22 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 #[inline]
-pub(crate) fn check_index_valid(index: &Index) -> std::result::Result<(), Error> {
+pub(crate) fn check_index_valid<T>(index: &T) -> std::result::Result<(), Error>
+where
+    T: Index,
+{
     index
         .validate()
-        .map_err(|_| Error::InvalidH3Index(*index))
+        .map_err(|_| Error::InvalidH3Index(index.h3index()))
 }
 
-pub(crate) fn check_same_h3_resolution<T: HasH3Index>(
-    indexes: &[T],
-) -> std::result::Result<(), Error> {
+pub(crate) fn check_same_h3_resolution(indexes: &[u64]) -> std::result::Result<(), Error>
+{
     if let Some(first) = indexes.get(0) {
-        let first_index = Index::try_from(first.h3index())?;
+        let first_index = H3Cell::try_from(*first)?;
         let expected_res = first_index.resolution();
         for idx in indexes.iter() {
-            let this_index = Index::try_from(idx.h3index())?;
+            let this_index = H3Cell::try_from(*idx)?;
             if this_index.resolution() != expected_res {
                 return Err(Error::MixedResolutions);
             }

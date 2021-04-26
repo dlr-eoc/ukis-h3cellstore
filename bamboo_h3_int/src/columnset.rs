@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 
 use chrono::{Date, DateTime};
 use chrono_tz::Tz;
-use h3ron::{HasH3Index, Index};
+use h3ron::{H3Cell, Index};
 use itertools::repeat_n;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
@@ -709,7 +709,7 @@ impl ColumnSet {
         let (_, h3index_vec) = self.get_h3index_vec(h3index_column)?;
         let mut resolutions = HashSet::new();
         for h3index in h3index_vec {
-            let index = Index::try_from(*h3index)?;
+            let index = H3Cell::try_from(*h3index)?;
             resolutions.insert(index.resolution());
         }
         Ok(resolutions.drain().collect())
@@ -849,9 +849,9 @@ impl ColumnSet {
         for (i, h3index) in h3index_vec.iter().enumerate() {
             let (chunk_is_finished, chunk_resolution) = {
                 let index = if validate_indexes {
-                    Index::try_from(*h3index)?
+                    H3Cell::try_from(*h3index)?
                 } else {
-                    Index::new(*h3index)
+                    H3Cell::new(*h3index)
                 };
                 let h3_resolution = index.resolution();
                 let resmap = current_chunkmaps

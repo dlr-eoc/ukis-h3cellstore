@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use h3ron::{HasH3Index, Index};
+use h3ron::{H3Cell, Index};
 
 use bamboo_h3_int::{ColVec, ColumnSet};
 
 fn generate_mixed_resolution_h3indexes() -> Vec<u64> {
-    let start_index = Index::new(0x89283080ddbffff_u64);
+    let start_index = H3Cell::new(0x89283080ddbffff_u64);
     start_index
         .k_ring(30)
         .iter()
@@ -37,7 +37,7 @@ fn generate_mixed_resolution_columnset() -> ColumnSet {
 }
 
 fn generate_one_resolution_columnset() -> ColumnSet {
-    let start_index = Index::new(0x89283080ddbffff_u64);
+    let start_index = H3Cell::new(0x89283080ddbffff_u64);
     build_columnset(
         start_index
             .k_ring(150)

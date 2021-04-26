@@ -8,7 +8,7 @@ use chrono_tz::Tz;
 use clickhouse_rs::types::{Column, Complex};
 use clickhouse_rs::{types::SqlType, ClientHandle};
 use futures_util::StreamExt;
-use h3ron::{HasH3Index, Index};
+use h3ron::{H3Cell, Index};
 use log::{error, warn};
 
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
@@ -121,7 +121,7 @@ pub async fn query_all_with_uncompacting(
     h3index_set: HashSet<u64>,
 ) -> Result<ColumnSet, Error> {
     let h3_res = if let Some(first) = h3index_set.iter().next() {
-        let index = Index::try_from(*first)?;
+        let index = H3Cell::try_from(*first)?;
         index.resolution()
     } else {
         return Err(Error::EmptyIndexes);
@@ -146,7 +146,7 @@ pub async fn query_all_with_uncompacting(
     let (h3_vec, num_uncompacted_rows) = {
         let mut h3_vec = Vec::new();
         for h3index in h3index_column.iter::<u64>()? {
-            let idx: Index = Index::try_from(*h3index)?;
+            let idx = H3Cell::try_from(*h3index)?;
             let m = match idx.resolution().cmp(&h3_res) {
                 Ordering::Less => {
                     let mut valid_children = idx

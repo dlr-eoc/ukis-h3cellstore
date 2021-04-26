@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
-use h3ron::{polyfill, HasH3Index, Index, ToCoordinate};
+use h3ron::{polyfill, Index, ToCoordinate, H3Cell};
 use h3ron_h3_sys::H3Index;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
@@ -23,11 +23,11 @@ pub struct SlidingH3Window {
     clickhouse_pool: Arc<ClickhousePool>,
     window_polygon: Polygon<f64>,
     target_h3_resolution: u8,
-    window_indexes: Vec<Index>,
+    window_indexes: Vec<H3Cell>,
     iter_pos: usize,
 
     /// window indexes which have been pre-checked to contain data
-    prefetched_window_indexes: VecDeque<Index>,
+    prefetched_window_indexes: VecDeque<H3Cell>,
 
     tableset: TableSet,
     query: TableSetQuery,
@@ -75,7 +75,7 @@ pub fn create_window(
     }
 
     let mut window_index_set = HashSet::new();
-    let mut add_index = |index: Index| {
+    let mut add_index = |index: H3Cell| {
         // polyfill just uses the centroid to determinate if an index is convert,
         // but we also want intersecting h3 cells where the centroid may be outside
         // of the polygon, so we add the direct neighbors as well.
@@ -86,14 +86,14 @@ pub fn create_window(
     };
 
     for h3index in polyfill(&window_polygon, window_h3_resolution) {
-        let index = Index::try_from(h3index).into_pyresult()?;
+        let index = H3Cell::try_from(h3index).into_pyresult()?;
         add_index(index);
     }
 
     // for small windows, polyfill may not yield results,
     // so just adding the center as well.
     if let Some(point) = window_polygon.centroid() {
-        let index = Index::from_coordinate(&point.0, window_h3_resolution).into_pyresult()?;
+        let index = H3Cell::from_coordinate(&point.0, window_h3_resolution).into_pyresult()?;
         add_index(index);
     }
     log::info!(
@@ -150,7 +150,7 @@ fn next_window_queryparameters(
     sliding_window: &mut SlidingH3Window,
 ) -> PyResult<Option<QueryParameters>> {
     while let Some(window_h3index) = next_window_index(sliding_window)? {
-        let child_indexes: Vec<_> = Index::try_from(window_h3index)
+        let child_indexes: Vec<_> = H3Cell::try_from(window_h3index)
             .into_pyresult()?
             .get_children(sliding_window.target_h3_resolution)
             .drain(..)
