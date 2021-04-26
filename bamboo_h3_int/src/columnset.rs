@@ -842,10 +842,11 @@ impl ColumnSet {
             })
             .collect();
 
-        let mut finished_outputs: HashMap<u8, Vec<Self>> = Default::default();
-        // TODO: not relying on nested maps would surely be faster
-        let mut current_chunkmaps: NonSecureHashMap<u8, NonSecureHashMap<String, ColVec>> =
-            Default::default();
+        let mut finished_outputs: Vec<Vec<Self>> =
+            vec![vec![]; (h3ron::H3_MAX_RESOLUTION + 1) as usize];
+        let mut current_chunkmaps: [NonSecureHashMap<String, ColVec>;
+            (h3ron::H3_MAX_RESOLUTION + 1) as usize] = Default::default();
+
         for (i, h3index) in h3index_vec.iter().enumerate() {
             let (chunk_is_finished, chunk_resolution) = {
                 let index = if validate_indexes {
@@ -854,9 +855,7 @@ impl ColumnSet {
                     H3Cell::new(*h3index)
                 };
                 let h3_resolution = index.resolution();
-                let resmap = current_chunkmaps
-                    .entry(h3_resolution)
-                    .or_insert_with(Default::default);
+                let resmap = current_chunkmaps.get_mut(h3_resolution as usize).unwrap();
 
                 // push the h3index
                 let current_size = match resmap.get_mut(&h3index_column_name) {
@@ -895,22 +894,31 @@ impl ColumnSet {
             };
 
             if chunk_is_finished {
-                if let Some(chunkmap) = current_chunkmaps.remove(&chunk_resolution) {
-                    finished_outputs
-                        .entry(chunk_resolution)
-                        .or_insert_with(Default::default)
-                        .push(chunkmap.into())
-                }
+                let chunkmap = std::mem::replace(
+                    &mut current_chunkmaps[(chunk_resolution as usize)],
+                    Default::default(),
+                );
+                finished_outputs
+                    .get_mut(chunk_resolution as usize)
+                    .map(|v| v.push(chunkmap.into()));
             }
         }
         // add the currently unfinished chunks
-        for (h3_resolution, chunkmap) in current_chunkmaps.drain() {
-            finished_outputs
-                .entry(h3_resolution)
-                .or_insert_with(Default::default)
-                .push(chunkmap.into())
+        for h3_resolution in 0..current_chunkmaps.len() {
+            if !current_chunkmaps[h3_resolution].is_empty() {
+                let chunkmap =
+                    std::mem::replace(&mut current_chunkmaps[h3_resolution], Default::default());
+                finished_outputs
+                    .get_mut(h3_resolution as usize)
+                    .map(|v| v.push(chunkmap.into()));
+            }
         }
-        Ok(finished_outputs)
+        Ok(finished_outputs
+            .drain(..)
+            .enumerate()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(h3_res, v)| (h3_res as u8, v))
+            .collect())
     }
 }
 
