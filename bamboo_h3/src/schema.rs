@@ -137,6 +137,10 @@ impl CompactedTableSchemaBuilder {
         self.columns.push((column_name, ColumnDefinition::H3Index));
     }
 
+    ///
+    ///
+    /// The `min`, `max` and `avg` aggregations only work on the cells included in the data. Are
+    ///  not all child-cells included, the missing ones are simply omitted and not assumed to be `0`.
     #[args(order_key_position = "None")]
     fn add_aggregated_column(
         &mut self,

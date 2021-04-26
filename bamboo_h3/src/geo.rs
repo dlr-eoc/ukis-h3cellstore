@@ -8,7 +8,7 @@ use std::iter::once;
 use std::str::FromStr;
 
 use geojson::GeoJson;
-use h3ron::{H3Cell, ToCoordinate, Index};
+use h3ron::{H3Cell, Index, ToCoordinate};
 use numpy::{Ix1, PyArray, PyReadonlyArray1};
 use pyo3::{
     exceptions::PyValueError,

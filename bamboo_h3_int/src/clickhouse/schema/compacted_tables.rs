@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
 use crate::clickhouse::schema::{
-    validate_table_name, ColumnDefinition, CompressionMethod, CreateSchema, GetSchemaColumns,
-    GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
+    validate_table_name, AggregationMethod, ColumnDefinition, CompressionMethod, CreateSchema,
+    GetSchemaColumns, GetSqlType, TableEngine, TemporalPartitioning, TemporalResolution,
+    ValidateSchema,
 };
 use crate::clickhouse::FromWithDatatypes;
 use crate::common::ordered_h3_resolutions;
@@ -18,6 +19,7 @@ use crate::{ColumnSet, COL_NAME_H3INDEX};
 
 /// the name of the parent h3index column used for aggregation
 const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";
+const ALIAS_SOURCE_TABLE: &str = "src_table";
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
@@ -472,11 +474,7 @@ impl<'a> CompactedTableInserter<'a> {
             Err(err) => match err {
                 Error::MixedResolutions => {
                     // seems to be already compacted
-                    columnset.split_by_resolution_chunked(
-                        &COL_NAME_H3INDEX,
-                        true,
-                        Some(chunk_size),
-                    )
+                    columnset.split_by_resolution_chunked(&COL_NAME_H3INDEX, true, Some(chunk_size))
                 }
                 _ => return Err(err),
             },
@@ -587,7 +585,7 @@ impl<'a> CompactedTableInserter<'a> {
         let resolution_metadata_vec = self.schema.get_resolution_metadata()?;
 
         // apply all aggegations
-        self.build_aggregated_resolutions(&resolution_metadata_vec, &temporary_key_opt)
+        self.build_aggregated_resolutions(&temporary_key_opt)
             .await?;
 
         // copy data to the non-temporary tables to the final tables
@@ -720,7 +718,6 @@ impl<'a> CompactedTableInserter<'a> {
 
     async fn build_aggregated_resolutions(
         &mut self,
-        resolution_metadata_slice: &[ResolutionMetadata],
         temporary_key: &Option<String>,
     ) -> Result<(), Error> {
         if temporary_key.is_none() {
@@ -752,6 +749,44 @@ impl<'a> CompactedTableInserter<'a> {
                 (col_name, agg_method)
             })
             .collect();
+
+        let source_columns_expr = std::iter::once(COL_NAME_H3INDEX_PARENT_AGG)
+            .chain(
+                column_names_with_aggregation
+                    .iter()
+                    .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
+                    .map(|(col_name, _)| col_name.as_str()),
+            )
+            .join(", ");
+
+        let group_by_columns_expr = std::iter::once(format!(
+            "{}.{}",
+            ALIAS_SOURCE_TABLE, COL_NAME_H3INDEX_PARENT_AGG
+        ))
+        .chain(
+            column_names_with_aggregation
+                .iter()
+                .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
+                .filter_map(|(col_name, agg_opt)| {
+                    // columns which are not used in aggragation are preserved as they are and are used
+                    // for grouping.
+                    if agg_opt.is_none() {
+                        Some(format!("{}.{}", ALIAS_SOURCE_TABLE, col_name))
+                    } else {
+                        None
+                    }
+                }),
+        )
+        .join(", ");
+
+        let insert_columns_expr = std::iter::once(COL_NAME_H3INDEX)
+            .chain(
+                column_names_with_aggregation
+                    .iter()
+                    .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
+                    .map(|(col_name, _)| col_name.as_str()),
+            )
+            .join(", ");
 
         // TODO: switch to https://doc.rust-lang.org/std/primitive.slice.html#method.array_windows when that is stabilized.
         for agg_resolutions in resolutions_to_aggregate.windows(2) {
@@ -807,7 +842,63 @@ impl<'a> CompactedTableInserter<'a> {
                 source_tables
             };
 
-            //dbg!((&target_table_name, &source_tables));
+            let agg_columns_expr = std::iter::once(format!(
+                "{}.{}",
+                ALIAS_SOURCE_TABLE, COL_NAME_H3INDEX_PARENT_AGG
+            ))
+            .chain(
+                column_names_with_aggregation
+                    .iter()
+                    .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
+                    .map(|(col_name, agg_opt)| {
+                        if let Some(agg) = agg_opt {
+                            match agg {
+                                AggregationMethod::RelativeToCellArea => {
+                                    format!(
+                                        "(sum({}.{}) / length(h3ToChildren({}.{}, {}))) as {}",
+                                        ALIAS_SOURCE_TABLE,
+                                        col_name,
+                                        ALIAS_SOURCE_TABLE,
+                                        COL_NAME_H3INDEX_PARENT_AGG,
+                                        source_resolution,
+                                        col_name,
+                                    )
+                                }
+                                AggregationMethod::Sum => {
+                                    format!(
+                                        "sum({}.{}) as {}",
+                                        ALIAS_SOURCE_TABLE, col_name, col_name
+                                    )
+                                }
+                                AggregationMethod::Max => {
+                                    // the max value. does not include child-cells not contained in the table
+                                    format!(
+                                        "max({}.{}) as {}",
+                                        ALIAS_SOURCE_TABLE, col_name, col_name
+                                    )
+                                }
+                                AggregationMethod::Min => {
+                                    // the min value. does not include child-cells not contained in the table
+                                    format!(
+                                        "min({}.{}) as {}",
+                                        ALIAS_SOURCE_TABLE, col_name, col_name
+                                    )
+                                }
+                                AggregationMethod::Average => {
+                                    // the avg value. does not include child-cells not contained in the table
+                                    format!(
+                                        "avg({}.{}) as {}",
+                                        ALIAS_SOURCE_TABLE, col_name, col_name
+                                    )
+                                }
+                            }
+                        } else {
+                            format!("{}.{}", ALIAS_SOURCE_TABLE, col_name)
+                        }
+                    }),
+            )
+            .join(", ");
+
             // estimate a number of batches to use to avoid moving large amounts of data at once. This slows
             // things down a bit, but helps when not too much memory is available on the db server.
             let num_batches = {
@@ -839,12 +930,46 @@ impl<'a> CompactedTableInserter<'a> {
             }
 
             for batch in 0..num_batches {
-
                 // batching is to be used on the parent indexes to always aggregate everything belonging
                 // in the same row in the same batch. this ensures nothing get overwritten.
+                let batching_expr = if num_batches > 1 {
+                    format!(
+                        "where modulo({}, {}) = {}",
+                        COL_NAME_H3INDEX_PARENT_AGG, num_batches, batch
+                    )
+                } else {
+                    "".to_string()
+                };
+
+                let source_select_expr = source_tables
+                    .iter()
+                    .map(|(_, source_table_name)| {
+                        format!(
+                            "select {} from {} FINAL {}",
+                            source_columns_expr, source_table_name, batching_expr
+                        )
+                    })
+                    .join("\n union all \n");
+
+                let agg_expr = format!(
+                    "
+insert into {} ({})
+select {}
+from (
+{}
+) {}
+group by {}",
+                    target_table_name,
+                    insert_columns_expr,
+                    agg_columns_expr,
+                    source_select_expr,
+                    ALIAS_SOURCE_TABLE,
+                    group_by_columns_expr
+                );
+                //dbg!(&agg_expr);
+                self.client.execute(agg_expr).await?;
             }
         }
-
         Ok(())
     }
 }
