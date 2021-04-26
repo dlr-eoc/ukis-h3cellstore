@@ -32,7 +32,10 @@ def chunk_polygon(geometry: Polygon, num_chunks_approx: int = 10) -> List[Polygo
                 ymin + (y + 1) * cell_height,
             )
             g = geometry.intersection(b)
-            if g.is_empty:
+            if g.is_empty or g.type == "Point":
+                # ignore points. Seems they may be created by GEOS in the case of
+                # very small intersections.
+                # see https://gitlab.dlr.de/gzs-processing/bamboo_h3/-/issues/34#note_831376
                 continue
             if g.type == "Polygon":
                 chunks.append(g)
