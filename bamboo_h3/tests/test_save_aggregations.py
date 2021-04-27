@@ -1,8 +1,8 @@
 import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
-from bamboo_h3.schema import CompactedTableSchemaBuilder
 import pytest
+from bamboo_h3.schema import CompactedTableSchemaBuilder
 
 # noinspection PyUnresolvedReferences
 from .fixtures import clickhouse_db
@@ -27,7 +27,8 @@ def some_schema(tableset_name, max_res, value_agg_method):
     return schema
 
 
-@pytest.mark.parametrize("agg_method,expected", [("sum", 7.0), ("min", 2.0), ("max", 5.0), ("avg", 3.5), ("relativetocellarea", 1.0)])
+@pytest.mark.parametrize("agg_method,expected",
+                         [("sum", 7.0), ("min", 2.0), ("max", 5.0), ("avg", 3.5), ("relativetocellarea", 1.0)])
 def test_aggregated_float_column(clickhouse_db, agg_method, expected):
     tableset_name = "agg_tableset"
     max_res, start_index, dataframe = some_dataframe()

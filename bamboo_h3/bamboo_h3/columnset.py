@@ -4,6 +4,7 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
+import pytz
 
 from . import bamboo_h3 as lib
 
@@ -148,11 +149,11 @@ class ColumnSet:
             elif column_type == 'f64':
                 array = self.inner.drain_column_f64(column_name)
             elif column_type == 'date':
-                array = pd.to_datetime(np.asarray(self.inner.drain_column_date(column_name), dtype='datetime64[s]'),
-                                       utc=True, infer_datetime_format=True)
+                array = _to_datetimeindex(
+                    np.asarray(self.inner.drain_column_date(column_name), dtype='datetime64[s]'))
             elif column_type == 'datetime':
-                array = pd.to_datetime(np.asarray(self.inner.drain_column_datetime(column_name),
-                                                  dtype='datetime64[s]'), utc=True, infer_datetime_format=True)
+                array = _to_datetimeindex(
+                    np.asarray(self.inner.drain_column_datetime(column_name), dtype='datetime64[s]'))
             else:
                 raise NotImplementedError(f"unsupported column type: {column_type}")
             data[column_name] = array
@@ -172,6 +173,25 @@ class ColumnSet:
         :return: str
         """
         return repr(self.inner)
+
+
+def _to_datetimeindex(timestamps: np.array) -> pd.DatetimeIndex:
+    """
+    directly create an datetimeindex from a numpy array.
+
+    This impl omits some parsing overhead as the inputs are well defined. Normally
+    you would use something like
+
+    ```
+    pd.to_datetime(timestamps, utc=True, infer_datetime_format=True)
+    ```
+
+    but that approx. doubles the runtime in benchmarks.
+
+    :param timestamps: numpy array of UNIX timestamps (dtype='datetime[s]'), expected tz=UTC
+    :return:
+    """
+    return pd.DatetimeIndex(timestamps, tz=pytz.utc, copy=False)
 
 
 if __name__ == "__main__":

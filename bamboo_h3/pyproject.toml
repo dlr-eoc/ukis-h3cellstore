@@ -1,6 +1,8 @@
 [build-system]
 requires = [
-    "maturin>=0.10.2,<0.11"
+    "maturin>=0.10.2,<0.11",
+    "pytest==6.2",
+    "pytest-benchmark==3.4"
 ]
 build-backend = "maturin"
 
