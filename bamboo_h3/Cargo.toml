@@ -22,6 +22,7 @@ svgbobdoc = "^0.2"
 either = "^1.6"
 serde = "^1"
 itertools = "^0.10"
+async-channel = "1.6"
 
 [dependencies.chrono]
 version = "0.4"

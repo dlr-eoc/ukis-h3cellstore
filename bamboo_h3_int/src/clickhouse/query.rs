@@ -19,7 +19,7 @@ use crate::iter::ItemRepeatingIterator;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
 
 /// list all tablesets in the current database
-pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
+pub async fn list_tablesets(ch: &mut ClientHandle) -> Result<HashMap<String, TableSet>, Error> {
     let mut tablesets = {
         let mut stream = ch
             .query(format!(
@@ -80,7 +80,7 @@ pub async fn list_tablesets(mut ch: ClientHandle) -> Result<HashMap<String, Tabl
 }
 
 /// check if a query would return any rows
-pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> Result<bool, Error> {
+pub async fn query_returns_rows(ch: &mut ClientHandle, query_string: String) -> Result<bool, Error> {
     let mut stream = ch.query(query_string).stream();
     if let Some(first) = stream.next().await {
         match first {
@@ -92,7 +92,7 @@ pub async fn query_returns_rows(mut ch: ClientHandle, query_string: String) -> R
     }
 }
 
-pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<ColumnSet, Error> {
+pub async fn query_all(ch: &mut ClientHandle, query_string: String) -> Result<ColumnSet, Error> {
     let block = ch.query(query_string).fetch_all().await?;
 
     let mut out_rows = HashMap::new();
@@ -102,12 +102,12 @@ pub async fn query_all(mut ch: ClientHandle, query_string: String) -> Result<Col
     Ok(out_rows.into())
 }
 
-pub async fn execute(mut ch: ClientHandle, query_string: String) -> Result<(), Error> {
+pub async fn execute(ch: &mut ClientHandle, query_string: String) -> Result<(), Error> {
     ch.execute(query_string).await?;
     Ok(())
 }
 
-pub async fn create_schema(mut ch: ClientHandle, schema: &Schema) -> Result<(), Error> {
+pub async fn create_schema(ch: &mut ClientHandle, schema: &Schema) -> Result<(), Error> {
     for statement in schema.create_statements()?.iter() {
         ch.execute(statement).await?;
     }
@@ -116,7 +116,7 @@ pub async fn create_schema(mut ch: ClientHandle, schema: &Schema) -> Result<(), 
 
 /// return all rows from the query and uncompact the h3index in the h3index column, all other columns get duplicated accordingly
 pub async fn query_all_with_uncompacting(
-    mut ch: ClientHandle,
+    ch: &mut ClientHandle,
     query_string: String,
     h3index_set: HashSet<u64>,
 ) -> Result<ColumnSet, Error> {

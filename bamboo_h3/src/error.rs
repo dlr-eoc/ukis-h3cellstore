@@ -62,6 +62,16 @@ impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
     }
 }
 
+impl <T> IntoPyResult<T> for Result<T, tokio::task::JoinError> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            // TODO: more fine-grained mapping to pyhton exceptions
+            Err(err) => Err(PyRuntimeError::new_err(format!("joining task failed: {}", err.to_string()))),
+        }
+    }
+}
+
 impl<T> IntoPyResult<T> for Result<T, wkb::WKBReadError> {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
