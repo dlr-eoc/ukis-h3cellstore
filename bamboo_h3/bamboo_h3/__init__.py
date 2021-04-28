@@ -229,13 +229,17 @@ class ClickhouseConnection:
             querystring_template=querystring_template,
             prefetch_querystring_template=prefetch_querystring_template,
         )
-        while True:
-            window_data = sliding_window.fetch_next_window()
-            if window_data is None:
-                break  # reached end of iteration
-            if window_data.empty:
-                continue  # skip empty windows
-            yield ClickhouseResultSet(window_data)
+        try:
+            while True:
+                window_data = sliding_window.fetch_next_window()
+                if window_data is None:
+                    break  # reached end of iteration
+                if window_data.empty:
+                    continue  # skip empty windows
+                yield ClickhouseResultSet(window_data)
+        finally:
+            # close may raise exceptions occurred during fetching
+            sliding_window.close()
 
     def __get_tableset(self, tableset: TableSetLike) -> TableSet:
         if isinstance(tableset, str):

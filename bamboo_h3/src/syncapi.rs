@@ -35,15 +35,15 @@ pub enum Query {
 /// leads to tokio being blocked during the CPU-intensive parts, but as the runtime has
 /// only very few concurrent tasks it should not matter much.
 pub struct ClickhousePool {
-    pool: Pool,
+    pub(crate) pool: Pool,
 
-    runtime: Runtime,
+    pub(crate) runtime: Runtime,
 }
 
 impl ClickhousePool {
     pub fn create(db_url: &str) -> PyResult<ClickhousePool> {
         let runtime = Builder::new_multi_thread()
-            .worker_threads(2)
+            .worker_threads(3)
             .enable_all()
             .build()
             .map_err(|e| {
@@ -69,8 +69,8 @@ impl ClickhousePool {
     pub fn execute(&self, query_string: &str) -> PyResult<()> {
         let p = &self.pool;
         self.runtime.block_on(async {
-            let client = p.get_handle().await.into_pyresult()?;
-            execute(client, query_string.to_string())
+            let mut client = p.get_handle().await.into_pyresult()?;
+            execute(&mut client, query_string.to_string())
                 .await
                 .into_pyresult()
         })
@@ -79,14 +79,14 @@ impl ClickhousePool {
     pub fn query(&self, query: Query) -> PyResult<bamboo_h3_int::ColumnSet> {
         let p = &self.pool;
         self.runtime.block_on(async {
-            let client = p.get_handle().await.into_pyresult()?;
+            let mut client = p.get_handle().await.into_pyresult()?;
             match query {
-                Query::Plain(query_string) => query_all(client, query_string).await,
+                Query::Plain(query_string) => query_all(&mut client, query_string).await,
 
                 // while it is not great to block tokio with the CPU-heavy uncompacting, it
                 // should be ok here, as we do not want to issue too many parallel queries anyways.
                 Query::Uncompact(query_string, h3index_set) => {
-                    query_all_with_uncompacting(client, query_string, h3index_set).await
+                    query_all_with_uncompacting(&mut client, query_string, h3index_set).await
                 }
             }
             .into_pyresult()
@@ -114,14 +114,14 @@ impl ClickhousePool {
         let p = &self.pool;
         let get_handle = self.runtime.block_on(async { p.get_handle().await });
         self.runtime.spawn(async {
-            let client = get_handle.into_pyresult()?;
+            let mut client = get_handle.into_pyresult()?;
             match query_kind {
-                Query::Plain(query_string) => query_all(client, query_string).await,
+                Query::Plain(query_string) => query_all(&mut client, query_string).await,
 
                 // while it is not great to block tokio with the CPU-heavy uncompacting, it
                 // should be ok here, as we do not want to issue too many parallel queries anyways.
                 Query::Uncompact(query_string, h3index_set) => {
-                    query_all_with_uncompacting(client, query_string, h3index_set).await
+                    query_all_with_uncompacting(&mut client, query_string, h3index_set).await
                 }
             }
             .map(|hm| hm.into())
@@ -145,8 +145,8 @@ impl ClickhousePool {
         let p = &self.pool;
         self.runtime
             .block_on(async {
-                let client = p.get_handle().await?;
-                query_returns_rows(client, query_string).await
+                let mut client = p.get_handle().await?;
+                query_returns_rows(&mut client, query_string).await
             })
             .into_pyresult()
     }
@@ -155,8 +155,8 @@ impl ClickhousePool {
         let p = &self.pool;
         self.runtime
             .block_on(async {
-                let client = p.get_handle().await?;
-                list_tablesets(client).await
+                let mut client = p.get_handle().await?;
+                list_tablesets(&mut client).await
             })
             .into_pyresult()
     }

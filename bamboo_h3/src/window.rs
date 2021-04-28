@@ -1,64 +1,165 @@
+use std::cmp::max;
 use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
-use h3ron::{polyfill, Index, ToCoordinate, H3Cell};
-use h3ron_h3_sys::H3Index;
+use either::Either;
+use h3ron::{polyfill, H3Cell, Index, ToCoordinate};
 use pyo3::{exceptions::PyRuntimeError, prelude::*, PyResult};
 
 use bamboo_h3_int::clickhouse::compacted_tables::{TableSet, TableSetQuery};
+use bamboo_h3_int::clickhouse::query::query_all_with_uncompacting;
 use bamboo_h3_int::clickhouse::window::window_index_resolution;
+use bamboo_h3_int::clickhouse_rs::ClientHandle;
 use bamboo_h3_int::{
     geo::algorithm::{centroid::Centroid, intersects::Intersects},
     geo_types::Polygon,
-    ColVec, COL_NAME_H3INDEX,
+    ColVec, ColumnSet, COL_NAME_H3INDEX,
 };
 
-use crate::clickhouse::{AwaitableResultSet, ResultSet};
+use crate::clickhouse::ResultSet;
 use crate::error::IntoPyResult;
-use crate::syncapi::{ClickhousePool, Query};
+use crate::syncapi::ClickhousePool;
+
+pub struct SlidingWindowOptions {
+    pub window_polygon: Polygon<f64>,
+    pub target_h3_resolution: u8,
+    pub window_max_size: u32,
+    pub tableset: TableSet,
+    pub query: TableSetQuery,
+
+    /// query to pre-evaluate if a window is worth fetching
+    pub prefetch_query: Option<TableSetQuery>,
+
+    /// defines how many windows may be loaded in parallel.
+    /// An increased number here also increase the memory requirements of the DB server.
+    ///
+    /// In most cases just using 1 is propably sufficient.
+    pub concurrency: u8,
+}
 
 #[pyclass]
 pub struct SlidingH3Window {
     clickhouse_pool: Arc<ClickhousePool>,
-    window_polygon: Polygon<f64>,
-    target_h3_resolution: u8,
-    window_indexes: Vec<H3Cell>,
-    iter_pos: usize,
-
-    /// window indexes which have been pre-checked to contain data
-    prefetched_window_indexes: VecDeque<H3Cell>,
-
-    tableset: TableSet,
-    query: TableSetQuery,
-
-    /// query to pre-evaluate if a window is worth fetching
-    prefetch_query: TableSetQuery,
-    preloaded_window: Option<ResultSet>,
+    rx_resultset: tokio::sync::mpsc::Receiver<PyResult<ResultSet>>,
+    join_handle: Option<tokio::task::JoinHandle<PyResult<()>>>,
 }
 
 #[pymethods]
 impl SlidingH3Window {
     fn fetch_next_window(&mut self) -> PyResult<Option<ResultSet>> {
-        if let Some(preloaded) = self.preloaded_window.take() {
-            preload_next_resultset(self)?;
-            Ok(Some(preloaded))
+        match self.rx_resultset.blocking_recv() {
+            Some(r) => r.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    fn close(&mut self) -> PyResult<()> {
+        self.finish_tasks()
+    }
+}
+
+impl SlidingH3Window {
+    fn finish_tasks(&mut self) -> PyResult<()> {
+        // let all tasks collapse
+        self.rx_resultset.close();
+
+        if let Some(handle) = self.join_handle.take() {
+            self.clickhouse_pool
+                .runtime
+                .block_on(async move { handle.await })
+                .unwrap()
         } else {
-            Ok(None)
+            Ok(())
         }
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn create_window(
+impl Drop for SlidingH3Window {
+    fn drop(&mut self) {
+        let _ = self.finish_tasks();
+    }
+}
+
+impl SlidingH3Window {
+    pub fn create(
+        clickhouse_pool: Arc<ClickhousePool>,
+        options: SlidingWindowOptions,
+    ) -> PyResult<Self> {
+        let window_h3_resolution = determinate_window_h3_resolution(
+            &options.tableset,
+            options.target_h3_resolution,
+            options.window_max_size,
+        );
+        let window_indexes = build_window_indexes(&options.window_polygon, window_h3_resolution)?;
+
+        // use a higher capacity to have a few available in case the consumer
+        // of the sliding window sometimes discards single windows
+        let resultset_capacity = max(3, options.concurrency as usize * 3);
+
+        let (tx, rx) = clickhouse_pool
+            .runtime
+            .block_on(async { tokio::sync::mpsc::channel(resultset_capacity) });
+        let pool_copy = clickhouse_pool.clone();
+        let join_handle = clickhouse_pool
+            .runtime
+            .spawn(async { launch_window_iteration(pool_copy, tx, options, window_indexes).await });
+
+        Ok(Self {
+            clickhouse_pool,
+            rx_resultset: rx,
+            join_handle: Some(join_handle),
+        })
+    }
+}
+
+async fn launch_window_iteration(
     clickhouse_pool: Arc<ClickhousePool>,
-    window_polygon: Polygon<f64>,
-    tableset: TableSet,
+    tx_resultset: tokio::sync::mpsc::Sender<PyResult<ResultSet>>,
+    options: SlidingWindowOptions,
+    window_indexes: VecDeque<H3Cell>,
+) -> PyResult<()> {
+    let options_arc = Arc::new(options);
+    let (tx_window_index, rx_window_index) =
+        async_channel::bounded(options_arc.concurrency as usize);
+
+    let mut fetch_handles = vec![];
+    for _ in 0..options_arc.concurrency {
+        let client = clickhouse_pool.pool.get_handle().await.into_pyresult()?;
+        let rx = rx_window_index.clone();
+        let tx = tx_resultset.clone();
+        let opts = options_arc.clone();
+        let handle = tokio::task::spawn(async move {
+            // fetch next window
+            fetch_window(client, opts, rx, tx).await
+        });
+        fetch_handles.push(handle);
+    }
+    // close this tasks copy of the channel to leave no open copies once the tasks have finished.
+    std::mem::drop(tx_resultset);
+    std::mem::drop(rx_window_index);
+
+    let prefetch_handle = {
+        let client = clickhouse_pool.pool.get_handle().await.into_pyresult()?;
+        let opts = options_arc.clone();
+        tokio::task::spawn(async move {
+            // check window indexes
+            prefetch_window_indexes(client, window_indexes, opts, tx_window_index).await
+        })
+    };
+
+    prefetch_handle.await.into_pyresult()??;
+    for handle in fetch_handles.drain(..) {
+        handle.await.into_pyresult()??;
+    }
+    Ok(())
+}
+
+fn determinate_window_h3_resolution(
+    tableset: &TableSet,
     target_h3_resolution: u8,
     window_max_size: u32,
-    query: TableSetQuery,
-    prefetch_query: Option<TableSetQuery>,
-) -> PyResult<SlidingH3Window> {
+) -> u8 {
     let window_h3_resolution =
         window_index_resolution(&tableset, target_h3_resolution, window_max_size);
     if (target_h3_resolution as i16 - window_h3_resolution as i16).abs() <= 3 {
@@ -73,9 +174,17 @@ pub fn create_window(
             window_h3_resolution
         );
     }
+    window_h3_resolution
+}
 
+fn build_window_indexes(
+    poly: &Polygon<f64>,
+    window_h3_resolution: u8,
+) -> PyResult<VecDeque<H3Cell>> {
     let mut window_index_set = HashSet::new();
-    let mut add_index = |index: H3Cell| {
+
+    for h3index in polyfill(&poly, window_h3_resolution) {
+        let index = H3Cell::try_from(h3index).into_pyresult()?;
         // polyfill just uses the centroid to determinate if an index is convert,
         // but we also want intersecting h3 cells where the centroid may be outside
         // of the polygon, so we add the direct neighbors as well.
@@ -83,18 +192,13 @@ pub fn create_window(
             window_index_set.insert(ring_h3index);
         }
         window_index_set.insert(index);
-    };
-
-    for h3index in polyfill(&window_polygon, window_h3_resolution) {
-        let index = H3Cell::try_from(h3index).into_pyresult()?;
-        add_index(index);
     }
 
     // for small windows, polyfill may not yield results,
     // so just adding the center as well.
-    if let Some(point) = window_polygon.centroid() {
+    if let Some(point) = poly.centroid() {
         let index = H3Cell::from_coordinate(&point.0, window_h3_resolution).into_pyresult()?;
-        add_index(index);
+        window_index_set.insert(index);
     }
     log::info!(
         "sliding window: {} window indexes found",
@@ -107,52 +211,112 @@ pub fn create_window(
     // user when inspecting the results produced during the processing
     window_indexes.sort_unstable();
 
-    let prefetch_query_fallback = prefetch_query.unwrap_or_else(|| query.clone());
-    let mut sliding_window = SlidingH3Window {
-        clickhouse_pool,
-        window_polygon,
-        target_h3_resolution,
-        window_indexes,
-        iter_pos: 0,
-        prefetched_window_indexes: Default::default(),
-        tableset,
-        query,
-        prefetch_query: prefetch_query_fallback,
-        preloaded_window: None,
-    };
-
-    preload_next_resultset(&mut sliding_window)?;
-
-    Ok(sliding_window)
+    Ok(window_indexes.drain(..).collect())
 }
 
-fn preload_next_resultset(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
-    if let Some(queryparameters) = next_window_queryparameters(sliding_window)? {
-        let mut resultset: ResultSet = AwaitableResultSet::new(
-            sliding_window.clickhouse_pool.clone(),
-            queryparameters.query,
-        )
-        .into();
-        resultset.window_h3index = Some(queryparameters.window_h3index);
-        resultset.h3indexes_queried = Some(queryparameters.h3indexes_queried);
-        sliding_window.preloaded_window = Some(resultset);
+/// prefetch until some data-containing indexes where found, or the
+/// window has been completely crawled
+async fn prefetch_window_indexes(
+    mut client: ClientHandle,
+    mut window_indexes: VecDeque<H3Cell>,
+    options: Arc<SlidingWindowOptions>,
+    tx_window_index: async_channel::Sender<H3Cell>,
+) -> PyResult<()> {
+    set_clickhouse_low_prio(&mut client).await?;
+
+    loop {
+        // prefetch a new batch
+        let mut indexes_to_prefetch = vec![];
+        for _ in 0..600 {
+            if let Some(window_index) = window_indexes.pop_front() {
+                indexes_to_prefetch.push(window_index);
+            } else {
+                break; // no more window_indexes available
+            }
+        }
+        if indexes_to_prefetch.is_empty() {
+            return Ok(()); // reached the end of the window iteration
+        }
+
+        let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
+        let q = options
+            .tableset
+            .build_select_query(
+                &h3indexes,
+                match &options.prefetch_query {
+                    Some(pq) => pq,
+                    None => &options.query,
+                },
+            )
+            .into_pyresult()?;
+
+        let window_h3indexes = {
+            let columnset = query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
+                .await
+                .into_pyresult()?;
+            window_indexes_from_columnset(columnset)?
+        };
+
+        match window_h3indexes {
+            Some(h3indexes) => {
+                for h3index in h3indexes.iter() {
+                    if tx_window_index.send(H3Cell::new(*h3index)).await.is_err() {
+                        log::debug!("receivers for window indexes are gone");
+                        return Ok(());
+                    }
+                }
+            }
+            None => continue,
+        }
     }
-    Ok(())
 }
 
-struct QueryParameters {
-    query: Query,
-    h3indexes_queried: Vec<u64>,
-    window_h3index: u64,
+fn window_indexes_from_columnset(mut columnset: ColumnSet) -> PyResult<Option<Vec<u64>>> {
+    if let Some(colvec) = columnset.columns.remove(COL_NAME_H3INDEX) {
+        if colvec.is_empty() {
+            return Ok(None);
+        }
+        match colvec {
+            ColVec::U64(mut h3indexes) => {
+                // make the ordering more deterministic by sorting, deduplicate for safety in case
+                // the prefetch query returns duplicates.
+                h3indexes.sort_unstable();
+                h3indexes.dedup();
+
+                Ok(Some(h3indexes))
+            }
+            _ => Err(PyRuntimeError::new_err(format!(
+                "expected the '{}' column of the prefetch query to be UInt64",
+                COL_NAME_H3INDEX
+            ))),
+        }
+    } else {
+        Err(PyRuntimeError::new_err(format!(
+            "expected the generated prefetch query to contain a column called '{}'",
+            COL_NAME_H3INDEX
+        )))
+    }
 }
 
-fn next_window_queryparameters(
-    sliding_window: &mut SlidingH3Window,
-) -> PyResult<Option<QueryParameters>> {
-    while let Some(window_h3index) = next_window_index(sliding_window)? {
-        let child_indexes: Vec<_> = H3Cell::try_from(window_h3index)
-            .into_pyresult()?
-            .get_children(sliding_window.target_h3_resolution)
+async fn fetch_window(
+    mut client: ClientHandle,
+    options: Arc<SlidingWindowOptions>,
+    rx_window_index: async_channel::Receiver<H3Cell>,
+    tx_resultset: tokio::sync::mpsc::Sender<PyResult<ResultSet>>,
+) -> PyResult<()> {
+    set_clickhouse_low_prio(&mut client).await?;
+
+    loop {
+        let window_index = match rx_window_index.recv().await {
+            Ok(wi) => wi,
+            Err(_) => {
+                log::debug!("sender for window index dropped");
+                return Ok(());
+            }
+        };
+        log::debug!("fetching data for window {}", window_index.to_string());
+        let child_indexes: Vec<_> = window_index
+            .get_children(options.target_h3_resolution)
             .drain(..)
             // remove children located outside of the window_polygon. It is probably is not
             // worth the effort, but it allows to relocate some load from the DB server
@@ -162,98 +326,53 @@ fn next_window_queryparameters(
                 // when window_polygon is a tile of a larger polygon. Using Index.to_polygon
                 // would result in one line of h3 cells overlap between neighboring tiles.
                 let p = ci.to_coordinate();
-                sliding_window.window_polygon.intersects(&p)
+                options.window_polygon.intersects(&p)
             })
             .map(|i| i.h3index())
             .collect();
 
         if child_indexes.is_empty() {
-            log::info!("window without intersecting h3indexes skipped");
+            log::debug!("window without intersecting h3indexes skipped");
             continue;
         }
 
-        let query_string = sliding_window
+        let query_string = options
             .tableset
-            .build_select_query(&child_indexes, &sliding_window.query)
+            .build_select_query(&child_indexes, &options.query)
             .into_pyresult()?;
-        return Ok(Some(QueryParameters {
-            query: Query::Uncompact(query_string, child_indexes.iter().cloned().collect()),
-            h3indexes_queried: child_indexes,
-            window_h3index,
-        }));
+        let resultset = query_all_with_uncompacting(
+            &mut client,
+            query_string,
+            child_indexes.iter().cloned().collect(),
+        )
+        .await
+        .into_pyresult()
+        .map(|columnset| {
+            ResultSet {
+                h3indexes_queried: Some(child_indexes),
+                window_h3index: Some(window_index.h3index()),
+                column_data: Either::Left(Some(columnset.into())),
+                query_duration: None, // TODO: measure query time
+            }
+        });
+        if tx_resultset.send(resultset).await.is_err() {
+            log::debug!("Receiver for window resultset dropped");
+            return Ok(());
+        }
     }
-    Ok(None)
 }
 
-/// get the next window_index for the window
-fn next_window_index(sliding_window: &mut SlidingH3Window) -> PyResult<Option<H3Index>> {
-    // return and drain the prefetched ones first
-    if let Some(window_index) = sliding_window.prefetched_window_indexes.pop_front() {
-        return Ok(Some(window_index.h3index()));
-    }
-    prefetch_next_window_indexes(sliding_window)?;
-
-    if let Some(window_index) = sliding_window.prefetched_window_indexes.pop_front() {
-        Ok(Some(window_index.h3index()))
-    } else {
-        Ok(None) // finished with window iteration
-    }
+/// use a low level of concurrency in clickhouse to keep the load and memory requirements
+/// on the db server low. the fetch here happens ahead of time anyways.
+/// related: https://github.com/ClickHouse/ClickHouse/issues/22980#issuecomment-818473308
+async fn set_clickhouse_low_prio(client: &mut ClientHandle) -> PyResult<()> {
+    // default number of threads is 6
+    set_clickhouse_threads(client, 2).await
 }
 
-/// prefetch until some data-containing indexes where found, or the
-/// window has been completely crawled
-fn prefetch_next_window_indexes(sliding_window: &mut SlidingH3Window) -> PyResult<()> {
-    loop {
-        // prefetch a new batch
-        let mut indexes_to_prefetch = vec![];
-        for _ in 0..600 {
-            if let Some(window_index) = sliding_window.window_indexes.get(sliding_window.iter_pos) {
-                indexes_to_prefetch.push(window_index);
-                sliding_window.iter_pos += 1;
-            } else {
-                break; // no more window_indexes available
-            }
-        }
-        if indexes_to_prefetch.is_empty() {
-            return Ok(()); // reached the end of the window iteration
-        }
-
-        let query = {
-            let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
-            let q = sliding_window
-                .tableset
-                .build_select_query(&h3indexes, &sliding_window.prefetch_query)
-                .into_pyresult()?;
-            Query::Uncompact(
-                format!("select distinct {} from ({})", COL_NAME_H3INDEX, q),
-                h3indexes.drain(..).collect(),
-            )
-        };
-
-        let query_data = sliding_window.clickhouse_pool.query(query)?;
-        if let Some(colvec) = query_data.columns.get(COL_NAME_H3INDEX) {
-            if colvec.is_empty() {
-                continue;
-            }
-            return match colvec {
-                ColVec::U64(h3indexes) => {
-                    h3indexes.iter().for_each(|h3i| {
-                        sliding_window
-                            .prefetched_window_indexes
-                            .push_back(Index::new(*h3i))
-                    });
-                    Ok(())
-                }
-                _ => Err(PyRuntimeError::new_err(format!(
-                    "expected the '{}' column of the prefetch query to be UInt64",
-                    COL_NAME_H3INDEX
-                ))),
-            };
-        } else {
-            return Err(PyRuntimeError::new_err(format!(
-                "expected the generated prefetch query to contain a column called '{}'",
-                COL_NAME_H3INDEX
-            )));
-        }
-    }
+async fn set_clickhouse_threads(client: &mut ClientHandle, n_threads: u8) -> PyResult<()> {
+    client
+        .execute(format!("set max_threads = {}", n_threads))
+        .await
+        .into_pyresult()
 }

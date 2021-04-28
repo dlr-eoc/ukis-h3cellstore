@@ -38,7 +38,6 @@ import json
 import pandas as pd
 import psycopg2
 import shapely.wkb
-from datetime import datetime
 from shapely.geometry import shape, Polygon
 
 import bamboo_h3
@@ -46,7 +45,8 @@ from bamboo_h3.concurrent import process_polygon
 from bamboo_h3.postgres import fetch_using_intersecting_h3indexes
 
 # number of worker processes to use, set to 1 to skip parallelization and
-# gain better debuggability
+# gain better debuggability. Should approx. be the number of available
+# cores divided by 2
 MAX_WORKERS = 1
 
 # postgres credentials see password db, here they are passed via PGUSER
@@ -156,7 +156,7 @@ def process_window(window_geom: Polygon):
         window_geom,
         tablesets["water"],
         13,
-        window_max_size=20000,
+        window_max_size=1000000,
         querystring_template=querystring_template,
         prefetch_querystring_template=querystring_template,
     ):
