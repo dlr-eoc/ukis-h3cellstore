@@ -894,23 +894,19 @@ impl ColumnSet {
             };
 
             if chunk_is_finished {
-                let chunkmap = std::mem::replace(
-                    &mut current_chunkmaps[(chunk_resolution as usize)],
-                    Default::default(),
-                );
-                finished_outputs
-                    .get_mut(chunk_resolution as usize)
-                    .map(|v| v.push(chunkmap.into()));
+                let chunkmap = std::mem::take(&mut current_chunkmaps[(chunk_resolution as usize)]);
+                if let Some(v) = finished_outputs.get_mut(chunk_resolution as usize) {
+                    v.push(chunkmap.into());
+                }
             }
         }
         // add the currently unfinished chunks
-        for h3_resolution in 0..current_chunkmaps.len() {
-            if !current_chunkmaps[h3_resolution].is_empty() {
-                let chunkmap =
-                    std::mem::replace(&mut current_chunkmaps[h3_resolution], Default::default());
-                finished_outputs
-                    .get_mut(h3_resolution as usize)
-                    .map(|v| v.push(chunkmap.into()));
+        for (h3_resolution, current_chunkmap) in current_chunkmaps.iter_mut().enumerate() {
+            if !current_chunkmap.is_empty() {
+                let chunkmap = std::mem::take(current_chunkmap);
+                if let Some(v) = finished_outputs.get_mut(h3_resolution as usize) {
+                    v.push(chunkmap.into());
+                }
             }
         }
         Ok(finished_outputs
