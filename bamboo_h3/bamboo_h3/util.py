@@ -4,7 +4,10 @@ from types import ModuleType
 
 # just re-export everything from h3ronpy to provide a single API for users
 __doc__ = __util.__doc__
-__all__ = ["range_extender"]
+__all__ = [
+    "range_extender",
+]
+
 for __member_name in dir(__util):
     if not __member_name.startswith("_"):
         __member = getattr(__util, __member_name)
@@ -15,7 +18,7 @@ for __member_name in dir(__util):
 
 def range_extender(df: pd.DataFrame, start: str, end: str) -> pd.DataFrame:
     """
-    make sure that each chunk uses the full date range range of the SQl-query for upsampling of missing dates
+    Make sure that each dataframe uses the full date range (start ... end) for upsampling of missing dates
     this makes sure we have e.g. complete cycles and treat all chunks equally
     also fills NaN values with ffill & bfill (there should not be any Nan values before calling this function)
     :returns: DataFrame with additional rows if complete range was not covered
