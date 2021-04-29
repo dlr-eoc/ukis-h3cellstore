@@ -222,7 +222,7 @@ async fn prefetch_window_indexes(
     options: Arc<SlidingWindowOptions>,
     tx_window_index: async_channel::Sender<H3Cell>,
 ) -> PyResult<()> {
-    set_clickhouse_low_prio(&mut client).await?;
+    set_clickhouse_num_window_threads(&mut client).await?;
 
     loop {
         // prefetch a new batch
@@ -251,9 +251,10 @@ async fn prefetch_window_indexes(
             .into_pyresult()?;
 
         let window_h3indexes = {
-            let columnset = query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
-                .await
-                .into_pyresult()?;
+            let columnset =
+                query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
+                    .await
+                    .into_pyresult()?;
             window_indexes_from_columnset(columnset)?
         };
 
@@ -304,7 +305,7 @@ async fn fetch_window(
     rx_window_index: async_channel::Receiver<H3Cell>,
     tx_resultset: tokio::sync::mpsc::Sender<PyResult<ResultSet>>,
 ) -> PyResult<()> {
-    set_clickhouse_low_prio(&mut client).await?;
+    set_clickhouse_num_window_threads(&mut client).await?;
 
     loop {
         let window_index = match rx_window_index.recv().await {
@@ -365,9 +366,10 @@ async fn fetch_window(
 /// use a low level of concurrency in clickhouse to keep the load and memory requirements
 /// on the db server low. the fetch here happens ahead of time anyways.
 /// related: https://github.com/ClickHouse/ClickHouse/issues/22980#issuecomment-818473308
-async fn set_clickhouse_low_prio(client: &mut ClientHandle) -> PyResult<()> {
-    // default number of threads is 6
-    set_clickhouse_threads(client, 2).await
+///
+/// The default number of threads according to the linked issue is 6.
+async fn set_clickhouse_num_window_threads(client: &mut ClientHandle) -> PyResult<()> {
+    set_clickhouse_threads(client, crate::env::window_num_clickhouse_threads()).await
 }
 
 async fn set_clickhouse_threads(client: &mut ClientHandle, n_threads: u8) -> PyResult<()> {

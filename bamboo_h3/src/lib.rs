@@ -21,6 +21,7 @@ mod inspect;
 mod schema;
 mod syncapi;
 mod window;
+mod env;
 
 /// version of the module
 #[pyfunction]
