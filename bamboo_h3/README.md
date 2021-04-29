@@ -65,5 +65,5 @@ For more fine-grained logging settings, see the documentation of `env_logger`.
 
 | env variable name | description | default value |
 | --- | --- | --- |
-| `BAMBOO_WINDOW_NUM_CLICKHOUSE_THREADS` | Mumber of ClickHouse threads to use during window iteration. The more threads are used, the higher the load and memory requirements in the db server will be. As this is used for mostly non-timecritical preloading, the number can be quite low. | 2 |
+| `BAMBOO_WINDOW_NUM_CLICKHOUSE_THREADS` | Number of ClickHouse threads to use during window iteration. The more threads are used, the higher the load and memory requirements in the db server will be. As this is used for mostly non-timecritical preloading, the number can be quite low. | 2 |
 | `BAMBOO_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES` | Number of concurrent queries to use to preload data for the next windows from ClickHouse. | 3 |

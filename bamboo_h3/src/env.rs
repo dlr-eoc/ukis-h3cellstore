@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::fmt::Display;
 use std::str::FromStr;
 
-/// number of ClickHouse threads to use during window iteration.
+/// Number of ClickHouse threads to use during window iteration.
 /// The more threads are used, the higher the load and memory requirements in the db
 /// server will be.
 /// As this is used for mostly non-timecritical preloading, the number can be quite low.
