@@ -57,7 +57,8 @@ features = [
     "time",
     "net",
     "sync",
-    "rt-multi-thread"
+    "rt-multi-thread",
+    "macros",
 ]
 
 [package.metadata.maturin]

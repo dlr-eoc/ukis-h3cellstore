@@ -2,6 +2,7 @@ use std::cmp::max;
 use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use either::Either;
 use h3ron::{polyfill, H3Cell, Index, ToCoordinate};
@@ -20,6 +21,7 @@ use bamboo_h3_int::{
 use crate::clickhouse::ResultSet;
 use crate::error::IntoPyResult;
 use crate::syncapi::ClickhousePool;
+
 
 pub struct SlidingWindowOptions {
     pub window_polygon: Polygon<f64>,
@@ -43,14 +45,35 @@ pub struct SlidingH3Window {
     clickhouse_pool: Arc<ClickhousePool>,
     rx_resultset: tokio::sync::mpsc::Receiver<PyResult<ResultSet>>,
     join_handle: Option<tokio::task::JoinHandle<PyResult<()>>>,
+    shutdown: Arc<tokio::sync::Notify>,
 }
 
 #[pymethods]
 impl SlidingH3Window {
-    fn fetch_next_window(&mut self) -> PyResult<Option<ResultSet>> {
-        match self.rx_resultset.blocking_recv() {
-            Some(r) => r.map(Some),
-            None => Ok(None),
+    fn fetch_next_window(&mut self, py: Python) -> PyResult<Option<ResultSet>> {
+        loop {
+            let resultset_future = self.rx_resultset.recv();
+            let resultset_recv_timeout = self.clickhouse_pool.runtime.block_on(async {
+                tokio::time::timeout(Duration::from_millis(200), resultset_future).await
+            });
+
+            match resultset_recv_timeout {
+                Ok(resultset_option) => {
+                    return match resultset_option {
+                        Some(rs) => rs.map(Some),
+                        None => Ok(None),
+                    }
+                }
+
+                Err(_elapsed) => {
+                    // timeout reached. check if the python program has been interrupted
+                    // and wait again if that was not the case
+                    if let Err(e) = py.check_signals() {
+                        self.shutdown.notify_waiters();
+                        return Err(e);
+                    }
+                }
+            }
         }
     }
 
@@ -61,6 +84,8 @@ impl SlidingH3Window {
 
 impl SlidingH3Window {
     fn finish_tasks(&mut self) -> PyResult<()> {
+        self.shutdown.notify_waiters();
+
         // let all tasks collapse
         self.rx_resultset.close();
 
@@ -97,18 +122,40 @@ impl SlidingH3Window {
         // of the sliding window sometimes discards single windows
         let resultset_capacity = max(3, options.concurrency as usize * 3);
 
-        let (tx, rx) = clickhouse_pool
+        let (tx_resultset, rx_resultset) = clickhouse_pool
             .runtime
             .block_on(async { tokio::sync::mpsc::channel(resultset_capacity) });
+
+        let shutdown = Arc::new(tokio::sync::Notify::new());
+        let shutdown2 = shutdown.clone();
+
         let pool_copy = clickhouse_pool.clone();
-        let join_handle = clickhouse_pool
-            .runtime
-            .spawn(async { launch_window_iteration(pool_copy, tx, options, window_indexes).await });
+        let join_handle = clickhouse_pool.runtime.spawn(async move {
+            let shutdown_notified = shutdown2.notified();
+            let window_iteration = launch_window_iteration(
+                pool_copy,
+                tx_resultset,
+                options,
+                window_indexes,
+            );
+
+            tokio::select! {
+                _ = shutdown_notified => {
+                    // shutdown requested
+                    Ok(())
+                }
+                res = window_iteration => {
+                    // window iteration finished
+                    res
+                }
+            }
+        });
 
         Ok(Self {
             clickhouse_pool,
-            rx_resultset: rx,
+            rx_resultset,
             join_handle: Some(join_handle),
+            shutdown,
         })
     }
 }
@@ -126,12 +173,12 @@ async fn launch_window_iteration(
     let mut fetch_handles = vec![];
     for _ in 0..options_arc.concurrency {
         let client = clickhouse_pool.pool.get_handle().await.into_pyresult()?;
-        let rx = rx_window_index.clone();
-        let tx = tx_resultset.clone();
+        let rx_window_index_ = rx_window_index.clone();
+        let tx_resulset_ = tx_resultset.clone();
         let opts = options_arc.clone();
         let handle = tokio::task::spawn(async move {
             // fetch next window
-            fetch_window(client, opts, rx, tx).await
+            fetch_window(client, opts, rx_window_index_, tx_resulset_).await
         });
         fetch_handles.push(handle);
     }
@@ -312,9 +359,14 @@ async fn fetch_window(
             Ok(wi) => wi,
             Err(_) => {
                 log::debug!("sender for window index dropped");
-                return Ok(());
+                break;
             }
         };
+
+        if tx_resultset.is_closed() {
+            break;
+        }
+
         log::debug!("fetching data for window {}", window_index.to_string());
         let child_indexes: Vec<_> = window_index
             .get_children(options.target_h3_resolution)
@@ -332,6 +384,10 @@ async fn fetch_window(
             .map(|i| i.h3index())
             .collect();
 
+        if tx_resultset.is_closed() {
+            break;
+        }
+
         if child_indexes.is_empty() {
             log::debug!("window without intersecting h3indexes skipped");
             continue;
@@ -341,6 +397,8 @@ async fn fetch_window(
             .tableset
             .build_select_query(&child_indexes, &options.query)
             .into_pyresult()?;
+
+        let t_start = Instant::now();
         let resultset = query_all_with_uncompacting(
             &mut client,
             query_string,
@@ -353,14 +411,16 @@ async fn fetch_window(
                 h3indexes_queried: Some(child_indexes),
                 window_h3index: Some(window_index.h3index()),
                 column_data: Either::Left(Some(columnset.into())),
-                query_duration: None, // TODO: measure query time
+                query_duration: Some(t_start.elapsed()),
             }
         });
+
         if tx_resultset.send(resultset).await.is_err() {
             log::debug!("Receiver for window resultset dropped");
             return Ok(());
         }
     }
+    Ok(())
 }
 
 /// use a low level of concurrency in clickhouse to keep the load and memory requirements
