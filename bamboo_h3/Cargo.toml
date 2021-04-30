@@ -15,14 +15,13 @@ bamboo_h3_int = { path = "../bamboo_h3_int" }
 numpy = "^0.13"
 log = "0.4"
 env_logger = "0.8"
-wkb = "=0.7.0" # 0.7.1 upgrades geo-types frm 0.6.0 to 0.7.0
+wkb = "=0.7.0" # 0.7.1 upgrades geo-types from 0.6.0 to 0.7.0
 h3ron = "0.10.0"
 h3ron-h3-sys = "0.10.0"
 svgbobdoc = "^0.2"
 either = "^1.6"
 serde = "^1"
 itertools = "^0.10"
-async-channel = "1.6"
 
 [dependencies.chrono]
 version = "0.4"

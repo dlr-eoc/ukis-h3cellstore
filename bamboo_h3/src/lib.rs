@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 
@@ -15,13 +13,13 @@ use crate::{
 
 mod clickhouse;
 mod columnset;
+mod env;
 mod error;
 mod geo;
 mod inspect;
 mod schema;
 mod syncapi;
 mod window;
-mod env;
 
 /// version of the module
 #[pyfunction]
@@ -32,9 +30,9 @@ fn version() -> String {
 /// open a connection to clickhouse
 #[pyfunction]
 fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
-    Ok(ClickhouseConnection::new(Arc::new(ClickhousePool::create(
+    Ok(ClickhouseConnection::new(ClickhousePool::create(
         &validate_clickhouse_url(db_url, Some(2000)).into_pyresult()?,
-    )?)))
+    )?))
 }
 
 /// calculate the convex hull of an array og h3 indexes
@@ -46,7 +44,11 @@ fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo
 }
 
 #[pyfunction]
-pub fn intersect_columnset_with_indexes(cs: &ColumnSet, wkbs: Vec<&[u8]>, h3indexes: PyReadonlyArray1<u64>) -> PyResult<ColumnSet> {
+pub fn intersect_columnset_with_indexes(
+    cs: &ColumnSet,
+    wkbs: Vec<&[u8]>,
+    h3indexes: PyReadonlyArray1<u64>,
+) -> PyResult<ColumnSet> {
     crate::geo::intersect_columnset_with_indexes(cs, wkbs, h3indexes)
 }
 

@@ -6,6 +6,7 @@ use url::Url;
 
 use crate::error::Error;
 use crate::{ColVec, ColumnSet, Datatype};
+use std::time::Duration;
 
 pub mod compacted_tables;
 pub mod query;
@@ -111,6 +112,19 @@ pub fn validate_clickhouse_url(
     }
 
     Ok(parsed_url.into_string())
+}
+
+pub struct QueryOutput<T> {
+    pub data: T,
+
+    /// the indexes queried from the DB
+    pub h3indexes_queried: Option<Vec<u64>>,
+
+    /// In case of sliding windows, the window index
+    pub window_h3index: Option<u64>,
+
+    /// the duration the query took to finish
+    pub query_duration: Option<Duration>,
 }
 
 #[cfg(test)]

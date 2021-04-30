@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use itertools::Itertools;
 use pyo3::exceptions::PyRuntimeError;
@@ -16,8 +17,8 @@ use bamboo_h3_int::clickhouse::schema::CreateSchema;
 use bamboo_h3_int::clickhouse_rs::Pool;
 
 use crate::columnset::ColumnSet;
-use crate::schema::Schema;
 use crate::error::IntoPyResult;
+use crate::schema::Schema;
 
 pub enum Query {
     /// return all rows returned by the given query string
@@ -34,10 +35,11 @@ pub enum Query {
 /// the CPU-heavier parts of the query functions are also executed within tokio. This
 /// leads to tokio being blocked during the CPU-intensive parts, but as the runtime has
 /// only very few concurrent tasks it should not matter much.
+#[derive(Clone)]
 pub struct ClickhousePool {
-    pub(crate) pool: Pool,
+    pub(crate) pool: Arc<Pool>,
 
-    pub(crate) runtime: Runtime,
+    pub(crate) runtime: Arc<Runtime>,
 }
 
 impl ClickhousePool {
@@ -63,7 +65,10 @@ impl ClickhousePool {
                 .into_pyresult()
         })?;
 
-        Ok(Self { pool, runtime })
+        Ok(Self {
+            pool: Arc::new(pool),
+            runtime: Arc::new(runtime),
+        })
     }
 
     pub fn execute(&self, query_string: &str) -> PyResult<()> {

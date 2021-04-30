@@ -20,6 +20,17 @@ ordered-float = "^2.1"
 rayon = "^1.5"
 url = "^1"
 fnv = "^1"
+async-channel = "1.6"
+
+[dependencies.tokio]
+version = "^1"
+default-features = false
+features = [
+    "io-util",
+    "time",
+    "sync",
+    "macros",
+]
 
 [dependencies.chrono]
 version = "0.4"

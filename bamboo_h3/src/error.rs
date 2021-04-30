@@ -28,6 +28,7 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
                 | Error::ColumnNotFound(_)
                 | Error::Clickhouse(_)
                 | Error::H3ron(_)
+                | Error::RuntimeError(_)
                 | Error::UnknownDatatype(_) => Err(PyRuntimeError::new_err(err.to_string())),
             },
         }

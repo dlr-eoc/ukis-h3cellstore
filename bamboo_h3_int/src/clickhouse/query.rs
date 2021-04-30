@@ -300,3 +300,11 @@ pub async fn save_columnset(
     }
     Ok(())
 }
+
+
+pub async fn set_clickhouse_max_threads(client: &mut ClientHandle, n_threads: u8) -> Result<(), Error> {
+    client
+        .execute(format!("set max_threads = {}", n_threads))
+        .await?;
+    Ok(())
+}

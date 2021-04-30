@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use either::Either;
@@ -15,7 +14,6 @@ use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
 
 use crate::columnset::ColumnSet;
 use crate::schema::Schema;
-use crate::window::SlidingWindowOptions;
 use crate::{
     error::IntoPyResult,
     geo::Polygon,
@@ -23,14 +21,15 @@ use crate::{
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };
+use bamboo_h3_int::clickhouse::window::SlidingWindowOptions;
 
 #[pyclass]
 pub struct ClickhouseConnection {
-    pub(crate) clickhouse_pool: Arc<ClickhousePool>,
+    pub(crate) clickhouse_pool: ClickhousePool,
 }
 
 impl ClickhouseConnection {
-    pub fn new(clickhouse_pool: Arc<ClickhousePool>) -> Self {
+    pub fn new(clickhouse_pool: ClickhousePool) -> Self {
         Self { clickhouse_pool }
     }
 }
@@ -60,6 +59,7 @@ impl ClickhouseConnection {
             },
             prefetch_query: prefetch_querystring_template.map(TableSetQuery::TemplatedSelect),
             concurrency: crate::env::window_num_concurrent_queries(),
+            window_num_clickhouse_threads: crate::env::window_num_clickhouse_threads()
         };
         SlidingH3Window::create(self.clickhouse_pool.clone(), opts)
     }
@@ -137,7 +137,7 @@ impl ClickhouseConnection {
 }
 
 pub(crate) struct AwaitableResultSet {
-    pub clickhouse_pool: Arc<ClickhousePool>,
+    pub clickhouse_pool: ClickhousePool,
     pub handle: Option<TaskJoinHandle<PyResult<ColumnSet>>>,
 
     /// time the query started
@@ -145,7 +145,7 @@ pub(crate) struct AwaitableResultSet {
 }
 
 impl AwaitableResultSet {
-    pub fn new(clickhouse_pool: Arc<ClickhousePool>, query: Query) -> Self {
+    pub fn new(clickhouse_pool: ClickhousePool, query: Query) -> Self {
         let handle = Some(clickhouse_pool.spawn_query(query));
         Self {
             clickhouse_pool,
@@ -210,6 +210,17 @@ impl From<AwaitableResultSet> for ResultSet {
             window_h3index: None,
             column_data: Either::Right(Some(awrs)),
             query_duration: None,
+        }
+    }
+}
+
+impl From<bamboo_h3_int::clickhouse::QueryOutput<bamboo_h3_int::ColumnSet>> for ResultSet {
+    fn from(qo: bamboo_h3_int::clickhouse::QueryOutput<bamboo_h3_int::ColumnSet>) -> Self {
+        Self {
+            h3indexes_queried: qo.h3indexes_queried,
+            window_h3index: qo.window_h3index,
+            column_data: Either::Left(Some(qo.data.into())),
+            query_duration: qo.query_duration
         }
     }
 }

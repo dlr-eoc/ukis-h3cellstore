@@ -21,6 +21,7 @@ pub enum Error {
     InvalidColumn(String),
     IncompatibleDatatype,
     UrlParseError(url::ParseError),
+    RuntimeError(String),
 }
 
 impl fmt::Display for Error {
@@ -52,6 +53,7 @@ impl fmt::Display for Error {
             Error::Clickhouse(e) => write!(f, "ClickHouse: {:?}", e),
             Error::IncompatibleDatatype => write!(f, "incompatible datatype"),
             Error::UrlParseError(upe) => write!(f, "Unable to parse url: {:?}", upe),
+            Error::RuntimeError(msg) => write!(f, "{}", msg),
         }
     }
 }
@@ -68,8 +70,7 @@ where
         .map_err(|_| Error::InvalidH3Index(index.h3index()))
 }
 
-pub(crate) fn check_same_h3_resolution(indexes: &[u64]) -> std::result::Result<(), Error>
-{
+pub(crate) fn check_same_h3_resolution(indexes: &[u64]) -> std::result::Result<(), Error> {
     if let Some(first) = indexes.get(0) {
         let first_index = H3Cell::try_from(*first)?;
         let expected_res = first_index.resolution();
@@ -104,5 +105,11 @@ impl From<clickhouse_rs::errors::Error> for Error {
 impl From<url::ParseError> for Error {
     fn from(e: url::ParseError) -> Self {
         Error::UrlParseError(e)
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(e: tokio::task::JoinError) -> Self {
+        Error::RuntimeError(format!("joining task failed: {:?}", e))
     }
 }
