@@ -35,7 +35,10 @@ impl SlidingH3Window {
             } else {
                 return match output {
                     Some(rs) => rs.map(|x| Some(ResultSet::from(x))),
-                    None => Ok(None),
+                    None => {
+                        // iteration finished
+                        Ok(None)
+                    },
                 }
                 .into_pyresult();
             }

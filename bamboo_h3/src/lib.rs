@@ -45,11 +45,12 @@ fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo
 
 #[pyfunction]
 pub fn intersect_columnset_with_indexes(
+    py: Python,
     cs: &ColumnSet,
     wkbs: Vec<&[u8]>,
     h3indexes: PyReadonlyArray1<u64>,
 ) -> PyResult<ColumnSet> {
-    crate::geo::intersect_columnset_with_indexes(cs, wkbs, h3indexes)
+    crate::geo::intersect_columnset_with_indexes(py, cs, wkbs, h3indexes)
 }
 
 #[cfg(debug_assertions)]

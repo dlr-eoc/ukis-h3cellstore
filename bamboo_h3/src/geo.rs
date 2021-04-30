@@ -186,6 +186,7 @@ impl H3IndexesContainedIn {
 }
 
 pub fn intersect_columnset_with_indexes(
+    py: Python,
     cs: &ColumnSet,
     wkbs: Vec<&[u8]>,
     h3indexes: PyReadonlyArray1<u64>,
@@ -218,7 +219,9 @@ pub fn intersect_columnset_with_indexes(
                 out_h3indexes.push(*h3index)
             }
         }
-        repetitions.push(reps)
+        repetitions.push(reps);
+
+        py.check_signals()?; // check for interrupts
     }
     let total_num: usize = repetitions.iter().sum();
 
