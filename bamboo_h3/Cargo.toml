@@ -11,7 +11,7 @@ name = "bamboo_h3"
 crate-type = ["cdylib"]
 
 [dependencies]
-bamboo_h3_int = { path = "../bamboo_h3_int" }
+bamboo_h3_core = { path = "../bamboo_h3_core" }
 numpy = "^0.13"
 log = "0.4"
 env_logger = "0.8"

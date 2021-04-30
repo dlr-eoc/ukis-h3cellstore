@@ -18,10 +18,10 @@ use pyo3::{
 };
 use wkb::WKBReadExt;
 
-use bamboo_h3_int::geo::algorithm::bounding_rect::BoundingRect;
-use bamboo_h3_int::geo::algorithm::contains::Contains;
-use bamboo_h3_int::geo::algorithm::intersects::Intersects;
-use bamboo_h3_int::{geo_types as gt, ColVec, COL_NAME_H3INDEX};
+use bamboo_h3_core::geo::algorithm::bounding_rect::BoundingRect;
+use bamboo_h3_core::geo::algorithm::contains::Contains;
+use bamboo_h3_core::geo::algorithm::intersects::Intersects;
+use bamboo_h3_core::{geo_types as gt, ColVec, COL_NAME_H3INDEX};
 
 use crate::columnset::{vec_to_numpy_owned, ColumnSet};
 use crate::error::IntoPyResult;
@@ -196,7 +196,7 @@ pub fn intersect_columnset_with_indexes(
             let mut cursor = Cursor::new(wkb);
             wkb::wkb_to_geom(&mut cursor).into_pyresult()
         })
-        .collect::<PyResult<Vec<bamboo_h3_int::geo_types::Geometry<f64>>>>()?;
+        .collect::<PyResult<Vec<bamboo_h3_core::geo_types::Geometry<f64>>>>()?;
 
     let h3index_coords: Vec<_> = h3indexes
         .as_array()
@@ -206,7 +206,7 @@ pub fn intersect_columnset_with_indexes(
             index.validate().into_pyresult()?;
             Ok((index.h3index(), index.to_coordinate()))
         })
-        .collect::<PyResult<Vec<(u64, bamboo_h3_int::geo_types::Coordinate<f64>)>>>()?;
+        .collect::<PyResult<Vec<(u64, bamboo_h3_core::geo_types::Coordinate<f64>)>>>()?;
 
     let mut repetitions: Vec<usize> = Vec::with_capacity(wkbs.len());
     let mut out_h3indexes = Vec::with_capacity(wkbs.len());

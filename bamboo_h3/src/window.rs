@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use pyo3::{prelude::*, PyResult};
 
-use bamboo_h3_int::clickhouse::window::SlidingWindowOptions;
+use bamboo_h3_core::clickhouse::window::SlidingWindowOptions;
 
 use crate::clickhouse::ResultSet;
 use crate::error::IntoPyResult;
@@ -11,7 +11,7 @@ use crate::syncapi::ClickhousePool;
 
 #[pyclass]
 pub struct SlidingH3Window {
-    inner: Arc<tokio::sync::Mutex<bamboo_h3_int::clickhouse::window::SlidingH3Window>>,
+    inner: Arc<tokio::sync::Mutex<bamboo_h3_core::clickhouse::window::SlidingH3Window>>,
     clickhouse_pool: ClickhousePool,
 }
 
@@ -75,7 +75,7 @@ impl SlidingH3Window {
         let inner = clickhouse_pool
             .runtime
             .block_on(async move {
-                bamboo_h3_int::clickhouse::window::SlidingH3Window::create(pool, options).await
+                bamboo_h3_core::clickhouse::window::SlidingH3Window::create(pool, options).await
             })
             .into_pyresult()?;
 

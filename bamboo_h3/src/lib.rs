@@ -1,7 +1,7 @@
 use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 
-use bamboo_h3_int::clickhouse::validate_clickhouse_url;
+use bamboo_h3_core::clickhouse::validate_clickhouse_url;
 
 use crate::error::IntoPyResult;
 use crate::{
@@ -39,7 +39,7 @@ fn create_connection(db_url: &str) -> PyResult<ClickhouseConnection> {
 #[pyfunction]
 fn h3indexes_convex_hull(np_array: PyReadonlyArray1<u64>) -> PyResult<crate::geo::Polygon> {
     let view = np_array.as_array();
-    let poly = bamboo_h3_int::algorithm::h3indexes_convex_hull(&view).into_pyresult()?;
+    let poly = bamboo_h3_core::algorithm::h3indexes_convex_hull(&view).into_pyresult()?;
     Ok(poly.into())
 }
 

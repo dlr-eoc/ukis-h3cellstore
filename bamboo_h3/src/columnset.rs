@@ -8,7 +8,7 @@ use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::{PyObjectProtocol, PySequenceProtocol};
 
-use bamboo_h3_int::ColVec;
+use bamboo_h3_core::ColVec;
 
 use crate::error::IntoPyResult;
 
@@ -75,7 +75,7 @@ pub fn timestamp_to_date(timestamp: i64) -> Date<Tz> {
 
 #[pyclass]
 pub struct ColumnSet {
-    pub(crate) inner: bamboo_h3_int::ColumnSet,
+    pub(crate) inner: bamboo_h3_core::ColumnSet,
 }
 
 #[pymethods]
@@ -279,8 +279,8 @@ impl From<HashMap<String, ColVec>> for ColumnSet {
     }
 }
 
-impl From<bamboo_h3_int::ColumnSet> for ColumnSet {
-    fn from(cs: bamboo_h3_int::ColumnSet) -> Self {
+impl From<bamboo_h3_core::ColumnSet> for ColumnSet {
+    fn from(cs: bamboo_h3_core::ColumnSet) -> Self {
         Self { inner: cs }
     }
 }

@@ -1,14 +1,14 @@
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::PyResult;
 
-use bamboo_h3_int::error::Error;
+use bamboo_h3_core::error::Error;
 
 /// convert the result of some other crate into a PyResult
 pub trait IntoPyResult<T> {
     fn into_pyresult(self) -> PyResult<T>;
 }
 
-impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
+impl<T> IntoPyResult<T> for Result<T, bamboo_h3_core::error::Error> {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),
@@ -35,7 +35,7 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_int::error::Error> {
     }
 }
 
-impl<T> IntoPyResult<T> for bamboo_h3_int::clickhouse_rs::errors::Result<T> {
+impl<T> IntoPyResult<T> for bamboo_h3_core::clickhouse_rs::errors::Result<T> {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),

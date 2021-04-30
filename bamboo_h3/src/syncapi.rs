@@ -8,13 +8,13 @@ use pyo3::PyResult;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
-use bamboo_h3_int::clickhouse::compacted_tables::{Table, TableSet};
-use bamboo_h3_int::clickhouse::query::{
+use bamboo_h3_core::clickhouse::compacted_tables::{Table, TableSet};
+use bamboo_h3_core::clickhouse::query::{
     execute, list_tablesets, query_all, query_all_with_uncompacting, query_returns_rows,
     save_columnset,
 };
-use bamboo_h3_int::clickhouse::schema::CreateSchema;
-use bamboo_h3_int::clickhouse_rs::Pool;
+use bamboo_h3_core::clickhouse::schema::CreateSchema;
+use bamboo_h3_core::clickhouse_rs::Pool;
 
 use crate::columnset::ColumnSet;
 use crate::error::IntoPyResult;
@@ -81,7 +81,7 @@ impl ClickhousePool {
         })
     }
 
-    pub fn query(&self, query: Query) -> PyResult<bamboo_h3_int::ColumnSet> {
+    pub fn query(&self, query: Query) -> PyResult<bamboo_h3_core::ColumnSet> {
         let p = &self.pool;
         self.runtime.block_on(async {
             let mut client = p.get_handle().await.into_pyresult()?;

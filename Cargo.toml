@@ -2,7 +2,7 @@
 
 members = [
     "bamboo_h3",
-    "bamboo_h3_int"
+    "bamboo_h3_core"
 ]
 
 [profile.release]

@@ -9,8 +9,8 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::{prelude::*, PyResult, Python};
 use tokio::task::JoinHandle as TaskJoinHandle;
 
-use bamboo_h3_int::clickhouse::compacted_tables::TableSetQuery;
-use bamboo_h3_int::{ColVec, COL_NAME_H3INDEX};
+use bamboo_h3_core::clickhouse::compacted_tables::TableSetQuery;
+use bamboo_h3_core::{ColVec, COL_NAME_H3INDEX};
 
 use crate::columnset::ColumnSet;
 use crate::schema::Schema;
@@ -21,7 +21,7 @@ use crate::{
     syncapi::{ClickhousePool, Query},
     window::SlidingH3Window,
 };
-use bamboo_h3_int::clickhouse::window::SlidingWindowOptions;
+use bamboo_h3_core::clickhouse::window::SlidingWindowOptions;
 
 #[pyclass]
 pub struct ClickhouseConnection {
@@ -214,8 +214,8 @@ impl From<AwaitableResultSet> for ResultSet {
     }
 }
 
-impl From<bamboo_h3_int::clickhouse::QueryOutput<bamboo_h3_int::ColumnSet>> for ResultSet {
-    fn from(qo: bamboo_h3_int::clickhouse::QueryOutput<bamboo_h3_int::ColumnSet>) -> Self {
+impl From<bamboo_h3_core::clickhouse::QueryOutput<bamboo_h3_core::ColumnSet>> for ResultSet {
+    fn from(qo: bamboo_h3_core::clickhouse::QueryOutput<bamboo_h3_core::ColumnSet>) -> Self {
         Self {
             h3indexes_queried: qo.h3indexes_queried,
             window_h3index: qo.window_h3index,

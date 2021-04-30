@@ -1,17 +1,17 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use bamboo_h3_int::clickhouse::schema::{
+use bamboo_h3_core::clickhouse::schema::{
     AggregationMethod, ColumnDefinition, CompressionMethod, CreateSchema, SimpleColumn,
     TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
 };
-use bamboo_h3_int::Datatype;
+use bamboo_h3_core::Datatype;
 
 use crate::error::IntoPyResult;
 
 #[pyclass]
 pub struct Schema {
-    pub(crate) inner: bamboo_h3_int::clickhouse::schema::Schema,
+    pub(crate) inner: bamboo_h3_core::clickhouse::schema::Schema,
 }
 
 #[pymethods]
@@ -27,7 +27,7 @@ impl Schema {
     #[staticmethod]
     fn from_json_string(instr: String) -> PyResult<Self> {
         Ok(Self {
-            inner: bamboo_h3_int::clickhouse::schema::Schema::from_json_string(&instr)
+            inner: bamboo_h3_core::clickhouse::schema::Schema::from_json_string(&instr)
                 .into_pyresult()?,
         })
     }
@@ -205,7 +205,7 @@ impl CompactedTableSchemaBuilder {
 
     fn build(&self) -> PyResult<Schema> {
         let mut builder =
-            bamboo_h3_int::clickhouse::schema::compacted_tables::CompactedTableSchemaBuilder::new(
+            bamboo_h3_core::clickhouse::schema::compacted_tables::CompactedTableSchemaBuilder::new(
                 &self.table_name,
             );
 
@@ -234,7 +234,7 @@ impl CompactedTableSchemaBuilder {
 
         let inner_schema = builder.build().into_pyresult()?;
         Ok(Schema {
-            inner: bamboo_h3_int::clickhouse::schema::Schema::CompactedTable(inner_schema),
+            inner: bamboo_h3_core::clickhouse::schema::Schema::CompactedTable(inner_schema),
         })
     }
 }
