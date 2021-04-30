@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use criterion::{criterion_group, criterion_main, Criterion};
 use h3ron::{H3Cell, Index};
 
-use bamboo_h3_int::{ColVec, ColumnSet};
+use bamboo_h3_core::{ColVec, ColumnSet};
 
 fn generate_mixed_resolution_h3indexes() -> Vec<u64> {
     let start_index = H3Cell::new(0x89283080ddbffff_u64);
