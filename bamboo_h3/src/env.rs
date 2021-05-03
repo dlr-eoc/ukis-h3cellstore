@@ -2,6 +2,8 @@ use std::cmp::min;
 use std::fmt::Display;
 use std::str::FromStr;
 
+use tracing::debug;
+
 /// Number of ClickHouse threads to use during window iteration.
 /// The more threads are used, the higher the load and memory requirements in the db
 /// server will be.
@@ -42,21 +44,19 @@ where
         Ok(env_value) => match env_value.parse() {
             Ok(value) => {
                 let value_with_min = min(value, min_value);
-                log::debug!("Using {}={}", env_name, value_with_min);
+                debug!("Using {}={}", env_name, value_with_min);
                 value_with_min
             }
             Err(_) => {
-                log::debug!(
+                debug!(
                     "Unable to parse {}. Using the default {}={}",
-                    env_name,
-                    env_name,
-                    default,
+                    env_name, env_name, default,
                 );
                 default
             }
         },
         Err(_) => {
-            log::debug!("Using the default {}={}", env_name, default);
+            debug!("Using the default {}={}", env_name, default);
             default
         }
     }

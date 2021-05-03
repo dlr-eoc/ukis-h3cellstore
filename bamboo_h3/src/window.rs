@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pyo3::{prelude::*, PyResult};
+use tracing::instrument;
 
 use bamboo_h3_core::clickhouse::window::SlidingWindowOptions;
 
@@ -17,6 +18,8 @@ pub struct SlidingH3Window {
 
 #[pymethods]
 impl SlidingH3Window {
+
+    #[instrument(level = "debug", skip(self,py))]
     fn fetch_next_window(&mut self, py: Python) -> PyResult<Option<ResultSet>> {
         loop {
             let sw = self.inner.clone();
@@ -51,6 +54,8 @@ impl SlidingH3Window {
 }
 
 impl SlidingH3Window {
+
+    #[instrument(level = "debug", skip(self))]
     fn finish_tasks(&mut self) -> PyResult<()> {
         let sw = self.inner.clone();
         self.clickhouse_pool

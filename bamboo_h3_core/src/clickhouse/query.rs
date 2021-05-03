@@ -9,7 +9,7 @@ use clickhouse_rs::types::{Column, Complex};
 use clickhouse_rs::{types::SqlType, ClientHandle};
 use futures_util::StreamExt;
 use h3ron::{H3Cell, Index};
-use log::{error, warn};
+use tracing::{error, warn};
 
 use crate::clickhouse::compacted_tables::{find_tablesets, TableSet};
 use crate::clickhouse::schema::compacted_tables::CompactedTableInserter;

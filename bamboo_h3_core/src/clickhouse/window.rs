@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use clickhouse_rs::{ClientHandle, Pool};
 use h3ron::{polyfill, H3Cell, Index, ToCoordinate};
+use tracing::{debug, error, info, instrument, span, warn, Level};
+use tracing_futures::Instrument;
 
 use crate::clickhouse::compacted_tables::{TableSet, TableSetQuery};
 use crate::clickhouse::query::{query_all_with_uncompacting, set_clickhouse_max_threads};
@@ -154,6 +156,7 @@ impl SlidingH3Window {
     }
 }
 
+#[instrument(level = "debug", skip(pool, tx_output, options, window_indexes))]
 async fn launch_window_iteration(
     pool: Arc<Pool>,
     tx_output: tokio::sync::mpsc::Sender<Result<QueryOutput<ColumnSet>, Error>>,
@@ -204,13 +207,13 @@ fn determinate_window_h3_resolution(
     let window_h3_resolution =
         window_index_resolution(&tableset, target_h3_resolution, window_max_size);
     if (target_h3_resolution as i16 - window_h3_resolution as i16).abs() <= 3 {
-        log::warn!(
+        warn!(
             "sliding window: using H3 res {} as window resolution to iterate over H3 res {} data. This is probably inefficient - try to increase window_max_size.",
             window_h3_resolution,
             target_h3_resolution
         );
     } else {
-        log::info!(
+        info!(
             "sliding window: using H3 res {} as window resolution",
             window_h3_resolution
         );
@@ -241,7 +244,7 @@ fn build_window_indexes(
         let index = H3Cell::from_coordinate(&point.0, window_h3_resolution)?;
         window_index_set.insert(index);
     }
-    log::info!(
+    info!(
         "sliding window: {} window indexes found",
         window_index_set.len()
     );
@@ -289,8 +292,16 @@ async fn prefetch_window_indexes(
         )?;
 
         let window_h3indexes = {
+            let n_window_indexes = window_indexes.len();
+
             let columnset =
-                query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect()).await?;
+                query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
+                    .instrument(span!(
+                        Level::DEBUG,
+                        "checking window indexes for data availability",
+                        n_window_indexes
+                    ))
+                    .await?;
             window_indexes_from_columnset(columnset)?
         };
 
@@ -298,7 +309,7 @@ async fn prefetch_window_indexes(
             Some(h3indexes) => {
                 for h3index in h3indexes.iter() {
                     if tx_window_index.send(H3Cell::new(*h3index)).await.is_err() {
-                        log::debug!("receivers for window indexes are gone");
+                        debug!("receivers for window indexes are gone");
                         return Ok(());
                     }
                 }
@@ -323,7 +334,7 @@ fn window_indexes_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<
                 Ok(Some(h3indexes))
             }
             _ => {
-                log::error!(
+                error!(
                     "expected the '{}' column of the prefetch query to be UInt64",
                     COL_NAME_H3INDEX
                 );
@@ -331,7 +342,7 @@ fn window_indexes_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<
             }
         }
     } else {
-        log::error!(
+        error!(
             "expected the generated prefetch query to contain a column called '{}'",
             COL_NAME_H3INDEX
         );
@@ -351,7 +362,7 @@ async fn fetch_window(
         let window_index = match rx_window_index.recv().await {
             Ok(wi) => wi,
             Err(_) => {
-                log::debug!("sender for window index dropped");
+                debug!("sender for window index dropped");
                 break;
             }
         };
@@ -360,7 +371,7 @@ async fn fetch_window(
             break;
         }
 
-        log::debug!("fetching data for window {}", window_index.to_string());
+        debug!("fetching data for window {}", window_index.to_string());
         let child_indexes: Vec<_> = window_index
             .get_children(options.target_h3_resolution)
             .drain(..)
@@ -382,7 +393,7 @@ async fn fetch_window(
         }
 
         if child_indexes.is_empty() {
-            log::debug!("window without intersecting h3indexes skipped");
+            debug!("window without intersecting h3indexes skipped");
             continue;
         }
 
@@ -396,6 +407,11 @@ async fn fetch_window(
             query_string,
             child_indexes.iter().cloned().collect(),
         )
+        .instrument(span!(
+            Level::DEBUG,
+            "Loading window data from DB",
+            window_index = window_index.to_string().as_str()
+        ))
         .await
         .map(|columnset| QueryOutput {
             data: columnset,
@@ -405,7 +421,7 @@ async fn fetch_window(
         });
 
         if tx_output.send(output).await.is_err() {
-            log::debug!("Receiver for window resultset dropped");
+            debug!("Receiver for window resultset dropped");
             return Ok(());
         }
     }

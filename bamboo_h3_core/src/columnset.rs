@@ -9,6 +9,7 @@ use itertools::repeat_n;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::common::Named;
 use crate::error::{check_same_h3_resolution, Error};
@@ -391,7 +392,7 @@ impl ColVec {
             (ColVec::DateTime(v), ColVec::DateTime(other_v)) => v.append(other_v),
             (ColVec::DateTimeN(v), ColVec::DateTimeN(other_v)) => v.append(other_v),
             (this_cv, other_cv) => {
-                log::error!(
+                error!(
                     "colvecs of datatype {} can not be appended to colvecs of datatype {}",
                     other_cv.datatype().to_string(),
                     this_cv.datatype().to_string()
@@ -429,7 +430,7 @@ impl ColVec {
             (ColVec::DateTime(v), ColVecValue::DateTime(new_val)) => v.push(new_val),
             (ColVec::DateTimeN(v), ColVecValue::DateTimeN(new_val)) => v.push(new_val),
             (this_cv, other_cvv) => {
-                log::error!(
+                error!(
                     "values {:?} can not be appended to colvecs of datatype {}",
                     other_cvv,
                     this_cv.datatype().to_string()

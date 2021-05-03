@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use clickhouse_rs::{Block, ClientHandle};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use tracing::{error, debug, warn};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
 use crate::clickhouse::schema::{
@@ -487,14 +488,14 @@ impl<'a> CompactedTableInserter<'a> {
         // validate the received h3 resolutions
         for h3_res in splitted.keys() {
             if h3_res > &self.schema.max_h3_resolution {
-                log::error!(
+                error!(
                     "columnset included h3 resolution = {}, but the schema is only defined until {}",
                     h3_res,
                     self.schema.max_h3_resolution
                 );
                 return Err(Error::InvalidH3Resolution(*h3_res));
             } else if h3_res < &self.schema.max_h3_resolution && !self.schema.use_compaction {
-                log::error!(
+                error!(
                     "columnset uses the max h3 resolution = {}, and does not allow compaction. Inserting h3 res = {} not possible",
                     self.schema.max_h3_resolution,
                     h3_res
@@ -525,7 +526,7 @@ impl<'a> CompactedTableInserter<'a> {
             })
             .collect::<Result<HashMap<u8, Vec<Block>>, Error>>()?;
 
-        log::debug!(
+        debug!(
             "Creating temporary tables for {} with temporary_key {}",
             self.schema.name,
             temporary_key
@@ -574,7 +575,7 @@ impl<'a> CompactedTableInserter<'a> {
                 .build_table(&resolution_metadata, &temporary_key_opt)
                 .to_table_name();
             for block in blocks.drain(..) {
-                log::debug!(
+                debug!(
                     "inserting a block of {} rows into {}",
                     block.row_count(),
                     table_name
@@ -617,7 +618,7 @@ impl<'a> CompactedTableInserter<'a> {
                 .schema
                 .build_table(resolution_metadata, &None)
                 .to_table_name();
-            log::debug!("copying data from {} to {}", table_from, table_to);
+            debug!("copying data from {} to {}", table_from, table_to);
             self.client
                 .execute(format!(
                     "insert into {} ({}) select {} from {}",
@@ -648,7 +649,7 @@ impl<'a> CompactedTableInserter<'a> {
                     .schema
                     .build_table(resolution_metadata, &None)
                     .to_table_name();
-                log::debug!("de-duplicating the complete {} table :(", table_final);
+                debug!("de-duplicating the complete {} table :(", table_final);
                 self.client
                     .execute(format!("optimize table {} deduplicate", table_final))
                     .await?;
@@ -681,7 +682,7 @@ impl<'a> CompactedTableInserter<'a> {
                     .build_table(resolution_metadata, &None)
                     .to_table_name();
                 for partition in partitions.iter() {
-                    log::debug!(
+                    debug!(
                         "de-duplicating partition ({}) of the {} table",
                         partition,
                         table_final
@@ -708,7 +709,7 @@ impl<'a> CompactedTableInserter<'a> {
                 .schema
                 .build_table(resolution_metadata, temporary_key)
                 .to_table_name();
-            log::debug!("dropping table {} when existing", &table_name);
+            debug!("dropping table {} when existing", &table_name);
             self.client
                 .execute(format!("drop table if exists {}", table_name))
                 .await?;
@@ -721,7 +722,7 @@ impl<'a> CompactedTableInserter<'a> {
         temporary_key: &Option<String>,
     ) -> Result<(), Error> {
         if temporary_key.is_none() {
-            log::warn!("Aggregations can only build in temporary tables. Doing nothing ...");
+            warn!("Aggregations can only build in temporary tables. Doing nothing ...");
             return Ok(());
         }
         let resolutions_to_aggregate: Vec<_> = self
@@ -792,7 +793,7 @@ impl<'a> CompactedTableInserter<'a> {
         for agg_resolutions in resolutions_to_aggregate.windows(2) {
             let source_resolution = agg_resolutions[0];
             let target_resolution = agg_resolutions[1];
-            log::debug!(
+            debug!(
                 "aggregating resolution {} into resolution {}",
                 source_resolution,
                 target_resolution
@@ -914,7 +915,7 @@ impl<'a> CompactedTableInserter<'a> {
                     1_usize
                 }
             };
-            log::debug!("using {} batches for aggregation", num_batches);
+            debug!("using {} batches for aggregation", num_batches);
 
             // append a parent index column to use for the aggregation to the source tables
             for (_, table_name) in source_tables.iter() {

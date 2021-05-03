@@ -10,6 +10,7 @@ use crate::{
     inspect::{CompactedTable, TableSet},
     syncapi::ClickhousePool,
 };
+use tracing_subscriber::EnvFilter;
 
 mod clickhouse;
 mod columnset;
@@ -68,7 +69,14 @@ fn is_release_build() -> bool {
 /// A Python module implemented in Rust.
 #[pymodule]
 fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
-    env_logger::init();
+
+    tracing_subscriber::fmt()
+        //.event_format(tracing_subscriber::fmt::format::json()) // requires json feature
+        //.with_max_level(tracing::Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_timer(tracing_subscriber::fmt::time())
+        .init();
+
 
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;
     m.add("TableSet", py.get_type::<TableSet>())?;
