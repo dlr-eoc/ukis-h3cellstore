@@ -39,8 +39,11 @@ can be used. A few things to keep in mind:
 * Always use the cheap `lz4` compression. This reduces the amount of data to be transfered over the network.
 * The default `connection_timeout` is quite low for large amounts of geodata. You may want to increase that.
 
-### Things to keep in mind
-Always make sure that the ranges (e.g. time range of a query) stay **static** among all chunks and is not dependent on data found in chunk. Not doing so can lead to confusing differences in your results depending on the number of chunks (~configurable through `MAX_WORKERS`) you are using.
+### Things to keep in mind 
+
+### ... when working with sliding windows
+
+* Always make sure that the ranges (e.g. time range of a query) stay **static** among all windows and is not dependent on data found in window. Not doing so can lead to confusing differences in your results depending on the **range of data found in that window** - things will get even more confusing when the geographical size of the window changes (for example when using a different value for `MAX_WORKERS`, which will cut the AOI into different sized chunks).
 
 
 ## Configuration
