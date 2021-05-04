@@ -39,6 +39,9 @@ can be used. A few things to keep in mind:
 * Always use the cheap `lz4` compression. This reduces the amount of data to be transfered over the network.
 * The default `connection_timeout` is quite low for large amounts of geodata. You may want to increase that.
 
+### Things to keep in mind
+Always make sure that the ranges (e.g. time range of a query) stay **static** among all chunks and is not dependent on data found in chunk. Not doing so can lead to confusing differences in your results depending on the number of chunks (~configurable through `MAX_WORKERS`) you are using.
+
 
 ## Configuration
 
