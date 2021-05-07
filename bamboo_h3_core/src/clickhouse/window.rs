@@ -283,23 +283,25 @@ async fn prefetch_window_indexes(
         }
 
         let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
-        let q = options.tableset.build_select_query(
-            &h3indexes,
-            match &options.prefetch_query {
-                Some(pq) => pq,
-                None => &options.query,
-            },
-        )?;
+        let q = {
+            let q = options.tableset.build_select_query(
+                &h3indexes,
+                match &options.prefetch_query {
+                    Some(pq) => pq,
+                    None => &options.query,
+                },
+            )?;
+            format!("select distinct {} from ({})", COL_NAME_H3INDEX, q)
+        };
 
         let window_h3indexes = {
-            let n_window_indexes = window_indexes.len();
-
+            let n_h3indexes = h3indexes.len();
             let columnset =
                 query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
                     .instrument(span!(
                         Level::DEBUG,
                         "checking window indexes for data availability",
-                        n_window_indexes
+                        n_h3indexes
                     ))
                     .await?;
             window_indexes_from_columnset(columnset)?
@@ -393,7 +395,7 @@ async fn fetch_window(
         }
 
         if child_indexes.is_empty() {
-            debug!("window without intersecting h3indexes skipped");
+            debug!("window {} without intersecting h3indexes skipped", window_index.to_string());
             continue;
         }
 
