@@ -230,10 +230,7 @@ impl ResultSet {
     /// get the number of h3indexes which where used in the query
     #[getter]
     fn get_num_h3indexes_queried(&self) -> Option<usize> {
-        match &self.h3indexes_queried {
-            Some(a) => Some(a.len()),
-            None => None,
-        }
+        self.h3indexes_queried.as_ref().map(|a| a.len())
     }
 
     /// get the h3indexes which where used in the query as a numpy array

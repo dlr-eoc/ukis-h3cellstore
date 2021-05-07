@@ -42,8 +42,8 @@ lazy_static! {
 
 impl Table {
     pub fn parse(full_table_name: &str) -> Option<Table> {
-        if let Some(captures) = RE_TABLE.captures(full_table_name) {
-            Some(Table {
+        RE_TABLE.captures(full_table_name).map(|captures| {
+            Table {
                 basename: captures[1].to_string(),
                 spec: TableSpec {
                     h3_resolution: captures[2].parse().unwrap(),
@@ -52,17 +52,11 @@ impl Table {
                     } else {
                         false
                     },
-                    temporary_key: if let Some(temp_key) = captures.get(6) {
-                        Some(temp_key.as_str().to_string())
-                    } else {
-                        None
-                    },
+                    temporary_key: captures.get(6).map(|mtch| mtch.as_str().to_string()),
                     has_base_suffix: captures.get(4).is_some(),
                 },
-            })
-        } else {
-            None
-        }
+            }
+        })
     }
 
     pub fn to_table_name(&self) -> String {
