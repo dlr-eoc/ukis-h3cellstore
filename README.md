@@ -16,7 +16,7 @@ Python bindings to integrate clickhouse H3 databases with the python data-scienc
 
 # Usage
 
-See the [READMEof the python library](bamboo_h3/README.md).
+See the [README of the python library](bamboo_h3/README.md).
 
 # Links
 
@@ -27,4 +27,4 @@ See the [READMEof the python library](bamboo_h3/README.md).
 
 ## other
 
-* [HexagDLy - Processing Hexagonal Data with PyTorch](https://github.com/ai4iacts/hexagdly)
+* [HexagDLy - Processing Hexagonal Data with PyTorch](https://github.com/ai4iacts/hexagdly) ([paper](https://www.sciencedirect.com/science/article/pii/S2352711018302723))
