@@ -2,7 +2,7 @@
 /// a h3 window iterator for rust
 ///
 ///
-use std::cmp::max;
+use std::cmp::{max, Ordering};
 use std::collections::{HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::sync::Arc;
@@ -21,6 +21,7 @@ use crate::geo::algorithm::centroid::Centroid;
 use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use geo::Coordinate;
 
 /// find the resolution generate coarser h3-indexes to access the tableset without needing to fetch more
 /// than window_max_size indexes per batch.
@@ -253,7 +254,7 @@ fn build_window_indexes(
 
     // always process windows in the same order. This is probably easier for to
     // user when inspecting the results produced during the processing
-    window_indexes.sort_unstable();
+    window_indexes.sort_unstable_by(cmp_index_by_coordinate);
 
     Ok(window_indexes.drain(..).collect())
 }
@@ -330,7 +331,7 @@ fn window_indexes_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<
             ColVec::U64(mut h3indexes) => {
                 // make the ordering more deterministic by sorting, deduplicate for safety in case
                 // the prefetch query returns duplicates.
-                h3indexes.sort_unstable();
+                h3indexes.sort_unstable_by(cmp_h3index_by_coordinate);
                 h3indexes.dedup();
 
                 Ok(Some(h3indexes))
@@ -395,7 +396,10 @@ async fn fetch_window(
         }
 
         if child_indexes.is_empty() {
-            debug!("window {} without intersecting h3indexes skipped", window_index.to_string());
+            debug!(
+                "window {} without intersecting h3indexes skipped",
+                window_index.to_string()
+            );
             continue;
         }
 
@@ -430,12 +434,40 @@ async fn fetch_window(
     Ok(())
 }
 
+fn cmp_h3index_by_coordinate(h1: &u64, h2: &u64) -> Ordering {
+    let cell1 = H3Cell::new(*h1);
+    let cell2 = H3Cell::new(*h2);
+    cmp_index_by_coordinate(&cell1, &cell2)
+}
+
+fn cmp_index_by_coordinate(cell1: &H3Cell, cell2: &H3Cell) -> Ordering {
+    let coord1 = cell1.to_coordinate();
+    let coord2 = cell2.to_coordinate();
+    cmp_coordinate(&coord1, &coord2)
+}
+
+/// sort by north->south, west->east location
+fn cmp_coordinate(coord1: &Coordinate<f64>, coord2: &Coordinate<f64>) -> Ordering {
+    if (coord1.x - coord2.x).abs() < f64::EPSILON && (coord1.y - coord2.y).abs() < f64::EPSILON {
+        Ordering::Equal
+    } else if coord1.y > coord2.y {
+        Ordering::Less
+    } else if coord1.y < coord2.y {
+        Ordering::Greater
+    } else {
+        coord2.x.partial_cmp(&coord1.y).unwrap_or(Ordering::Equal)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
+    use geo::Coordinate;
+    use h3ron::H3Cell;
+
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
-    use crate::clickhouse::window::window_index_resolution;
+    use crate::clickhouse::window::{cmp_index_by_coordinate, window_index_resolution, cmp_coordinate};
 
     fn some_tableset() -> TableSet {
         TableSet {
@@ -464,5 +496,29 @@ mod tests {
     fn test_window_index_resolution() {
         let ts = some_tableset();
         assert_eq!(window_index_resolution(&ts, 6, 1000), 3);
+    }
+
+    #[test]
+    fn test_cmp_index_by_coordinate_vec() {
+        let c1 = H3Cell::from_coordinate(&Coordinate::from((10.0, 20.0)), 6).unwrap();
+        let c2 = H3Cell::from_coordinate(&Coordinate::from((20.0, 10.0)), 6).unwrap();
+        let mut v = vec![c1.clone(), c2.clone()];
+        v.sort_unstable_by(cmp_index_by_coordinate);
+        assert_eq!(v[0], c1);
+        assert_eq!(v[1], c2);
+    }
+
+    #[test]
+    fn test_sort_by_coordinate() {
+        let c1 = Coordinate::from((10.0, 20.0));
+        let c2 = Coordinate::from((20.0, 10.0));
+        let c3 = Coordinate::from((20.0, -20.0));
+        let c4 = Coordinate::from((20.0, 8.0));
+        let mut v = vec![c1.clone(), c2.clone(), c3.clone(), c4.clone()];
+        v.sort_unstable_by(cmp_coordinate);
+        assert_eq!(v[0], c1);
+        assert_eq!(v[1], c2);
+        assert_eq!(v[2], c4);
+        assert_eq!(v[3], c3);
     }
 }
