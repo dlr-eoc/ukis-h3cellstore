@@ -18,7 +18,13 @@ Python bindings to integrate clickhouse H3 databases with the python data-scienc
 
 See the [READMEof the python library](bamboo_h3/README.md).
 
-# other relevant libraries
+# Links
+
+## other relevant libraries
 
 * [offical h3 bindings](https://github.com/uber/h3-py)
 * [h3ronpy](https://github.com/nmandery/h3ron/tree/master/h3ronpy)
+
+## other
+
+* [HexagDLy - Processing Hexagonal Data with PyTorch](https://github.com/ai4iacts/hexagdly)

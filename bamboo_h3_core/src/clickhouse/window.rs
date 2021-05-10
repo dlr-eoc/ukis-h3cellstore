@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use clickhouse_rs::{ClientHandle, Pool};
+use geo::Coordinate;
 use h3ron::{polyfill, H3Cell, Index, ToCoordinate};
 use tracing::{debug, error, info, instrument, span, warn, Level};
 use tracing_futures::Instrument;
@@ -21,7 +22,6 @@ use crate::geo::algorithm::centroid::Centroid;
 use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
-use geo::Coordinate;
 
 /// find the resolution generate coarser h3-indexes to access the tableset without needing to fetch more
 /// than window_max_size indexes per batch.
@@ -467,7 +467,9 @@ mod tests {
     use h3ron::H3Cell;
 
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
-    use crate::clickhouse::window::{cmp_index_by_coordinate, window_index_resolution, cmp_coordinate};
+    use crate::clickhouse::window::{
+        cmp_coordinate, cmp_index_by_coordinate, window_index_resolution,
+    };
 
     fn some_tableset() -> TableSet {
         TableSet {
