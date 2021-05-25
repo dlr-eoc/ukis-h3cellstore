@@ -1,0 +1,94 @@
+# build via an argo workflow.
+#
+# This could be used for CI
+#
+# Possible improvements:
+# * create argument to pass in a commit/tag/branch to build. When not set, just build master
+#
+#
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: bamboo-h3-ci
+  generateName: bamboo-h3-ci-
+  namespace: gzs-default
+spec:
+  entrypoint: do
+  imagePullSecrets:
+    - name: "reg-processing"
+  templates:
+    - name: do
+      steps:
+        - - name: build
+            template: build
+    - name: build
+      outputs:
+        artifacts:
+          - name: python-packages
+            path: /tmp/python-packages
+      sidecars:
+          - name: clickhouse
+            image: eoc-gzs-db01-vm.eoc.dlr.de:4002/clickhouse-server:20.12.8.5
+            args: []
+      script:
+        image: eoc-gzs-db01-vm.eoc.dlr.de:4001/bamboo-ci-builder:latest
+        env:
+          - name: GIT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: git-token-bamboo
+                key: token
+        command: [bash]
+        source: |
+          set -eu
+
+          python3 --version
+          cargo --version
+
+          git clone https://token:`echo "$GIT_TOKEN" | tr -d '\n'`@gitlab.dlr.de/gzs-processing/bamboo_h3.git
+
+          echo "="
+          echo "=== bamboo_h3_core ==================================================================="
+          echo "="
+          pushd bamboo_h3/bamboo_h3_core
+          cargo test
+          popd
+
+
+          echo "="
+          echo "=== bamboo_h3 ==================================================================="
+          echo "="
+
+          pushd bamboo_h3/bamboo_h3
+          # `maturin develop` requires the module to be build within a virtual environment
+          python3 -m venv venv
+          . venv/bin/activate
+          pip install --upgrade pip
+          python install-dev-dependencies.py
+          maturin develop
+
+          echo "="
+          echo "="
+
+          # clickhouse
+          # wait until clickhouse is up
+          set +eu
+          until `curl -G 'http://127.0.0.1:8123/' >& /tmp/out`; do
+            echo "waiting for clickhouse"
+            sleep 2;
+          done
+          set -eu
+
+          # Create the DB
+          curl -d "" "http://127.0.0.1:8123/?query=create+database+bamboo_test"
+
+          export BAMBOO_CLICKHOUSE_DSN_TEST="tcp://127.0.0.1:9000/bamboo_test?compression=lz4&connection_timeout=2000ms"
+          pytest -v -s --tb=native
+
+          echo "="
+          echo "=== build PROD wheels ==================================================================="
+          echo "="
+          maturin build --release --strip
+          popd
+          pushd bamboo_h3/target/
+          mv wheels /tmp/python-packages
