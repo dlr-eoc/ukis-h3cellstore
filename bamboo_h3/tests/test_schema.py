@@ -14,11 +14,11 @@ from . import TESTDATA_PATH
 from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
 
 
-def elephant_schema(tableset_name="okavango_delta"):
+def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month"):
     csb = CompactedTableSchemaBuilder(tableset_name)
     csb.h3_base_resolutions(list(range(0, 8)))
     csb.temporal_resolution("second")
-    csb.temporal_partitioning("month")
+    csb.temporal_partitioning(temporal_partitioning)
     csb.add_h3index_column("migrating_from")
     csb.add_column("is_valid", "u8")
     csb.add_aggregated_column("elephant_density", "f32", "RelativeToCellArea")
@@ -37,6 +37,12 @@ def test_create_and_delete_schema(clickhouse_db):
     tableset = clickhouse_db.list_tablesets().get(tableset_name)
     assert tableset is None
 
+def test_multi_year_partitioning():
+    elephant_schema(temporal_partitioning="5 years") # should not raise
+    with pytest.raises(ValueError):
+        elephant_schema(temporal_partitioning="0 years")
+    with pytest.raises(ValueError):
+        elephant_schema(temporal_partitioning="z years")
 
 def test_schema_save_and_load():
     tableset_name, schema = elephant_schema()

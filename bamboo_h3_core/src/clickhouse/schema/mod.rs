@@ -1,15 +1,14 @@
-
 use std::any::type_name;
+use std::collections::HashMap;
 
+use clickhouse_rs::types::{DateTimeType, SqlType};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::clickhouse::schema::compacted_tables::CompactedTableSchema;
 use crate::columnset::Datatype;
 use crate::common::Named;
 use crate::error::Error;
-use clickhouse_rs::types::{DateTimeType, SqlType};
-use crate::clickhouse::schema::compacted_tables::CompactedTableSchema;
-use std::collections::HashMap;
 
 pub mod compacted_tables;
 
@@ -25,7 +24,6 @@ pub trait CreateSchema {
 pub trait GetSchemaColumns {
     fn get_columns(&self) -> HashMap<String, ColumnDefinition>;
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Schema {
@@ -56,7 +54,7 @@ impl ValidateSchema for Schema {
 impl CreateSchema for Schema {
     fn create_statements(&self) -> Result<Vec<String>, Error> {
         match self {
-            Schema::CompactedTable(ct) => ct.create_statements()
+            Schema::CompactedTable(ct) => ct.create_statements(),
         }
     }
 }
@@ -64,7 +62,7 @@ impl CreateSchema for Schema {
 impl GetSchemaColumns for Schema {
     fn get_columns(&self) -> HashMap<String, ColumnDefinition> {
         match self {
-            Schema::CompactedTable(ct) => ct.get_columns()
+            Schema::CompactedTable(ct) => ct.get_columns(),
         }
     }
 }
@@ -151,13 +149,27 @@ impl Default for TemporalResolution {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TemporalPartitioning {
-    Year,
     Month,
+    Years(u8),
 }
 
 impl Default for TemporalPartitioning {
     fn default() -> Self {
         TemporalPartitioning::Month
+    }
+}
+
+impl ValidateSchema for TemporalPartitioning {
+    fn validate(&self) -> Result<(), Error> {
+        if let TemporalPartitioning::Years(num_years) = self {
+            if *num_years == 0 {
+                return Err(Error::SchemaValidationError(
+                    type_name::<Self>(),
+                    "number of years must be > 0".to_string(),
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -168,7 +180,7 @@ pub enum AggregationMethod {
     Max,
     Min,
     Average,
-    // TODO: aggragation method to generate parent resolution for other h3index column
+    // TODO: aggregation method to generate parent resolution for other h3index column
 }
 
 impl AggregationMethod {
@@ -299,12 +311,11 @@ pub struct SimpleColumn {
     order_key_position: Option<u8>,
 }
 
-
 impl SimpleColumn {
     pub fn new(datatype: Datatype, order_key_position: Option<u8>) -> Self {
         Self {
             datatype,
-            order_key_position
+            order_key_position,
         }
     }
 }

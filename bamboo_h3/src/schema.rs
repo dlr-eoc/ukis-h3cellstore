@@ -1,5 +1,8 @@
+use std::num::ParseIntError;
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use regex::Regex;
 
 use bamboo_h3_core::clickhouse::schema::{
     AggregationMethod, ColumnDefinition, CompressionMethod, CreateSchema, SimpleColumn,
@@ -35,6 +38,11 @@ impl Schema {
     fn sql_statements(&self) -> PyResult<Vec<String>> {
         self.inner.create_statements().into_pyresult()
     }
+}
+
+lazy_static! {
+    static ref RE_TEMPORAL_PARTITIONING: Regex =
+        Regex::new(r"^(([0-9]+)\s*)?([a-zA-Z]+)$").unwrap();
 }
 
 #[pyclass]
@@ -186,13 +194,34 @@ impl CompactedTableSchemaBuilder {
     }
 
     fn temporal_partitioning(&mut self, name: String) -> PyResult<()> {
-        self.temporal_partitioning = Some(match name.to_lowercase().as_str() {
+        let cap = RE_TEMPORAL_PARTITIONING.captures(&name).ok_or_else(|| {
+            PyValueError::new_err(format!("Invalid temporal partitioning given: '{}'", name))
+        })?;
+
+        let unit_string = cap
+            .get(3)
+            .map(|s| s.as_str().to_string().to_lowercase())
+            .unwrap_or_else(|| "".to_string());
+        self.temporal_partitioning = Some(match unit_string.as_str() {
             "month" | "months" => TemporalPartitioning::Month,
-            "year" | "years" => TemporalPartitioning::Year,
+            "year" | "years" => {
+                let num_years: u8 = cap
+                    .get(2)
+                    .map(|s| {
+                        s.as_str().parse().map_err(|e: ParseIntError| {
+                            PyValueError::new_err(format!(
+                                "Invalid number of years in temporal partitioning: {}",
+                                e.to_string()
+                            ))
+                        })
+                    })
+                    .unwrap_or(Ok(1_u8))?;
+                TemporalPartitioning::Years(num_years)
+            }
             _ => {
                 return Err(PyValueError::new_err(format!(
-                    "Unsupported temporal partitioning: {}",
-                    name
+                    "Invalid temporal partitioning time unit given: '{}'",
+                    unit_string
                 )))
             }
         });

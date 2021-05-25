@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use clickhouse_rs::{Block, ClientHandle};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use tracing::{error, debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::clickhouse::compacted_tables::{Table, TableSpec};
 use crate::clickhouse::schema::{
@@ -304,8 +304,17 @@ fn partition_by_expression(
         ColumnDefinition::Simple(_) | ColumnDefinition::WithAggregation(_, _) => {
             if def.datatype().is_temporal() {
                 match temporal_partitioning {
-                    TemporalPartitioning::Year => format!("toString(toYear({}))", column_name),
                     TemporalPartitioning::Month => format!("toString(toMonth({}))", column_name),
+                    TemporalPartitioning::Years(num_years) => {
+                        if *num_years == 1 {
+                            format!("toString(toYear({}))", column_name)
+                        } else {
+                            // reshaping the year according to num_years
+                            //
+                            // With num_years == 3, value '2019' will contain the years 2019, 2020 and 2021.
+                            format!("toString(floor(toYear({})/{})*{})", column_name, num_years, num_years)
+                        }
+                    }
                 }
             } else {
                 column_name.to_string()
@@ -318,6 +327,7 @@ impl ValidateSchema for CompactedTableSchema {
     fn validate(&self) -> Result<(), Error> {
         validate_table_name(type_name::<Self>(), &self.name)?;
         self.compression_method.validate()?;
+        self.temporal_partitioning.validate()?;
 
         // a h3index column must exist
         self.h3index_column()?;
@@ -528,8 +538,7 @@ impl<'a> CompactedTableInserter<'a> {
 
         debug!(
             "Creating temporary tables for {} with temporary_key {}",
-            self.schema.name,
-            temporary_key
+            self.schema.name, temporary_key
         );
         for stmt in self
             .schema
@@ -684,8 +693,7 @@ impl<'a> CompactedTableInserter<'a> {
                 for partition in partitions.iter() {
                     debug!(
                         "de-duplicating partition ({}) of the {} table",
-                        partition,
-                        table_final
+                        partition, table_final
                     );
                     self.client
                         .execute(format!(
@@ -795,8 +803,7 @@ impl<'a> CompactedTableInserter<'a> {
             let target_resolution = agg_resolutions[1];
             debug!(
                 "aggregating resolution {} into resolution {}",
-                source_resolution,
-                target_resolution
+                source_resolution, target_resolution
             );
             let target_table_name = self
                 .schema

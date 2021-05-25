@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Workflow template to build the extension with [argo](https://github.com/argoproj/argo-workflows/). #15
+- Multi-year table partitioning. #39
 
 ### Changed
 
