@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - North-south iteration order when iterating through the cells of a tableset. #38
 - Switch from using the `log` crate, to the `tracing` crate. #36
+- Rename `sliding_window` to `walk` as this is not really a sliding window. Choose
+  the name `walk` to align with pythons `os.walk`. #37
 
 ### Removed
 
