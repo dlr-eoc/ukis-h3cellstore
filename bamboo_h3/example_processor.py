@@ -1,6 +1,6 @@
 """
 This example is a possible blueprint for a simple processor crawling through the data
-using multiple sliding windows in multiple processes
+using multiple processes
 
 This processor requires a few additional packages:
 
@@ -51,9 +51,12 @@ MAX_WORKERS = 1
 
 # postgres credentials see password db, here they are passed via PGUSER
 # and PGPASSWORD environment variables (in libpq)
-DSN_POSTGRES = "dbname=water2 host=127.0.0.1 port=5433"
-DSN_CLICKHOUSE = "tcp://localhost:9010/water2?compression=lz4&connection_timeout=2000ms"
-DSN_POSTGRES_OUTPUT = "user=mand_nc host=127.0.0.1 password=xxxx dbname=water_out"
+#DSN_POSTGRES = "dbname=water2 host=127.0.0.1 port=5433"
+DSN_POSTGRES = "dbname=water2 host=127.0.0.1 port=25432 password=EsWirdNa55 user=water2_webapp"
+#DSN_CLICKHOUSE = "tcp://localhost:9010/water2?compression=lz4&connection_timeout=2000ms"
+DSN_CLICKHOUSE = "tcp://localhost:29010/water2?compression=lz4"
+#DSN_POSTGRES_OUTPUT = "user=mand_nc host=127.0.0.1 password=xxx dbname=water_out"
+DSN_POSTGRES_OUTPUT = "user=mand_nc host=127.0.0.1 password=test123 dbname=water_out"
 
 # polygon geometry to visit
 AOI = """
@@ -111,7 +114,7 @@ def create_output_schema():
     postgres_conn.close()
 
 
-def process_window(window_geom: Polygon):
+def process_area(area_geom: Polygon):
     # connect to postgres for metadata
     postgres_meta_conn = psycopg2.connect(DSN_POSTGRES)
     postgres_meta_cur = postgres_meta_conn.cursor()
@@ -151,19 +154,18 @@ def process_window(window_geom: Polygon):
         )
         and h3index in <[h3indexes]>
     """
-    # iteratively visit all indexes using a h3-based sliding window
-    for resultset in clickhouse_conn.window_iter(
-        window_geom,
+    # iteratively visit all indexes
+    for resultset in clickhouse_conn.walk(
+        area_geom,
         tablesets["water"],
         13,
-        window_max_size=1000000,
+        fetch_max_num=1000000,
         querystring_template=querystring_template,
         prefetch_querystring_template=querystring_template,
     ):
 
-        # the h3 index of the window itself. will have a lower resolution then the h3_resolution
-        # requested for the window
-        # print(resultset.window_index, h3.h3_get_resolution(resultset.window_index))
+        # the h3 index of the cell itself. will have a lower resolution then the h3_resolution
+        # print(resultset.containing_index, h3.h3_get_resolution(resultset.containing_index))
 
         # the h3indexes as used for the query
         # print(resultset.h3indexes_queried)
@@ -232,30 +234,30 @@ def process_window(window_geom: Polygon):
         rfreq_threshold = 0.8
 
         water_h3indexes = water[water.water_frequency >= rfreq_threshold].index.to_numpy(dtype="uint64")
-        window_index_str = h3.h3_to_string(resultset.window_index)
+        containing_index_str = h3.h3_to_string(resultset.containing_index)
 
         if water_h3indexes.size != 0:
             polygons = h3ronpy.Polygon.from_h3indexes_aligned(
-                water_h3indexes, h3.h3_get_resolution(resultset.window_index), smoothen=True
+                water_h3indexes, h3.h3_get_resolution(resultset.containing_index), smoothen=True
             )
 
-            print(f"Found {len(polygons)} polygons in {window_index_str}")
+            print(f"Found {len(polygons)} polygons in {containing_index_str}")
             for poly in polygons:
                 postgres_output_cur.execute(
                     """
                 insert into water_results (window_h3index, geom) select %s, st_geomfromwkb(%s, 4326)
                 """,
-                    (window_index_str, psycopg2.Binary(shapely.wkb.dumps(shape(poly)))),
+                    (containing_index_str, psycopg2.Binary(shapely.wkb.dumps(shape(poly)))),
                 )
             postgres_output_conn.commit()
         else:
-            print(f"Found no polygons in {window_index_str}")
+            print(f"Found no polygons in {containing_index_str}")
 
 
 def main():
     aoi_geom = shape(json.loads(AOI))
     create_output_schema()
-    process_polygon(MAX_WORKERS, aoi_geom, process_window)
+    process_polygon(MAX_WORKERS, aoi_geom, process_area)
 
 
 if __name__ == "__main__":

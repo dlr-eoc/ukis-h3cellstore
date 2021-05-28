@@ -23,7 +23,7 @@ mod geo;
 mod inspect;
 mod schema;
 mod syncapi;
-mod window;
+mod walk;
 
 /// version of the module
 #[pyfunction]
@@ -95,7 +95,7 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
     )?;
     m.add(
         "SlidingH3Window",
-        py.get_type::<crate::window::SlidingH3Window>(),
+        py.get_type::<crate::walk::CellWalk>(),
     )?;
     m.add("ColumnSet", py.get_type::<ColumnSet>())?;
 

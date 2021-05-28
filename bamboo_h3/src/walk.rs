@@ -4,23 +4,23 @@ use std::time::Duration;
 use pyo3::{prelude::*, PyResult};
 use tracing::instrument;
 
-use bamboo_h3_core::clickhouse::window::SlidingWindowOptions;
+use bamboo_h3_core::clickhouse::walk::CellWalkOptions;
 
 use crate::clickhouse::ResultSet;
 use crate::error::IntoPyResult;
 use crate::syncapi::ClickhousePool;
 
 #[pyclass]
-pub struct SlidingH3Window {
-    inner: Arc<tokio::sync::Mutex<bamboo_h3_core::clickhouse::window::SlidingH3Window>>,
+pub struct CellWalk {
+    inner: Arc<tokio::sync::Mutex<bamboo_h3_core::clickhouse::walk::CellWalk>>,
     clickhouse_pool: ClickhousePool,
 }
 
 #[pymethods]
-impl SlidingH3Window {
+impl CellWalk {
 
     #[instrument(level = "debug", skip(self,py))]
-    fn fetch_next_window(&mut self, py: Python) -> PyResult<Option<ResultSet>> {
+    fn fetch_next_cell(&mut self, py: Python) -> PyResult<Option<ResultSet>> {
         loop {
             let sw = self.inner.clone();
             let (output, timeouted) = self.clickhouse_pool.runtime.block_on(async move {
@@ -53,7 +53,7 @@ impl SlidingH3Window {
     }
 }
 
-impl SlidingH3Window {
+impl CellWalk {
 
     #[instrument(level = "debug", skip(self))]
     fn finish_tasks(&mut self) -> PyResult<()> {
@@ -68,22 +68,22 @@ impl SlidingH3Window {
     }
 }
 
-impl Drop for SlidingH3Window {
+impl Drop for CellWalk {
     fn drop(&mut self) {
         let _ = self.finish_tasks();
     }
 }
 
-impl SlidingH3Window {
+impl CellWalk {
     pub fn create(
         clickhouse_pool: ClickhousePool,
-        options: SlidingWindowOptions,
+        options: CellWalkOptions,
     ) -> PyResult<Self> {
         let pool = clickhouse_pool.pool.clone();
         let inner = clickhouse_pool
             .runtime
             .block_on(async move {
-                bamboo_h3_core::clickhouse::window::SlidingH3Window::create(pool, options).await
+                bamboo_h3_core::clickhouse::walk::CellWalk::create(pool, options).await
             })
             .into_pyresult()?;
 

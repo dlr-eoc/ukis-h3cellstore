@@ -4,34 +4,34 @@ use std::str::FromStr;
 
 use tracing::debug;
 
-/// Number of ClickHouse threads to use during window iteration.
+/// Number of ClickHouse threads to use during `CellWalk` iteration.
 /// The more threads are used, the higher the load and memory requirements in the db
 /// server will be.
 /// As this is used for mostly non-timecritical preloading, the number can be quite low.
-const ENV_NAME_WINDOW_NUM_CLICKHOUSE_THREADS: &str = "BAMBOO_WINDOW_NUM_CLICKHOUSE_THREADS";
+const ENV_NAME_CELLWALK_NUM_CLICKHOUSE_THREADS: &str = "BAMBOO_CELLWALK_NUM_CLICKHOUSE_THREADS";
 
-/// default number of clickhouse window threads
-const DEFAULT_WINDOW_NUM_CLICKHOUSE_THREADS: u8 = 2;
+/// default number of clickhouse threads
+const DEFAULT_CELLWALK_NUM_CLICKHOUSE_THREADS: u8 = 2;
 
-/// Number of concurrent queries to use to preload data for the next windows from ClickHouse.
-const ENV_NAME_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES: &str =
-    "BAMBOO_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES";
+/// Number of concurrent queries to use to preload data for the next cellwalk cells from ClickHouse.
+const ENV_NAME_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES: &str =
+    "BAMBOO_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES";
 
 /// Default number of concurrent queries to use for preloading.
-const DEFAULT_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES: u8 = 3;
+const DEFAULT_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES: u8 = 3;
 
-pub fn window_num_clickhouse_threads() -> u8 {
+pub fn cellwalk_num_clickhouse_threads() -> u8 {
     get_numeric_env_with_default_and_min(
-        ENV_NAME_WINDOW_NUM_CLICKHOUSE_THREADS,
-        DEFAULT_WINDOW_NUM_CLICKHOUSE_THREADS,
+        ENV_NAME_CELLWALK_NUM_CLICKHOUSE_THREADS,
+        DEFAULT_CELLWALK_NUM_CLICKHOUSE_THREADS,
         1,
     )
 }
 
-pub fn window_num_concurrent_queries() -> u8 {
+pub fn cellwalk_num_concurrent_queries() -> u8 {
     get_numeric_env_with_default_and_min(
-        ENV_NAME_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES,
-        DEFAULT_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES,
+        ENV_NAME_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES,
+        DEFAULT_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES,
         1,
     )
 }

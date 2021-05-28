@@ -1,6 +1,10 @@
 ///
-/// a h3 window iterator for rust
+/// Walk through the data of all cells contained in a polygon at a given resolution (`r_target`).
 ///
+/// The data is returned in batches defined by the area of a lower `r_walk` resolution which is determined
+/// depending on the maximum number of cells to fetch at once.
+///
+/// Named "walk" after pythons `os.walk`.
 ///
 use std::cmp::{max, Ordering};
 use std::collections::{HashSet, VecDeque};
@@ -23,45 +27,68 @@ use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
 
-/// find the resolution generate coarser h3-indexes to access the tableset without needing to fetch more
-/// than window_max_size indexes per batch.
+/// find the resolution generate coarser h3 cells to access the tableset without needing to fetch more
+/// than `fetch_max_num` indexes per batch.
 ///
 /// That resolution must be a base resolution
-pub fn window_index_resolution(
+pub fn choose_r_walk(
     table_set: &TableSet,
-    target_h3_resolution: u8,
-    window_max_size: u32,
+    r_target: u8,
+    fetch_max_num: u32,
 ) -> u8 {
     let mut resolutions: Vec<_> = table_set
         .base_resolutions()
         .iter()
-        .filter(|r| **r < target_h3_resolution)
+        .filter(|r| **r < r_target)
         .cloned()
         .collect();
     resolutions.sort_unstable();
 
-    let mut window_h3_resolution = target_h3_resolution;
+    let mut r_walk = r_target;
     for r in resolutions {
-        let r_diff = (target_h3_resolution - r) as u32;
-        if 7_u64.pow(r_diff) <= (window_max_size as u64) {
-            window_h3_resolution = r;
+        let r_diff = (r_target - r) as u32;
+        if 7_u64.pow(r_diff) <= (fetch_max_num as u64) {
+            r_walk = r;
             break;
         }
     }
-    window_h3_resolution
+    r_walk
 }
 
-pub struct SlidingWindowOptions {
-    pub window_polygon: Polygon<f64>,
-    pub target_h3_resolution: u8,
-    pub window_max_size: u32,
+
+fn choose_r_walk_with_logging(
+    tableset: &TableSet,
+    r_target: u8,
+    fetch_max_num: u32,
+) -> u8 {
+    let r_walk =
+        choose_r_walk(&tableset, r_target, fetch_max_num);
+    if (r_target as i16 - r_walk as i16).abs() <= 3 {
+        warn!(
+            "cell walk: using H3 res {} as batch resolution to iterate over H3 res {} data. This is probably inefficient - try to increase fetch_max_num.",
+            r_walk,
+            r_target
+        );
+    } else {
+        info!(
+            "cell walk: using H3 res {} as r_walk resolution",
+            r_walk
+        );
+    }
+    r_walk
+}
+
+pub struct CellWalkOptions {
+    pub area_polygon: Polygon<f64>,
+    pub r_target: u8,
+    pub fetch_max_num: u32,
     pub tableset: TableSet,
     pub query: TableSetQuery,
 
-    /// query to pre-evaluate if a window is worth fetching
+    /// query to pre-evaluate if a batch is worth fetching
     pub prefetch_query: Option<TableSetQuery>,
 
-    /// defines how many windows may be loaded in parallel.
+    /// defines how many batches of data may be loaded in parallel.
     /// An increased number here also increase the memory requirements of the DB server.
     ///
     /// In most cases just using 1 is probably sufficient.
@@ -71,27 +98,30 @@ pub struct SlidingWindowOptions {
     /// on the db server low. the fetch here happens ahead of time anyways.
     /// related: https://github.com/ClickHouse/ClickHouse/issues/22980#issuecomment-818473308
     ///
+    /// The number is set per connection. This means Clickhouse uses `concurrency * num_clickhouse_threads`
+    /// threads altogether.
+    ///
     /// The default number of threads according to the linked issue is 6.
-    pub window_num_clickhouse_threads: u8,
+    pub num_clickhouse_threads: u8,
 }
 
-pub struct SlidingH3Window {
+pub struct CellWalk {
     rx_output: tokio::sync::mpsc::Receiver<Result<QueryOutput<ColumnSet>, Error>>,
     join_handle: Option<tokio::task::JoinHandle<Result<(), Error>>>,
     shutdown: Arc<tokio::sync::Notify>,
 }
 
-impl SlidingH3Window {
-    pub async fn create(pool: Arc<Pool>, options: SlidingWindowOptions) -> Result<Self, Error> {
-        let window_h3_resolution = determinate_window_h3_resolution(
+impl CellWalk {
+    pub async fn create(pool: Arc<Pool>, options: CellWalkOptions) -> Result<Self, Error> {
+        let r_walk = choose_r_walk_with_logging(
             &options.tableset,
-            options.target_h3_resolution,
-            options.window_max_size,
+            options.r_target,
+            options.fetch_max_num,
         );
-        let window_indexes = build_window_indexes(&options.window_polygon, window_h3_resolution)?;
+        let walk_cells = build_walk_cells(&options.area_polygon, r_walk)?;
 
         // use a higher capacity to have a few available in case the consumer
-        // of the sliding window sometimes discards single windows
+        // of the walk_cells sometimes discards single cells
         let output_capacity = max(3, options.concurrency as usize * 3);
 
         let (tx_output, rx_output) = tokio::sync::mpsc::channel(output_capacity);
@@ -101,16 +131,16 @@ impl SlidingH3Window {
 
         let join_handle = tokio::task::spawn(async move {
             let shutdown_notified = shutdown2.notified();
-            let window_iteration =
-                launch_window_iteration(pool, tx_output, options, window_indexes);
+            let walking_task =
+                launch_walking(pool, tx_output, options, walk_cells);
 
             tokio::select! {
                 _ = shutdown_notified => {
                     // shutdown requested
                     Ok(())
                 }
-                res = window_iteration => {
-                    // window iteration finished
+                res = walking_task => {
+                    // walking finished
                     res
                 }
             }
@@ -157,39 +187,37 @@ impl SlidingH3Window {
     }
 }
 
-#[instrument(level = "debug", skip(pool, tx_output, options, window_indexes))]
-async fn launch_window_iteration(
+#[instrument(level = "debug", skip(pool, tx_output, options, walk_cells))]
+async fn launch_walking(
     pool: Arc<Pool>,
     tx_output: tokio::sync::mpsc::Sender<Result<QueryOutput<ColumnSet>, Error>>,
-    options: SlidingWindowOptions,
-    window_indexes: VecDeque<H3Cell>,
+    options: CellWalkOptions,
+    walk_cells: VecDeque<H3Cell>,
 ) -> Result<(), Error> {
     let options_arc = Arc::new(options);
-    let (tx_window_index, rx_window_index) =
+    let (tx_walk_cell, rx_walk_cell) =
         async_channel::bounded(options_arc.concurrency as usize);
 
     let mut fetch_handles = vec![];
     for _ in 0..options_arc.concurrency {
         let client = pool.get_handle().await?;
-        let rx_window_index_ = rx_window_index.clone();
+        let rx_walk_cell_ = rx_walk_cell.clone();
         let tx_output_ = tx_output.clone();
         let opts = options_arc.clone();
         let handle = tokio::task::spawn(async move {
-            // fetch next window
-            fetch_window(client, opts, rx_window_index_, tx_output_).await
+            fetch_walk_cell_contents(client, opts, rx_walk_cell_, tx_output_).await
         });
         fetch_handles.push(handle);
     }
     // close this tasks copy of the channel to leave no open copies once the tasks have finished.
     std::mem::drop(tx_output);
-    std::mem::drop(rx_window_index);
+    std::mem::drop(rx_walk_cell);
 
     let prefetch_handle = {
         let client = pool.get_handle().await?;
         let opts = options_arc.clone();
         tokio::task::spawn(async move {
-            // check window indexes
-            prefetch_window_indexes(client, window_indexes, opts, tx_window_index).await
+            prefetch_walk_cells(client, walk_cells, opts, tx_walk_cell).await
         })
     };
 
@@ -200,90 +228,68 @@ async fn launch_window_iteration(
     Ok(())
 }
 
-fn determinate_window_h3_resolution(
-    tableset: &TableSet,
-    target_h3_resolution: u8,
-    window_max_size: u32,
-) -> u8 {
-    let window_h3_resolution =
-        window_index_resolution(&tableset, target_h3_resolution, window_max_size);
-    if (target_h3_resolution as i16 - window_h3_resolution as i16).abs() <= 3 {
-        warn!(
-            "sliding window: using H3 res {} as window resolution to iterate over H3 res {} data. This is probably inefficient - try to increase window_max_size.",
-            window_h3_resolution,
-            target_h3_resolution
-        );
-    } else {
-        info!(
-            "sliding window: using H3 res {} as window resolution",
-            window_h3_resolution
-        );
-    }
-    window_h3_resolution
-}
-
-fn build_window_indexes(
+fn build_walk_cells(
     poly: &Polygon<f64>,
-    window_h3_resolution: u8,
+    r_target: u8,
 ) -> Result<VecDeque<H3Cell>, Error> {
-    let mut window_index_set = HashSet::new();
+    let mut walk_cells_set = HashSet::new();
 
-    for h3index in polyfill(&poly, window_h3_resolution) {
+    for h3index in polyfill(&poly, r_target) {
         let index = H3Cell::try_from(h3index)?;
         // polyfill just uses the centroid to determinate if an index is convert,
         // but we also want intersecting h3 cells where the centroid may be outside
         // of the polygon, so we add the direct neighbors as well.
         for ring_h3index in index.k_ring(1) {
-            window_index_set.insert(ring_h3index);
+            walk_cells_set.insert(ring_h3index);
         }
-        window_index_set.insert(index);
+        walk_cells_set.insert(index);
     }
 
-    // for small windows, polyfill may not yield results,
+    // for small areas, polyfill may not yield results,
     // so just adding the center as well.
     if let Some(point) = poly.centroid() {
-        let index = H3Cell::from_coordinate(&point.0, window_h3_resolution)?;
-        window_index_set.insert(index);
+        let index = H3Cell::from_coordinate(&point.0, r_target)?;
+        walk_cells_set.insert(index);
     }
     info!(
-        "sliding window: {} window indexes found",
-        window_index_set.len()
+        "cell walk: {} walk_cells found",
+        walk_cells_set.len()
     );
 
-    let mut window_indexes: Vec<_> = window_index_set.drain().collect();
+    let mut walk_cells: Vec<_> = walk_cells_set.drain().collect();
 
-    // always process windows in the same order. This is probably easier for to
+    // always process cells in the same order. This is probably easier for to
     // user when inspecting the results produced during the processing
-    window_indexes.sort_unstable_by(cmp_index_by_coordinate);
+    walk_cells.sort_unstable_by(cmp_index_by_coordinate);
 
-    Ok(window_indexes.drain(..).collect())
+    Ok(walk_cells.drain(..).collect())
 }
 
 /// prefetch until some data-containing indexes where found, or the
-/// window has been completely crawled
-async fn prefetch_window_indexes(
+/// area has been completely crawled
+async fn prefetch_walk_cells(
     mut client: ClientHandle,
-    mut window_indexes: VecDeque<H3Cell>,
-    options: Arc<SlidingWindowOptions>,
-    tx_window_index: async_channel::Sender<H3Cell>,
+    mut walk_cells: VecDeque<H3Cell>,
+    options: Arc<CellWalkOptions>,
+    tx_walk_cell: async_channel::Sender<H3Cell>,
 ) -> Result<(), Error> {
-    set_clickhouse_max_threads(&mut client, options.window_num_clickhouse_threads).await?;
+    set_clickhouse_max_threads(&mut client, options.num_clickhouse_threads).await?;
 
     loop {
         // prefetch a new batch
-        let mut indexes_to_prefetch = vec![];
+        let mut cells_to_prefetch = vec![];
         for _ in 0..600 {
-            if let Some(window_index) = window_indexes.pop_front() {
-                indexes_to_prefetch.push(window_index);
+            if let Some(cell) = walk_cells.pop_front() {
+                cells_to_prefetch.push(cell);
             } else {
-                break; // no more window_indexes available
+                break; // no more walk_cells available
             }
         }
-        if indexes_to_prefetch.is_empty() {
-            return Ok(()); // reached the end of the window iteration
+        if cells_to_prefetch.is_empty() {
+            return Ok(()); // reached the end of the iteration
         }
 
-        let mut h3indexes: Vec<_> = indexes_to_prefetch.iter().map(|i| i.h3index()).collect();
+        let mut h3indexes: Vec<_> = cells_to_prefetch.iter().map(|i| i.h3index()).collect();
         let q = {
             let q = options.tableset.build_select_query(
                 &h3indexes,
@@ -295,24 +301,24 @@ async fn prefetch_window_indexes(
             format!("select distinct {} from ({})", COL_NAME_H3INDEX, q)
         };
 
-        let window_h3indexes = {
+        let found_walk_cells_h3indexes = {
             let n_h3indexes = h3indexes.len();
             let columnset =
                 query_all_with_uncompacting(&mut client, q, h3indexes.drain(..).collect())
                     .instrument(span!(
                         Level::DEBUG,
-                        "checking window indexes for data availability",
+                        "checking walk cells for data availability",
                         n_h3indexes
                     ))
                     .await?;
-            window_indexes_from_columnset(columnset)?
+            walk_cells_from_columnset(columnset)?
         };
 
-        match window_h3indexes {
+        match found_walk_cells_h3indexes {
             Some(h3indexes) => {
                 for h3index in h3indexes.iter() {
-                    if tx_window_index.send(H3Cell::new(*h3index)).await.is_err() {
-                        debug!("receivers for window indexes are gone");
+                    if tx_walk_cell.send(H3Cell::new(*h3index)).await.is_err() {
+                        debug!("receivers for walk cells are gone");
                         return Ok(());
                     }
                 }
@@ -322,7 +328,7 @@ async fn prefetch_window_indexes(
     }
 }
 
-fn window_indexes_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<u64>>, Error> {
+fn walk_cells_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<u64>>, Error> {
     if let Some(colvec) = columnset.columns.remove(COL_NAME_H3INDEX) {
         if colvec.is_empty() {
             return Ok(None);
@@ -353,19 +359,19 @@ fn window_indexes_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<
     }
 }
 
-async fn fetch_window(
+async fn fetch_walk_cell_contents(
     mut client: ClientHandle,
-    options: Arc<SlidingWindowOptions>,
-    rx_window_index: async_channel::Receiver<H3Cell>,
+    options: Arc<CellWalkOptions>,
+    rx_walk_cell: async_channel::Receiver<H3Cell>,
     tx_output: tokio::sync::mpsc::Sender<Result<QueryOutput<ColumnSet>, Error>>,
 ) -> Result<(), Error> {
-    set_clickhouse_max_threads(&mut client, options.window_num_clickhouse_threads).await?;
+    set_clickhouse_max_threads(&mut client, options.num_clickhouse_threads).await?;
 
     loop {
-        let window_index = match rx_window_index.recv().await {
+        let walk_cell = match rx_walk_cell.recv().await {
             Ok(wi) => wi,
             Err(_) => {
-                debug!("sender for window index dropped");
+                debug!("sender for walk cells dropped");
                 break;
             }
         };
@@ -374,19 +380,19 @@ async fn fetch_window(
             break;
         }
 
-        debug!("fetching data for window {}", window_index.to_string());
-        let child_indexes: Vec<_> = window_index
-            .get_children(options.target_h3_resolution)
+        debug!("fetching data for walk cell {}", walk_cell.to_string());
+        let child_indexes: Vec<_> = walk_cell
+            .get_children(options.r_target)
             .drain(..)
-            // remove children located outside of the window_polygon. It is probably is not
+            // remove children located outside of the area polygon. It is probably is not
             // worth the effort, but it allows to relocate some load from the DB server
             // to the users machine.
             .filter(|ci| {
                 // using coordinate instead of the polygon to avoid having duplicated h3 cells
-                // when window_polygon is a tile of a larger polygon. Using Index.to_polygon
+                // when the area_polygon is a tile of a larger polygon. Using Index.to_polygon
                 // would result in one line of h3 cells overlap between neighboring tiles.
                 let p = ci.to_coordinate();
-                options.window_polygon.intersects(&p)
+                options.area_polygon.intersects(&p)
             })
             .map(|i| i.h3index())
             .collect();
@@ -397,8 +403,8 @@ async fn fetch_window(
 
         if child_indexes.is_empty() {
             debug!(
-                "window {} without intersecting h3indexes skipped",
-                window_index.to_string()
+                "walk cell {} without intersecting h3indexes skipped",
+                walk_cell.to_string()
             );
             continue;
         }
@@ -415,19 +421,19 @@ async fn fetch_window(
         )
         .instrument(span!(
             Level::DEBUG,
-            "Loading window data from DB",
-            window_index = window_index.to_string().as_str()
+            "Loading contents for walk cell from DB",
+            walk_cell_index = walk_cell.to_string().as_str()
         ))
         .await
         .map(|columnset| QueryOutput {
             data: columnset,
             h3indexes_queried: Some(child_indexes),
-            window_h3index: Some(window_index.h3index()),
+            containing_h3index: Some(walk_cell.h3index()),
             query_duration: Some(t_start.elapsed()),
         });
 
         if tx_output.send(output).await.is_err() {
-            debug!("Receiver for window resultset dropped");
+            debug!("Receiver for walk resultset dropped");
             return Ok(());
         }
     }
@@ -467,8 +473,8 @@ mod tests {
     use h3ron::H3Cell;
 
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
-    use crate::clickhouse::window::{
-        cmp_coordinate, cmp_index_by_coordinate, window_index_resolution,
+    use crate::clickhouse::walk::{
+        cmp_coordinate, cmp_index_by_coordinate, choose_r_walk,
     };
 
     fn some_tableset() -> TableSet {
@@ -495,9 +501,9 @@ mod tests {
     }
 
     #[test]
-    fn test_window_index_resolution() {
+    fn test_r_walk_resolution() {
         let ts = some_tableset();
-        assert_eq!(window_index_resolution(&ts, 6, 1000), 3);
+        assert_eq!(choose_r_walk(&ts, 6, 1000), 3);
     }
 
     #[test]

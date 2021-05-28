@@ -13,11 +13,11 @@ can be used. A few things to keep in mind:
 
 ## Things to keep in mind
 
-### ... when working with sliding windows
+### ... when working walking through h3 data
 
-* Always make sure that the ranges (e.g. time range of a query) stay **static** among all windows and is not dependent
-  on data found in window. Not doing so can lead to confusing differences in your results depending on the **range of
-  data found in that window** - things will get even more confusing when the geographical size of the window changes (
+* Always make sure that the ranges (e.g. time range of a query) stay **static** among all visited cells and is not dependent
+  on data found in the current cell. Not doing so can lead to confusing differences in your results depending on the **range of
+  data found in that cell** - things will get even more confusing when the geographical size of the visited area changes (
   for example when using a different value for `MAX_WORKERS`, which will cut the AOI into different sized chunks).
 
 
@@ -47,5 +47,5 @@ For more fine-grained logging settings, see the documentation of `tracing` or `e
 
 | env variable name | description | default value |
 | --- | --- | --- |
-| `BAMBOO_WINDOW_NUM_CLICKHOUSE_THREADS` | Number of ClickHouse threads to use during window iteration. The more threads are used, the higher the load and memory requirements in the db server will be. As this is used for mostly non-timecritical preloading, the number can be quite low. | 2 |
-| `BAMBOO_WINDOW_NUM_CONCURRENT_PRELOAD_QUERIES` | Number of concurrent queries to use to preload data for the next windows from ClickHouse. | 3 |
+| `BAMBOO_CELLWALK_NUM_CLICKHOUSE_THREADS` | Number of ClickHouse threads to use during cellwalk iteration. The more threads are used, the higher the load and memory requirements in the db server will be. As this is used for mostly non-timecritical preloading, the number can be quite low. | 2 |
+| `BAMBOO_CELLWALK_NUM_CONCURRENT_PRELOAD_QUERIES` | Number of concurrent queries to use to preload data for the next cellwalk cells from ClickHouse. | 3 |

@@ -11,7 +11,7 @@ use std::time::Duration;
 pub mod compacted_tables;
 pub mod query;
 pub mod schema;
-pub mod window;
+pub mod walk;
 
 /** convert to a block including some type conversions */
 pub trait FromWithDatatypes<T> {
@@ -120,8 +120,8 @@ pub struct QueryOutput<T> {
     /// the indexes queried from the DB
     pub h3indexes_queried: Option<Vec<u64>>,
 
-    /// In case of sliding windows, the window index
-    pub window_h3index: Option<u64>,
+    /// In case of using `CellWalk`, the h3index of the cell
+    pub containing_h3index: Option<u64>,
 
     /// the duration the query took to finish
     pub query_duration: Option<Duration>,

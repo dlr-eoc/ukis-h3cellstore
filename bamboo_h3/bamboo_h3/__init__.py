@@ -105,9 +105,12 @@ class ClickhouseResultSet:
         return self.resultset.h3indexes_queried
 
     @property
-    def window_index(self) -> Optional[int]:
-        """get the h3index of the window in case this resultset was fetched in a sliding window"""
-        return self.resultset.window_index
+    def containing_index(self) -> Optional[int]:
+        """get the h3index of the cell containing the data.
+
+        This in field is populated in case this resultset was fetched during `walk`. Then in will contain
+        the h3index of the current walk cell."""
+        return self.resultset.containing_index
 
     def to_columnset(self) -> ColumnSet:
         """
@@ -200,46 +203,46 @@ class ClickhouseConnection:
     def __init__(self, url: str) -> ClickhouseConnection:
         self.inner = create_connection(url)
 
-    def window_iter(self, window_polygon: Polygon, tableset: TableSet, h3_resolution: int, window_max_size: int = 16000,
+    def walk(self, area_polygon: Polygon, tableset: TableSet, r_target: int, fetch_max_num: int = 16000,
                     querystring_template: str = None,
                     prefetch_querystring_template: str = None) -> Generator[ClickhouseResultSet, None, None]:
         """
-        iterate in a sliding window over a tableset.
+        walk/iterate through the data of a tableset.
 
-        :param window_polygon: polygon (geojson string, or something which is understood by the geojson module)
+        :param area_polygon: polygon (geojson string, or something which is understood by the geojson module)
         :param tableset: reference to the tableset to fetch
-        :param h3_resolution: H3 resolution to fetch the data at
-        :param window_max_size: data for how many h3indexes should be fetched at once
+        :param r_target: H3 resolution to fetch the data at
+        :param fetch_max_num: data for how many cells should be fetched at once
         :param querystring_template: QueryTemplate for the query string to fetch the data. Using this
                 allows to use SQL JOINs, subqueries and SQL functions before getting the data in a
                 dataframe.
                 When not set the SELECT uses the columns of the tableset.
         :param prefetch_querystring_template: QueryTemplate for the prefetch. The prefetch query is used to determinate
-                if it is worth to fetch the contents of a window or not. It is issued against the table
-                containing the window resolution so it needs to inspect far less data and should be faster. Additionally, the
-                data is not read; the query must contain a column named `h3index`.
+                if it is worth to fetch the contents of a cell or not. It is issued against the table
+                containing a coarser resolution (`r_walk`) so it needs to inspect far less data and should be faster.
+                Additionally, the data is not read; the query must contain a column named `h3index`.
                 When not set the same value as the `querystring_template` will be used with a `limit 1` appended
         :return: generator
         """
-        sliding_window = self.inner.make_sliding_window(
-            to_polygon(window_polygon),
+        cell_walker = self.inner.create_cell_walker(
+            to_polygon(area_polygon),
             tableset,
-            h3_resolution,
-            window_max_size,
+            r_target,
+            fetch_max_num,
             querystring_template=querystring_template,
             prefetch_querystring_template=prefetch_querystring_template,
         )
         try:
             while True:
-                window_data = sliding_window.fetch_next_window()
-                if window_data is None:
+                cell_data = cell_walker.fetch_next_cell()
+                if cell_data is None:
                     break  # reached end of iteration
-                if window_data.empty:
-                    continue  # skip empty windows
-                yield ClickhouseResultSet(window_data)
+                if cell_data.empty:
+                    continue  # skip empty cells
+                yield ClickhouseResultSet(cell_data)
         finally:
             # close may raise exceptions occurred during fetching
-            sliding_window.close()
+            cell_walker.close()
 
     def __get_tableset(self, tableset: TableSetLike) -> TableSet:
         if isinstance(tableset, str):
