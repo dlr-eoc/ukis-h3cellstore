@@ -4,7 +4,7 @@ import geopandas as gpd
 import numpy as np
 import pytest
 import rasterio
-from bamboo_h3 import ClickhouseConnection
+from bamboo_h3.clickhouse import ClickhouseConnection
 from bamboo_h3.raster import raster_to_dataframe
 from bamboo_h3.util import h3index_column_to_geodataframe
 from bamboo_h3.vector import geodataframe_to_h3

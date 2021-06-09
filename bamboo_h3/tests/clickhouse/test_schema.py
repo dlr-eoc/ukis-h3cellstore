@@ -5,13 +5,14 @@ import numpy as np
 import pandas as pd
 import pytest
 import rasterio
-from bamboo_h3 import TablesetNotFound, typeid_from_numpy_dtype
+from bamboo_h3 import typeid_from_numpy_dtype
+from bamboo_h3.clickhouse import TableSetNotFound
 from bamboo_h3.raster import raster_to_dataframe
-from bamboo_h3.schema import CompactedTableSchemaBuilder, Schema
+from bamboo_h3.clickhouse.schema import CompactedTableSchemaBuilder, Schema
 
-from . import TESTDATA_PATH
+from .. import TESTDATA_PATH
 # noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_db, naturalearth_africa_dataframe_4
+from ..fixtures import clickhouse_db, naturalearth_africa_dataframe_4
 
 
 def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month"):
@@ -37,12 +38,14 @@ def test_create_and_delete_schema(clickhouse_db):
     tableset = clickhouse_db.list_tablesets().get(tableset_name)
     assert tableset is None
 
+
 def test_multi_year_partitioning():
-    elephant_schema(temporal_partitioning="5 years") # should not raise
+    elephant_schema(temporal_partitioning="5 years")  # should not raise
     with pytest.raises(ValueError):
         elephant_schema(temporal_partitioning="0 years")
     with pytest.raises(ValueError):
         elephant_schema(temporal_partitioning="z years")
+
 
 def test_schema_save_and_load():
     tableset_name, schema = elephant_schema()
@@ -67,7 +70,7 @@ def test_save_dataframe(clickhouse_db, naturalearth_africa_dataframe_4):
     tableset_name = "natural_earth_africa"
     try:
         clickhouse_db.drop_tableset(tableset_name)
-    except TablesetNotFound:
+    except TableSetNotFound:
         pass
     csb = CompactedTableSchemaBuilder(tableset_name)
     csb.h3_base_resolutions([0, 1, 2, 3, 4])
@@ -94,7 +97,7 @@ def __save_dataframe_datetime(clickhouse_db, input_date_string, column_type):
     tableset_name = "timestamp_test"
     try:
         clickhouse_db.drop_tableset(tableset_name)
-    except TablesetNotFound:
+    except TableSetNotFound:
         pass
     csb = CompactedTableSchemaBuilder(tableset_name)
     resolutions = list(range(0, h3.h3_get_resolution(start_index) + 1))

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switch from using the `log` crate, to the `tracing` crate. #36
 - Rename `sliding_window` to `walk` as this is not really a sliding window. Choose
   the name `walk` to align with pythons `os.walk`. #37
+- Cleaner module structure:  
+  - move ClickHouse-related things to `bamboo_h3.clickhouse` subpackage.
+  - move `Polygon`, `H3IndexesContainedIn` and `h3indexes_convex_hull` to `bamboo_h3.geo` subpackage.
 
 ### Removed
 

@@ -2,10 +2,10 @@ import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 import pytest
-from bamboo_h3.schema import CompactedTableSchemaBuilder
+from bamboo_h3.clickhouse.schema import CompactedTableSchemaBuilder
 
 # noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_db
+from ..fixtures import clickhouse_db
 
 
 def some_dataframe():

@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-from .fixtures import clickhouse_db
+from ..fixtures import clickhouse_db
 
 
 def test_connection_fetch_dataframe(clickhouse_db):

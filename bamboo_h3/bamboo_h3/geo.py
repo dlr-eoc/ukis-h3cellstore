@@ -2,7 +2,19 @@ from shapely import wkb
 from shapely.geometry import shape, Polygon as ShapelyPolygon
 from typing import Any
 
-from .bamboo_h3 import Polygon
+from .bamboo_h3 import Polygon, \
+    H3IndexesContainedIn, \
+    h3indexes_convex_hull
+
+__all__ = [
+    "to_polygon",
+
+    # accessing the imported function and classes to let IDEs know these are not
+    # unused imports. They are only re-exported, but not used in this file.
+    Polygon.__name__,
+    h3indexes_convex_hull.__name__,
+    H3IndexesContainedIn.__name__
+]
 
 
 def to_polygon(input: Any) -> Polygon:

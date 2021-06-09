@@ -5,7 +5,7 @@ Database schema creation
 Defining a schema
 -----------------
 
->>> from bamboo_h3.schema import CompactedTableSchemaBuilder
+>>> from bamboo_h3.clickhouse.schema import CompactedTableSchemaBuilder
 >>> csb = CompactedTableSchemaBuilder("okavango_delta")
 >>> csb.h3_base_resolutions(list(range(0, 8)))
 >>> csb.temporal_resolution("second")
@@ -18,7 +18,7 @@ Defining a schema
 
 """
 
-from .bamboo_h3 import \
+from ..bamboo_h3 import \
     Schema, \
     CompactedTableSchemaBuilder
 

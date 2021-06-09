@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytz
 
-from . import bamboo_h3 as lib
+from . import bamboo_h3 as nativelib
 
 
 class ColumnSet:
@@ -27,7 +27,7 @@ class ColumnSet:
         >>> len(column_set)
         12
         """
-        cs = lib.ColumnSet()
+        cs = nativelib.ColumnSet()
         for column_name in df.columns:
             col = df[column_name]
             if isinstance(col.dtype, pd.DatetimeTZDtype):
