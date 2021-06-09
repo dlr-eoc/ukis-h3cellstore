@@ -175,7 +175,7 @@ class ClickhouseConnection:
     def __init__(self, url: str):
         self.inner = create_connection(url)
 
-    def walk(self, area_polygon: Polygon, tableset: TableSet, r_target: int, fetch_max_num: int = 16000,
+    def walk(self, area_polygon: Polygon, tableset: TableSet, r_target: int, r_walk: Optional[int] = None, fetch_max_num: int = 16000,
              querystring_template: str = None,
              prefetch_querystring_template: str = None) -> Generator[ClickhouseResultSet, None, None]:
         """
@@ -184,6 +184,7 @@ class ClickhouseConnection:
         :param area_polygon: polygon (geojson string, or something which is understood by the geojson module)
         :param tableset: reference to the tableset to fetch
         :param r_target: H3 resolution to fetch the data at
+        :param r_walk: H3 resolution to use for the batch size.
         :param fetch_max_num: data for how many cells should be fetched at once
         :param querystring_template: QueryTemplate for the query string to fetch the data. Using this
                 allows to use SQL JOINs, subqueries and SQL functions before getting the data in a
@@ -200,6 +201,7 @@ class ClickhouseConnection:
             to_polygon(area_polygon),
             tableset,
             r_target,
+            r_walk,
             fetch_max_num,
             querystring_template=querystring_template,
             prefetch_querystring_template=prefetch_querystring_template,

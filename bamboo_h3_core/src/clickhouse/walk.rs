@@ -26,6 +26,7 @@ use crate::geo::algorithm::centroid::Centroid;
 use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use crate::common::check_h3_resolution;
 
 /// find the resolution generate coarser h3 cells to access the tableset without needing to fetch more
 /// than `fetch_max_num` indexes per batch.
@@ -81,6 +82,7 @@ fn choose_r_walk_with_logging(
 pub struct CellWalkOptions {
     pub area_polygon: Polygon<f64>,
     pub r_target: u8,
+    pub r_walk: Option<u8>,
     pub fetch_max_num: u32,
     pub tableset: TableSet,
     pub query: TableSetQuery,
@@ -113,11 +115,14 @@ pub struct CellWalk {
 
 impl CellWalk {
     pub async fn create(pool: Arc<Pool>, options: CellWalkOptions) -> Result<Self, Error> {
-        let r_walk = choose_r_walk_with_logging(
+        let r_walk = options.r_walk.unwrap_or_else(|| choose_r_walk_with_logging(
             &options.tableset,
             options.r_target,
             options.fetch_max_num,
-        );
+        ));
+        check_h3_resolution(r_walk)?;
+        check_h3_resolution(options.r_target)?;
+
         let walk_cells = build_walk_cells(&options.area_polygon, r_walk)?;
 
         // use a higher capacity to have a few available in case the consumer

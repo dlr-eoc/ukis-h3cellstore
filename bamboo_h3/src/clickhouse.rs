@@ -43,6 +43,7 @@ impl ClickhouseConnection {
         area_polygon: &Polygon,
         tableset: &TableSetWrapper,
         r_target: u8,
+        r_walk: Option<u8>,
         fetch_max_num: u32,
         querystring_template: Option<String>,
         prefetch_querystring_template: Option<String>,
@@ -50,6 +51,7 @@ impl ClickhouseConnection {
         let opts = CellWalkOptions {
             area_polygon: area_polygon.inner.clone(),
             r_target,
+            r_walk,
             fetch_max_num,
             tableset: tableset.inner.clone(),
             query: if let Some(s) = querystring_template {

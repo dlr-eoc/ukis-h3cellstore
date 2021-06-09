@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Workflow template to build the extension with [argo](https://github.com/argoproj/argo-workflows/). #15
 - Multi-year table partitioning. #39
+- Allow passing `walk` the resolution to use for the batch size (`r_walk`). #42
 
 ### Changed
 
