@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bamboo_h3_core = { path = "../bamboo_h3_core" }
-numpy = "=0.13.2"
+numpy = "0.14"
 wkb = "=0.7.1"
 h3ron = "0.11"
 h3ron-h3-sys = "0.11"
@@ -44,9 +44,10 @@ features = [
 ]
 
 [dependencies.pyo3]
-version = "^0.13"
+version = "^0.14"
 features = [
     "extension-module",
+    "multiple-pymethods",
     "abi3",
     # minimum python version this library supports
     # as this library depends on pandas>=1.2 we are using the

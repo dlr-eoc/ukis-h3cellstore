@@ -111,7 +111,7 @@ pub fn validate_clickhouse_url(
         }
     }
 
-    Ok(parsed_url.into_string())
+    Ok(parsed_url.into())
 }
 
 pub struct QueryOutput<T> {
