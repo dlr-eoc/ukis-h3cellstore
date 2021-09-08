@@ -734,7 +734,7 @@ impl ColumnSet {
 
         // validate that this columnset is not already compacted
         // TODO: not sure if this should not just be a no-op or an error
-        check_same_h3_resolution(&h3index_vec)?;
+        check_same_h3_resolution(h3index_vec)?;
 
         let other_columns: Vec<_> = self.get_column_names_except(&h3index_column_name);
 
@@ -743,7 +743,7 @@ impl ColumnSet {
             let mut hm: NonSecureHashMap<_, _> = Default::default();
             hm.insert(
                 h3index_column_name,
-                ColVec::U64(h3ron::compact(h3index_vec)),
+                ColVec::U64(compact_cells(h3index_vec.clone())),
             );
             Ok(hm.into())
         } else {
@@ -923,10 +923,11 @@ impl ColumnSet {
 ///
 /// prepares for compacting by removing all eventual duplicates as
 /// this is nothing upstream `compact` can handle
-fn compact(mut h3indexes: Vec<u64>) -> Vec<u64> {
+fn compact_cells(mut h3indexes: Vec<u64>) -> Vec<u64> {
     h3indexes.sort_unstable();
     h3indexes.dedup();
-    h3ron::compact(&h3indexes)
+    let cells: Vec<_> =  h3indexes.drain(..).map(H3Cell::new).collect();
+    h3ron::compact(&cells).drain(..).map(|cell| cell.h3index()).collect()
 }
 
 fn compact_groups(
@@ -934,9 +935,9 @@ fn compact_groups(
     parallelize: bool,
 ) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
     if parallelize {
-        groups.par_drain().map(|(k, v)| (k, compact(v))).collect()
+        groups.par_drain().map(|(k, v)| (k, compact_cells(v))).collect()
     } else {
-        groups.drain().map(|(k, v)| (k, compact(v))).collect()
+        groups.drain().map(|(k, v)| (k, compact_cells(v))).collect()
     }
 }
 

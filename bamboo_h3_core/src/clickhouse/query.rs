@@ -196,7 +196,7 @@ where
     O: FromIterator<T>,
 {
     if let Some((num_uncompacted_rows, row_repetitions)) = row_reps {
-        ItemRepeatingIterator::new(iter, &row_repetitions, Some(num_uncompacted_rows)).collect()
+        ItemRepeatingIterator::new(iter, row_repetitions, Some(num_uncompacted_rows)).collect()
     } else {
         iter.collect()
     }
@@ -294,7 +294,7 @@ pub async fn save_columnset(
 
     match schema {
         Schema::CompactedTable(ct_schema) => {
-            let mut inserter = CompactedTableInserter::new(&mut ch, &ct_schema);
+            let mut inserter = CompactedTableInserter::new(&mut ch, ct_schema);
             inserter.insert_columnset(columnset).await?;
         }
     }

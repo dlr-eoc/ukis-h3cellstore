@@ -112,7 +112,7 @@ impl CompactedTableSchema {
                 match a.0.cmp(&b.0) {
                     Ordering::Less => Ordering::Less,
                     // sort by column name as second criteria, to have a repeatable ordering
-                    Ordering::Equal => a.1.cmp(&b.1),
+                    Ordering::Equal => a.1.cmp(b.1),
                     Ordering::Greater => Ordering::Greater,
                 }
             })
@@ -167,7 +167,7 @@ impl CompactedTableSchema {
             for (column_name, def) in self.columns.iter() {
                 if def.datatype().is_temporal() {
                     let partition_expr =
-                        partition_by_expression(&column_name, &def, &self.temporal_partitioning);
+                        partition_by_expression(column_name, def, &self.temporal_partitioning);
                     if !new_partition_by_entries.contains(&partition_expr)
                         && !partition_by.contains(&partition_expr)
                     {
@@ -184,9 +184,9 @@ impl CompactedTableSchema {
             partition_by.append(&mut new_partition_by_entries);
         } else {
             for column_name in self.partition_by_columns.iter() {
-                let def = self.get_column_def(&column_name)?;
+                let def = self.get_column_def(column_name)?;
                 let partition_expr =
-                    partition_by_expression(&column_name, &def, &self.temporal_partitioning);
+                    partition_by_expression(column_name, &def, &self.temporal_partitioning);
                 if !partition_by.contains(&partition_expr) {
                     partition_by.push(partition_expr);
                 }

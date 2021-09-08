@@ -14,8 +14,8 @@ crate-type = ["cdylib"]
 bamboo_h3_core = { path = "../bamboo_h3_core" }
 numpy = "0.14"
 wkb = "=0.7.1"
-h3ron = "0.11"
-h3ron-h3-sys = "0.11"
+h3ron = "0.12"
+h3ron-h3-sys = "0.12"
 svgbobdoc = "^0.2"
 either = "^1.6"
 serde = "^1"

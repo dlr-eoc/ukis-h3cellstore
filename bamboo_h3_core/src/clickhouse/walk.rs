@@ -8,7 +8,6 @@
 ///
 use std::cmp::{max, Ordering};
 use std::collections::{HashSet, VecDeque};
-use std::convert::TryFrom;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -63,7 +62,7 @@ fn choose_r_walk_with_logging(
     fetch_max_num: u32,
 ) -> u8 {
     let r_walk =
-        choose_r_walk(&tableset, r_target, fetch_max_num);
+        choose_r_walk(tableset, r_target, fetch_max_num);
     if (r_target as i16 - r_walk as i16).abs() <= 3 {
         warn!(
             "cell walk: using H3 res {} as batch resolution to iterate over H3 res {} data. This is probably inefficient - try to increase fetch_max_num.",
@@ -239,15 +238,14 @@ fn build_walk_cells(
 ) -> Result<VecDeque<H3Cell>, Error> {
     let mut walk_cells_set = HashSet::new();
 
-    for h3index in polyfill(&poly, r_target) {
-        let index = H3Cell::try_from(h3index)?;
+    for cell in polyfill(poly, r_target) {
         // polyfill just uses the centroid to determinate if an index is convert,
         // but we also want intersecting h3 cells where the centroid may be outside
         // of the polygon, so we add the direct neighbors as well.
-        for ring_h3index in index.k_ring(1) {
+        for ring_h3index in cell.k_ring(1) {
             walk_cells_set.insert(ring_h3index);
         }
-        walk_cells_set.insert(index);
+        walk_cells_set.insert(cell);
     }
 
     // for small areas, polyfill may not yield results,
