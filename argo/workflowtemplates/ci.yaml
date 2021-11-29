@@ -27,9 +27,12 @@ spec:
           - name: python-packages
             path: /tmp/python-packages
       sidecars:
-          - name: clickhouse
-            image: eoc-gzs-db01-vm.eoc.dlr.de:4002/clickhouse-server:20.12.8.5
-            args: []
+        - name: clickhouse
+          image: eoc-gzs-db01-vm.eoc.dlr.de:4002/clickhouse-server:20.12.8.5
+          command:
+            - /entrypoint.sh
+          # TODO: securitycontext. reducing the required permissions probably requires a patched image :(
+          args: [ ]
       script:
         image: eoc-gzs-db01-vm.eoc.dlr.de:4001/bamboo-ci-builder:latest
         env:
@@ -43,13 +46,19 @@ spec:
           # for env variables see https://twine.readthedocs.io/en/latest/#twine-upload
           - name: TWINE_PASSWORD
             value: ""
-          - name : TWINE_REPOSITORY
+          - name: TWINE_REPOSITORY
             value: ""
           - name: TWINE_PASSWORD
             value: ""
-        command: [bash]
+        command:
+          - /bin/bash
+        securityContext:
+          runAsUser: 65534 # nobody user
+          runAsGroup: 65534
+          runAsNonRoot: true
         source: |
           set -eu
+          cd /tmp/
 
           python3 --version
           cargo --version
