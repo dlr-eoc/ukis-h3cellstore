@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use clickhouse_rs::{ClientHandle, Pool};
 use geo::Coordinate;
+use h3ron::iter::KRingBuilder;
 use h3ron::{polyfill, H3Cell, Index, ToCoordinate};
 use tracing::{debug, error, info, instrument, span, warn, Level};
 use tracing_futures::Instrument;
@@ -20,22 +21,18 @@ use tracing_futures::Instrument;
 use crate::clickhouse::compacted_tables::{TableSet, TableSetQuery};
 use crate::clickhouse::query::{query_all_with_uncompacting, set_clickhouse_max_threads};
 use crate::clickhouse::QueryOutput;
+use crate::common::check_h3_resolution;
 use crate::error::Error;
 use crate::geo::algorithm::centroid::Centroid;
 use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
 use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
-use crate::common::check_h3_resolution;
 
 /// find the resolution generate coarser h3 cells to access the tableset without needing to fetch more
 /// than `fetch_max_num` indexes per batch.
 ///
 /// That resolution must be a base resolution
-pub fn choose_r_walk(
-    table_set: &TableSet,
-    r_target: u8,
-    fetch_max_num: u32,
-) -> u8 {
+pub fn choose_r_walk(table_set: &TableSet, r_target: u8, fetch_max_num: u32) -> u8 {
     let mut resolutions: Vec<_> = table_set
         .base_resolutions()
         .iter()
@@ -55,14 +52,8 @@ pub fn choose_r_walk(
     r_walk
 }
 
-
-fn choose_r_walk_with_logging(
-    tableset: &TableSet,
-    r_target: u8,
-    fetch_max_num: u32,
-) -> u8 {
-    let r_walk =
-        choose_r_walk(tableset, r_target, fetch_max_num);
+fn choose_r_walk_with_logging(tableset: &TableSet, r_target: u8, fetch_max_num: u32) -> u8 {
+    let r_walk = choose_r_walk(tableset, r_target, fetch_max_num);
     if (r_target as i16 - r_walk as i16).abs() <= 3 {
         warn!(
             "cell walk: using H3 res {} as batch resolution to iterate over H3 res {} data. This is probably inefficient - try to increase fetch_max_num.",
@@ -70,10 +61,7 @@ fn choose_r_walk_with_logging(
             r_target
         );
     } else {
-        info!(
-            "cell walk: using H3 res {} as r_walk resolution",
-            r_walk
-        );
+        info!("cell walk: using H3 res {} as r_walk resolution", r_walk);
     }
     r_walk
 }
@@ -114,11 +102,9 @@ pub struct CellWalk {
 
 impl CellWalk {
     pub async fn create(pool: Arc<Pool>, options: CellWalkOptions) -> Result<Self, Error> {
-        let r_walk = options.r_walk.unwrap_or_else(|| choose_r_walk_with_logging(
-            &options.tableset,
-            options.r_target,
-            options.fetch_max_num,
-        ));
+        let r_walk = options.r_walk.unwrap_or_else(|| {
+            choose_r_walk_with_logging(&options.tableset, options.r_target, options.fetch_max_num)
+        });
         check_h3_resolution(r_walk)?;
         check_h3_resolution(options.r_target)?;
 
@@ -135,8 +121,7 @@ impl CellWalk {
 
         let join_handle = tokio::task::spawn(async move {
             let shutdown_notified = shutdown2.notified();
-            let walking_task =
-                launch_walking(pool, tx_output, options, walk_cells);
+            let walking_task = launch_walking(pool, tx_output, options, walk_cells);
 
             tokio::select! {
                 _ = shutdown_notified => {
@@ -199,8 +184,7 @@ async fn launch_walking(
     walk_cells: VecDeque<H3Cell>,
 ) -> Result<(), Error> {
     let options_arc = Arc::new(options);
-    let (tx_walk_cell, rx_walk_cell) =
-        async_channel::bounded(options_arc.concurrency as usize);
+    let (tx_walk_cell, rx_walk_cell) = async_channel::bounded(options_arc.concurrency as usize);
 
     let mut fetch_handles = vec![];
     for _ in 0..options_arc.concurrency {
@@ -232,17 +216,15 @@ async fn launch_walking(
     Ok(())
 }
 
-fn build_walk_cells(
-    poly: &Polygon<f64>,
-    r_target: u8,
-) -> Result<VecDeque<H3Cell>, Error> {
+fn build_walk_cells(poly: &Polygon<f64>, r_target: u8) -> Result<VecDeque<H3Cell>, Error> {
     let mut walk_cells_set = HashSet::new();
 
-    for cell in polyfill(poly, r_target) {
+    let mut kringbuilder = KRingBuilder::new(0, 1);
+    for cell in polyfill(poly, r_target).iter() {
         // polyfill just uses the centroid to determinate if an index is convert,
         // but we also want intersecting h3 cells where the centroid may be outside
         // of the polygon, so we add the direct neighbors as well.
-        for ring_h3index in cell.k_ring(1) {
+        for (ring_h3index, _) in kringbuilder.build_k_ring(&cell) {
             walk_cells_set.insert(ring_h3index);
         }
         walk_cells_set.insert(cell);
@@ -254,10 +236,7 @@ fn build_walk_cells(
         let index = H3Cell::from_coordinate(&point.0, r_target)?;
         walk_cells_set.insert(index);
     }
-    info!(
-        "cell walk: {} walk_cells found",
-        walk_cells_set.len()
-    );
+    info!("cell walk: {} walk_cells found", walk_cells_set.len());
 
     let mut walk_cells: Vec<_> = walk_cells_set.drain().collect();
 
@@ -386,7 +365,7 @@ async fn fetch_walk_cell_contents(
         debug!("fetching data for walk cell {}", walk_cell.to_string());
         let child_indexes: Vec<_> = walk_cell
             .get_children(options.r_target)
-            .drain(..)
+            .drain()
             // remove children located outside of the area polygon. It is probably is not
             // worth the effort, but it allows to relocate some load from the DB server
             // to the users machine.
@@ -476,9 +455,7 @@ mod tests {
     use h3ron::H3Cell;
 
     use crate::clickhouse::compacted_tables::{TableSet, TableSpec};
-    use crate::clickhouse::walk::{
-        cmp_coordinate, cmp_index_by_coordinate, choose_r_walk,
-    };
+    use crate::clickhouse::walk::{choose_r_walk, cmp_coordinate, cmp_index_by_coordinate};
 
     fn some_tableset() -> TableSet {
         TableSet {

@@ -927,7 +927,7 @@ fn compact_cells(mut h3indexes: Vec<u64>) -> Vec<u64> {
     h3indexes.sort_unstable();
     h3indexes.dedup();
     let cells: Vec<_> =  h3indexes.drain(..).map(H3Cell::new).collect();
-    h3ron::compact(&cells).drain(..).map(|cell| cell.h3index()).collect()
+    h3ron::compact(&cells).drain().map(|cell| cell.h3index()).collect()
 }
 
 fn compact_groups(

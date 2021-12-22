@@ -12,9 +12,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bamboo_h3_core = { path = "../bamboo_h3_core" }
-numpy = "0.14"
+numpy = "0.15"
 wkb = "=0.7.1"
-h3ron = "0.12"
+h3ron = "0.13"
 h3ron-h3-sys = "0.12"
 svgbobdoc = "^0.2"
 either = "^1.6"
@@ -27,8 +27,8 @@ lazy_static = "^1.4"
 
 
 [dependencies.tracing-subscriber]
-version = "0.2"
-features = ["json"]
+version = "0.3"
+features = ["json", "env-filter"]
 
 [dependencies.chrono]
 version = "0.4"
@@ -44,7 +44,7 @@ features = [
 ]
 
 [dependencies.pyo3]
-version = "^0.14"
+version = "^0.15"
 features = [
     "extension-module",
     "multiple-pymethods",

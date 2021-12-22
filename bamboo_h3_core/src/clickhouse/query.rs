@@ -151,7 +151,7 @@ pub async fn query_all_with_uncompacting(
                 Ordering::Less => {
                     let mut valid_children = idx
                         .get_children(h3_res)
-                        .drain(..)
+                        .drain()
                         .map(|i| i.h3index())
                         .filter(|hi| h3index_set.contains(hi))
                         .collect::<Vec<_>>();
