@@ -2,10 +2,12 @@ from __future__ import annotations  # https://stackoverflow.com/a/33533514
 
 from typing import Dict
 
+import loguru
 import numpy as np
 import pandas as pd
 import pytz
 
+from loguru import logger
 from . import bamboo_h3 as nativelib
 
 
@@ -36,7 +38,11 @@ class ColumnSet:
                                                                                                                 tz="UTC")).to_numpy()
                 cs.add_numpy_datetime_column(column_name, timestamps)
             else:
-                cs.add_numpy_column(column_name, col.to_numpy())
+                try:
+                    cs.add_numpy_column(column_name, col.to_numpy())
+                except Exception:
+                    logger.error(f"Adding pandas column {column_name} typed {col.dtype} to columnset failed")
+                    raise
             if drain:
                 del df[column_name]
         return ColumnSet(cs)

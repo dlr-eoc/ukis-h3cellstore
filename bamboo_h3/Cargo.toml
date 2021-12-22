@@ -82,5 +82,6 @@ requires-dist = [
     "h3ronpy>=0.10",
     "geopandas>=0.8",
     "rasterio>=1.1",
-    "pytz>=2021.1"
+    "pytz>=2021.1",
+    "loguru>=0.5"
 ]
