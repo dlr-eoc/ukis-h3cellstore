@@ -17,7 +17,7 @@ impl<T> IntoPyResult<T> for Result<T, bamboo_h3_core::error::Error> {
                 | Error::InvalidH3Index(_)
                 | Error::InvalidColumn(_)
                 | Error::MixedResolutions
-                | Error::IncompatibleDatatype
+                | Error::IncompatibleDatatype(_, _)
                 | Error::MissingQueryPlaceholder(_)
                 | Error::InvalidH3Resolution(_)
                 | Error::UrlParseError(_)
@@ -63,11 +63,14 @@ impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
     }
 }
 
-impl <T> IntoPyResult<T> for Result<T, tokio::task::JoinError> {
+impl<T> IntoPyResult<T> for Result<T, tokio::task::JoinError> {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(err) => Err(PyRuntimeError::new_err(format!("joining task failed: {}", err.to_string()))),
+            Err(err) => Err(PyRuntimeError::new_err(format!(
+                "joining task failed: {}",
+                err.to_string()
+            ))),
         }
     }
 }
@@ -80,4 +83,3 @@ impl<T> IntoPyResult<T> for Result<T, wkb::WKBReadError> {
         }
     }
 }
-

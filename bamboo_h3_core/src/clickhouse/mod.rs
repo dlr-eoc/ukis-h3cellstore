@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use clickhouse_rs::Block;
-use tracing::{warn, error};
+use tracing::{error, warn};
 use url::Url;
 
 use crate::error::Error;
@@ -71,10 +71,9 @@ impl FromWithDatatypes<ColumnSet> for Block {
                 (_, _) => {
                     error!(
                         "colvec typed {} can not be converted to {} typed block column",
-                        colvec_datatype,
-                        target_type
+                        colvec_datatype, target_type
                     );
-                    return Err(Error::IncompatibleDatatype);
+                    return Err(Error::IncompatibleDatatype(colvec_datatype, *target_type));
                 }
             };
         }

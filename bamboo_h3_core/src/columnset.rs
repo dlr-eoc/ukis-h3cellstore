@@ -40,7 +40,7 @@ const DT_U64N_NAME: &str = "u64n";
 const DT_U8_NAME: &str = "u8";
 const DT_U8N_NAME: &str = "u8n";
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Datatype {
     U8,
@@ -205,6 +205,38 @@ enum ColVecValue {
     /// unix timestamp, as numpy has no native datetime type
     DateTime(DateTime<Tz>),
     DateTimeN(Option<DateTime<Tz>>),
+}
+
+impl ColVecValue {
+    pub fn datatype(&self) -> Datatype {
+        // TODO: this should be only kept once. Either for ColVec or ColVecValue
+        match self {
+            ColVecValue::U8(_) => Datatype::U8,
+            ColVecValue::U8N(_) => Datatype::U8N,
+            ColVecValue::I8(_) => Datatype::I8,
+            ColVecValue::I8N(_) => Datatype::I8N,
+            ColVecValue::U16(_) => Datatype::U16,
+            ColVecValue::U16N(_) => Datatype::U16N,
+            ColVecValue::I16(_) => Datatype::I16,
+            ColVecValue::I16N(_) => Datatype::I16N,
+            ColVecValue::U32(_) => Datatype::U32,
+            ColVecValue::U32N(_) => Datatype::U32N,
+            ColVecValue::I32(_) => Datatype::I32,
+            ColVecValue::I32N(_) => Datatype::I32N,
+            ColVecValue::U64(_) => Datatype::U64,
+            ColVecValue::U64N(_) => Datatype::U64N,
+            ColVecValue::I64(_) => Datatype::I64,
+            ColVecValue::I64N(_) => Datatype::I64N,
+            ColVecValue::F32(_) => Datatype::F32,
+            ColVecValue::F32N(_) => Datatype::F32N,
+            ColVecValue::F64(_) => Datatype::F64,
+            ColVecValue::F64N(_) => Datatype::F64N,
+            ColVecValue::Date(_) => Datatype::Date,
+            ColVecValue::DateN(_) => Datatype::DateN,
+            ColVecValue::DateTime(_) => Datatype::DateTime,
+            ColVecValue::DateTimeN(_) => Datatype::DateTimeN,
+        }
+    }
 }
 
 /// a vector of column values
@@ -397,7 +429,10 @@ impl ColVec {
                     other_cv.datatype().to_string(),
                     this_cv.datatype().to_string()
                 );
-                return Err(Error::IncompatibleDatatype);
+                return Err(Error::IncompatibleDatatype(
+                    this_cv.datatype(),
+                    other_cv.datatype(),
+                ));
             }
         }
         Ok(())
@@ -435,7 +470,10 @@ impl ColVec {
                     other_cvv,
                     this_cv.datatype().to_string()
                 );
-                return Err(Error::IncompatibleDatatype);
+                return Err(Error::IncompatibleDatatype(
+                    this_cv.datatype(),
+                    other_cvv.datatype(),
+                ));
             }
         }
         Ok(())

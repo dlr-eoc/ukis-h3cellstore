@@ -26,7 +26,7 @@ use crate::error::Error;
 use crate::geo::algorithm::centroid::Centroid;
 use crate::geo::algorithm::intersects::Intersects;
 use crate::geo_types::Polygon;
-use crate::{ColVec, ColumnSet, COL_NAME_H3INDEX};
+use crate::{ColVec, ColumnSet, Datatype, COL_NAME_H3INDEX};
 
 /// find the resolution generate coarser h3 cells to access the tableset without needing to fetch more
 /// than `fetch_max_num` indexes per batch.
@@ -329,7 +329,10 @@ fn walk_cells_from_columnset(mut columnset: ColumnSet) -> Result<Option<Vec<u64>
                     "expected the '{}' column of the prefetch query to be UInt64",
                     COL_NAME_H3INDEX
                 );
-                Err(Error::IncompatibleDatatype)
+                Err(Error::IncompatibleDatatype(
+                    colvec.datatype(),
+                    Datatype::U64,
+                ))
             }
         }
     } else {

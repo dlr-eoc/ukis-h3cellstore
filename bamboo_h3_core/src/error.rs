@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt;
 
+use crate::Datatype;
 use h3ron::{H3Cell, Index};
 
 #[derive(Debug)]
@@ -19,7 +20,7 @@ pub enum Error {
     Clickhouse(clickhouse_rs::errors::Error),
     ColumnNotFound(String),
     InvalidColumn(String),
-    IncompatibleDatatype,
+    IncompatibleDatatype(Datatype, Datatype),
     UrlParseError(url::ParseError),
     RuntimeError(String),
 }
@@ -51,7 +52,9 @@ impl fmt::Display for Error {
             Error::ColumnNotFound(column_name) => write!(f, "column not found: {}", column_name),
             Error::InvalidColumn(column_name) => write!(f, "invalid column: {}", column_name),
             Error::Clickhouse(e) => write!(f, "ClickHouse: {:?}", e),
-            Error::IncompatibleDatatype => write!(f, "incompatible datatype"),
+            Error::IncompatibleDatatype(dtype1, dtype2) => {
+                write!(f, "incompatible datatype ({} <-> {})", dtype1, dtype2)
+            }
             Error::UrlParseError(upe) => write!(f, "Unable to parse url: {:?}", upe),
             Error::RuntimeError(msg) => write!(f, "{}", msg),
         }
