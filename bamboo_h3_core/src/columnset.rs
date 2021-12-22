@@ -641,7 +641,7 @@ iter_to_colvec_fromiterator_impl!(Option<DateTime<Tz>>, DateTimeN);
 /// This can be seen as the equivalent to the pandas DateFrame but limited
 /// to storage only. Additionally, this would be the point where arrow support
 /// could be added (using arrows RecordBatch https://docs.rs/arrow/2.0.0/arrow/record_batch/struct.RecordBatch.html)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ColumnSet {
     pub columns: HashMap<String, ColVec>,
 
@@ -926,8 +926,11 @@ impl ColumnSet {
 fn compact_cells(mut h3indexes: Vec<u64>) -> Vec<u64> {
     h3indexes.sort_unstable();
     h3indexes.dedup();
-    let cells: Vec<_> =  h3indexes.drain(..).map(H3Cell::new).collect();
-    h3ron::compact(&cells).drain().map(|cell| cell.h3index()).collect()
+    let cells: Vec<_> = h3indexes.drain(..).map(H3Cell::new).collect();
+    h3ron::compact(&cells)
+        .drain()
+        .map(|cell| cell.h3index())
+        .collect()
 }
 
 fn compact_groups(
@@ -935,7 +938,10 @@ fn compact_groups(
     parallelize: bool,
 ) -> HashMap<Vec<ColVecValue>, Vec<u64>> {
     if parallelize {
-        groups.par_drain().map(|(k, v)| (k, compact_cells(v))).collect()
+        groups
+            .par_drain()
+            .map(|(k, v)| (k, compact_cells(v)))
+            .collect()
     } else {
         groups.drain().map(|(k, v)| (k, compact_cells(v))).collect()
     }
@@ -967,15 +973,6 @@ fn colvecvalue_to_colvec(cvv: ColVecValue, repetitions: usize) -> ColVec {
         ColVecValue::DateN(v) => ColVec::DateN(repeat_n(v, repetitions).collect()),
         ColVecValue::DateTime(v) => ColVec::DateTime(repeat_n(v, repetitions).collect()),
         ColVecValue::DateTimeN(v) => ColVec::DateTimeN(repeat_n(v, repetitions).collect()),
-    }
-}
-
-impl Default for ColumnSet {
-    fn default() -> Self {
-        Self {
-            columns: Default::default(),
-            size: None,
-        }
     }
 }
 

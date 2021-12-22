@@ -1,3 +1,13 @@
+#![warn(
+    clippy::all,
+    clippy::correctness,
+    clippy::suspicious,
+    clippy::style,
+    clippy::complexity,
+    clippy::perf,
+    nonstandard_style
+)]
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -72,14 +82,12 @@ fn is_release_build() -> bool {
 /// A Python module implemented in Rust.
 #[pymodule]
 fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
-
     tracing_subscriber::fmt()
         //.event_format(tracing_subscriber::fmt::format::json()) // requires json feature
         //.with_max_level(tracing::Level::TRACE)
         .with_env_filter(EnvFilter::from_default_env())
         .with_timer(tracing_subscriber::fmt::time())
         .init();
-
 
     m.add("CompactedTable", py.get_type::<CompactedTable>())?;
     m.add("TableSet", py.get_type::<TableSet>())?;
@@ -93,10 +101,7 @@ fn bamboo_h3(py: Python, m: &PyModule) -> PyResult<()> {
         "H3IndexesContainedIn",
         py.get_type::<crate::geo::H3IndexesContainedIn>(),
     )?;
-    m.add(
-        "SlidingH3Window",
-        py.get_type::<crate::walk::CellWalk>(),
-    )?;
+    m.add("SlidingH3Window", py.get_type::<crate::walk::CellWalk>())?;
     m.add("ColumnSet", py.get_type::<ColumnSet>())?;
 
     // **** schema *****************************************
