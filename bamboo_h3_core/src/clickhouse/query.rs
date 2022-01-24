@@ -1,7 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
-use std::iter::FromIterator;
 
 use chrono::prelude::*;
 use chrono_tz::Tz;
@@ -80,7 +78,10 @@ pub async fn list_tablesets(ch: &mut ClientHandle) -> Result<HashMap<String, Tab
 }
 
 /// check if a query would return any rows
-pub async fn query_returns_rows(ch: &mut ClientHandle, query_string: String) -> Result<bool, Error> {
+pub async fn query_returns_rows(
+    ch: &mut ClientHandle,
+    query_string: String,
+) -> Result<bool, Error> {
     let mut stream = ch.query(query_string).stream();
     if let Some(first) = stream.next().await {
         match first {
@@ -301,8 +302,10 @@ pub async fn save_columnset(
     Ok(())
 }
 
-
-pub async fn set_clickhouse_max_threads(client: &mut ClientHandle, n_threads: u8) -> Result<(), Error> {
+pub async fn set_clickhouse_max_threads(
+    client: &mut ClientHandle,
+    n_threads: u8,
+) -> Result<(), Error> {
     client
         .execute(format!("set max_threads = {}", n_threads))
         .await?;

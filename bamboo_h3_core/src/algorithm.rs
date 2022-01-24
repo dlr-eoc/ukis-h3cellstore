@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use geo::algorithm::convex_hull::ConvexHull;
 use geo_types::{MultiPolygon, Polygon};
 use h3ron::{H3Cell, ToPolygon};

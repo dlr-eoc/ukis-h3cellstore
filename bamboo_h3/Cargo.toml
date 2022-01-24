@@ -1,7 +1,7 @@
 [package]
 name = "bamboo_h3"
 version = "0.8.1"
-edition = "2018"
+edition = "2021"
 authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
 ]
@@ -14,8 +14,8 @@ crate-type = ["cdylib"]
 bamboo_h3_core = { path = "../bamboo_h3_core" }
 numpy = "0.15"
 wkb = "=0.7.1"
-h3ron = "0.13"
-h3ron-h3-sys = "0.12"
+h3ron = "0.14"
+h3ron-h3-sys = "0.13"
 svgbobdoc = "^0.2"
 either = "^1.6"
 serde = "^1"

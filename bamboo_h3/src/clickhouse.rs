@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
 use either::Either;
@@ -61,7 +60,7 @@ impl ClickhouseConnection {
             },
             prefetch_query: prefetch_querystring_template.map(TableSetQuery::TemplatedSelect),
             concurrency: crate::env::cellwalk_num_concurrent_queries(),
-            num_clickhouse_threads: crate::env::cellwalk_num_clickhouse_threads()
+            num_clickhouse_threads: crate::env::cellwalk_num_clickhouse_threads(),
         };
         CellWalk::create(self.clickhouse_pool.clone(), opts)
     }
@@ -226,7 +225,7 @@ impl From<bamboo_h3_core::clickhouse::QueryOutput<bamboo_h3_core::ColumnSet>> fo
             h3indexes_queried: qo.h3indexes_queried,
             containing_index: qo.containing_h3index,
             column_data: Either::Left(Some(qo.data.into())),
-            query_duration: qo.query_duration
+            query_duration: qo.query_duration,
         }
     }
 }

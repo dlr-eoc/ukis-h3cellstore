@@ -1,12 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use h3ron::{H3Cell, H3_MIN_RESOLUTION, Index};
+use h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
 use itertools::Itertools;
 use regex::Regex;
 
 use crate::error::{check_index_valid, Error};
 use crate::COL_NAME_H3INDEX;
-use std::convert::TryFrom;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct TableSpec {
@@ -42,20 +41,18 @@ lazy_static! {
 
 impl Table {
     pub fn parse(full_table_name: &str) -> Option<Table> {
-        RE_TABLE.captures(full_table_name).map(|captures| {
-            Table {
-                basename: captures[1].to_string(),
-                spec: TableSpec {
-                    h3_resolution: captures[2].parse().unwrap(),
-                    is_compacted: if let Some(suffix) = captures.get(4) {
-                        suffix.as_str() == "compacted"
-                    } else {
-                        false
-                    },
-                    temporary_key: captures.get(6).map(|mtch| mtch.as_str().to_string()),
-                    has_base_suffix: captures.get(4).is_some(),
+        RE_TABLE.captures(full_table_name).map(|captures| Table {
+            basename: captures[1].to_string(),
+            spec: TableSpec {
+                h3_resolution: captures[2].parse().unwrap(),
+                is_compacted: if let Some(suffix) = captures.get(4) {
+                    suffix.as_str() == "compacted"
+                } else {
+                    false
                 },
-            }
+                temporary_key: captures.get(6).map(|mtch| mtch.as_str().to_string()),
+                has_base_suffix: captures.get(4).is_some(),
+            },
         })
     }
 
