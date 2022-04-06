@@ -6,7 +6,6 @@ use itertools::Itertools;
 use numpy::{IntoPyArray, Ix1, PyArray, PyReadonlyArray1};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::{PyObjectProtocol, PySequenceProtocol};
 
 use bamboo_h3_core::ColVec;
 
@@ -166,6 +165,19 @@ impl ColumnSet {
             .collect();
         Ok(out)
     }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __repr__(&self) -> String {
+        let keys = self.inner.columns.keys().sorted().join(", ");
+        format!("ColumnSet({})[{} rows]", keys, self.inner.len())
+    }
+
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
+    }
 }
 
 // creating multiple impls is ugly - replace this in the future
@@ -251,25 +263,6 @@ columnset_drain_timestamp_column_fn!(drain_column_date, Date, |d| date_to_timest
 columnset_drain_timestamp_column_fn!(drain_column_datetime, DateTime, |d| datetime_to_timestamp(
     &d
 ));
-
-#[pyproto]
-impl PySequenceProtocol for ColumnSet {
-    fn __len__(&self) -> usize {
-        self.inner.len()
-    }
-}
-
-#[pyproto]
-impl PyObjectProtocol for ColumnSet {
-    fn __repr__(&self) -> String {
-        let keys = self.inner.columns.keys().sorted().join(", ");
-        format!("ColumnSet({})[{} rows]", keys, self.inner.len())
-    }
-
-    fn __bool__(&self) -> bool {
-        !self.inner.is_empty()
-    }
-}
 
 impl From<HashMap<String, ColVec>> for ColumnSet {
     fn from(columns: HashMap<String, ColVec>) -> Self {

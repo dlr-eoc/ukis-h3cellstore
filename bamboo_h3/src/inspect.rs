@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use pyo3::class::basic::CompareOp;
-use pyo3::class::basic::PyObjectProtocol;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -39,10 +38,7 @@ impl CompactedTable {
             Err(PyValueError::new_err("could not parse table name"))
         }
     }
-}
 
-#[pyproto]
-impl<'p> PyObjectProtocol<'p> for CompactedTable {
     fn __richcmp__(&self, other: CompactedTable, op: CompareOp) -> PyResult<bool> {
         match op {
             CompareOp::Eq => Ok(self.table == other.table),
