@@ -1,7 +1,8 @@
 # GPRC based interface to Clickhouse to directly exchange arrow-based data
 
 * Uses [polars](https://www.pola.rs/) as dataframe abstraction over arrow data.
-* Improves on [Clickhouse default type mappings](https://clickhouse.com/docs/en/interfaces/formats/#data_types-matching-arrow) by auto-converting strings based on Clickhouse column types.
+* Improves on [Clickhouse default type mappings](https://clickhouse.com/docs/en/interfaces/formats/#data_types-matching-arrow) 
+  * auto-converting strings and booleans based on Clickhouse column types
 
 ## Launching a Clickhouse instance for the example to work
 

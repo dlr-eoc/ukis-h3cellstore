@@ -45,7 +45,7 @@ async fn main() -> eyre::Result<()> {
 
     client.execute_query_checked(
         QueryInfo {
-            query: "create table if not exists test_insert (v1 UInt64, v2 Float32 , t1 text, timestamp DateTime64) ENGINE Memory"
+            query: "create table if not exists test_insert (v1 UInt64, v2 Float32 , t1 text, timestamp DateTime64, b bool) ENGINE Memory"
                 .to_string(),
             database: play_db.to_string(),
             ..Default::default()
@@ -88,6 +88,7 @@ fn make_dataframe(df_len: usize) -> eyre::Result<DataFrame> {
                 .map(|v| NaiveDateTime::from_timestamp((v as i64).pow(2), 0))
                 .collect::<Vec<_>>(),
         ),
+        Series::new("b", (0..df_len).map(|v| v % 2 == 0).collect::<Vec<_>>()),
     ])?;
     Ok(test_df)
 }
