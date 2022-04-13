@@ -64,7 +64,7 @@ impl TryInto<DataFrame> for super::api::Result {
             .map(|field| (&field.name, field))
             .collect();
 
-        dbg!(&self.output_columns);
+        //dbg!(&self.output_columns);
         for output_column in self.output_columns.iter() {
             let schema_field = schema_fields_by_name
                 .get(&output_column.name)
