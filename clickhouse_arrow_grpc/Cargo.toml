@@ -36,3 +36,19 @@ version = "1.12"
 
 [build-dependencies]
 tonic-build = { version = "0.7", features = ["compression"] }
+
+[[example]]
+name = "helloworld"
+
+
+[dev-dependencies]
+chrono = "0.4"
+eyre = "0.6"
+
+[dev-dependencies.tokio]
+version = "1.12"
+features = [
+    "rt-multi-thread",
+    "macros",
+    "sync"
+]
