@@ -6,6 +6,9 @@ use clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    // install global collector configured based on RUST_LOG env var.
+    tracing_subscriber::fmt::init();
+
     let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
         .await?
         .send_gzip()
