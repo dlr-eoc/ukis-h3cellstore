@@ -64,6 +64,9 @@ impl TryInto<DataFrame> for super::api::Result {
             .map(|field| (&field.name, field))
             .collect();
 
+        // cast based on the output_column type info provided by clickhouse. In case this
+        // is not set, this implementation should not fail and just return the dataframe without the
+        // additional casting.
         //dbg!(&self.output_columns);
         for output_column in self.output_columns.iter() {
             let schema_field = schema_fields_by_name

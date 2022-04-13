@@ -16,6 +16,7 @@ mod error;
 
 #[async_trait]
 pub trait ArrowInterface {
+    /// execute the query, check the response for errors and return as a rust `Result` type.
     async fn execute_query_checked(&mut self, q: QueryInfo) -> Result<QueryResult, Error>;
 
     async fn execute_into_dataframe(&mut self, mut q: QueryInfo) -> Result<DataFrame, Error>;
