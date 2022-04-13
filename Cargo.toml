@@ -2,7 +2,8 @@
 
 members = [
     "bamboo_h3",
-    "bamboo_h3_core"
+    "bamboo_h3_core",
+    "clickhouse_arrow_grpc"
 ]
 
 [profile.release]

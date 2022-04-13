@@ -1,0 +1,37 @@
+[package]
+name = "clickhouse_arrow_grpc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost = "0.10"
+eyre = "0.6"
+thiserror = "1"
+
+[dependencies.arrow2]
+version = "0.10"
+features = [
+    "io_ipc"
+]
+
+[dependencies.polars]
+version = "0.20"
+features = ["dtype-full"]
+
+[dependencies.polars-core]
+version = "0.20"
+
+[dependencies.tonic]
+version = "0.7"
+features = ["compression"]
+
+[dependencies.tokio]
+version = "1.12"
+#features = [
+#    "rt-multi-thread",
+#    "macros",
+#    "sync"
+#]
+
+[build-dependencies]
+tonic-build = { version = "0.7", features = ["compression"] }
