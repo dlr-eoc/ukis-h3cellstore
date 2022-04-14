@@ -48,10 +48,7 @@ impl Compact for H3DataFrame {
         if group_by_columns.is_empty() {
             let out_series =
                 compact_cell_series(self.dataframe.column(&self.h3index_column_name)?)?;
-            Ok(H3DataFrame::from_dataframe(
-                DataFrame::new(vec![out_series])?,
-                self.h3index_column_name,
-            )?)
+            (DataFrame::new(vec![out_series])?, self.h3index_column_name).try_into()
         } else {
             let grouped = self
                 .dataframe
@@ -75,13 +72,14 @@ impl Compact for H3DataFrame {
                 compacted_series_vec.push(compacted_series);
             }
 
-            H3DataFrame::from_dataframe(
+            (
                 grouped
                     .drop(&self.h3index_column_name)?
                     .with_column(Series::new(&self.h3index_column_name, compacted_series_vec))?
                     .explode([&self.h3index_column_name])?,
                 self.h3index_column_name,
             )
+                .try_into()
         }
     }
 }
@@ -156,7 +154,7 @@ mod tests {
     use polars_core::prelude::NamedFrom;
     use polars_core::series::Series;
 
-    use crate::compact::{Compact, UnCompact};
+    use crate::algo::compact::{Compact, UnCompact};
     use crate::frame::to_index_series;
     use crate::{Error, H3DataFrame};
 
