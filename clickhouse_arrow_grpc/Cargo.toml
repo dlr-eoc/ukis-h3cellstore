@@ -3,6 +3,10 @@ name = "clickhouse_arrow_grpc"
 version = "0.1.0"
 edition = "2021"
 
+
+[features]
+simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
+
 [dependencies]
 prost = "0.10"
 thiserror = "1"
