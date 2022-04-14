@@ -1,9 +1,10 @@
-use crate::{Error, H3DataFrame};
 use polars_core::series::ChunkCompare;
 use tracing::{span, Level};
 
+use crate::{Error, H3DataFrame};
+
 pub trait SplitByH3Resolution {
-    fn split_by_h3_resolution(self) -> Result<Vec<Self>, Error>
+    fn split_by_h3_resolution(self) -> Result<Vec<(u8, Self)>, Error>
     where
         Self: Sized;
 }
@@ -11,7 +12,7 @@ pub trait SplitByH3Resolution {
 const RESSPLIT_HELPER_COL_NAME: &str = "_ressplit_helper";
 
 impl SplitByH3Resolution for H3DataFrame {
-    fn split_by_h3_resolution(mut self) -> Result<Vec<Self>, Error>
+    fn split_by_h3_resolution(mut self) -> Result<Vec<(u8, Self)>, Error>
     where
         Self: Sized,
     {
@@ -32,39 +33,46 @@ impl SplitByH3Resolution for H3DataFrame {
             .into_iter()
             .flatten()
             .collect();
-        if distinct_resolutions.len() < 2 {
-            Ok(vec![self])
-        } else {
-            // TODO: this could probably be more efficient
 
-            self.dataframe.with_column(contained_resolutions)?;
-            let mut out_h3dfs = Vec::with_capacity(distinct_resolutions.len());
-            for h3_resolution in distinct_resolutions {
-                let filtered = self
-                    .dataframe
-                    .filter(
-                        &self
-                            .dataframe
-                            .column(RESSPLIT_HELPER_COL_NAME)?
-                            .equal(h3_resolution),
-                    )?
-                    .drop(RESSPLIT_HELPER_COL_NAME)?;
+        match distinct_resolutions.len() {
+            0 => Ok(vec![]),
+            1 => Ok(vec![(distinct_resolutions[0], self)]),
+            _ => {
+                // TODO: this could probably be more efficient
 
-                out_h3dfs.push((filtered, self.h3index_column_name.clone()).try_into()?)
+                self.dataframe.with_column(contained_resolutions)?;
+                let mut out_h3dfs = Vec::with_capacity(distinct_resolutions.len());
+                for h3_resolution in distinct_resolutions {
+                    let filtered = self
+                        .dataframe
+                        .filter(
+                            &self
+                                .dataframe
+                                .column(RESSPLIT_HELPER_COL_NAME)?
+                                .equal(h3_resolution),
+                        )?
+                        .drop(RESSPLIT_HELPER_COL_NAME)?;
+
+                    out_h3dfs.push((
+                        h3_resolution,
+                        (filtered, self.h3index_column_name.clone()).try_into()?,
+                    ))
+                }
+
+                Ok(out_h3dfs)
             }
-
-            Ok(out_h3dfs)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::algo::SplitByH3Resolution;
-    use crate::H3DataFrame;
     use h3ron::{H3Cell, Index};
     use polars_core::frame::DataFrame;
     use polars_core::prelude::{NamedFrom, Series};
+
+    use crate::algo::SplitByH3Resolution;
+    use crate::H3DataFrame;
 
     #[test]
     fn split_three_frames() {
@@ -77,6 +85,9 @@ mod tests {
                 H3Cell::from_coordinate((12.7, 4.1).into(), 8)
                     .unwrap()
                     .h3index() as u64,
+                H3Cell::from_coordinate((12.7, 7.1).into(), 8)
+                    .unwrap()
+                    .h3index() as u64,
                 H3Cell::from_coordinate((2.7, 10.1).into(), 5)
                     .unwrap()
                     .h3index() as u64,
@@ -87,8 +98,9 @@ mod tests {
 
         let splitted = h3df.split_by_h3_resolution().unwrap();
         assert_eq!(splitted.len(), 3);
-        assert_eq!(splitted[0].dataframe.shape(), (1, 1));
-        assert_eq!(splitted[1].dataframe.shape(), (1, 1));
-        assert_eq!(splitted[2].dataframe.shape(), (1, 1));
+        for (h3_resolution, h3df) in splitted {
+            let rows_expected = if h3_resolution == 8 { 2 } else { 1 };
+            assert_eq!(h3df.dataframe.shape(), (rows_expected, 1));
+        }
     }
 }
