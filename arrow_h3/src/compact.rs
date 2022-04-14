@@ -100,19 +100,15 @@ impl UnCompact for H3DataFrame {
         let mut uncompacted_indexes = Vec::with_capacity(self.dataframe.shape().0);
 
         for cell in self.iter_indexes::<H3Cell>()? {
-            original_index.push(cell.h3index() as u64);
-            uncompacted_indexes.push(Series::new(
-                "",
-                if cell.resolution() >= target_resolution {
-                    // already uncompacted or below of what we want to touch
-                    vec![cell.h3index() as u64]
-                } else {
-                    cell.get_children(target_resolution)?
-                        .iter()
-                        .map(|cell| cell.h3index() as u64)
-                        .collect::<Vec<_>>()
-                },
-            ));
+            if cell.resolution() >= target_resolution {
+                original_index.push(cell.h3index() as u64);
+                uncompacted_indexes.push(cell.h3index() as u64);
+            } else {
+                for child_cell in cell.get_children(target_resolution)?.iter() {
+                    original_index.push(cell.h3index() as u64);
+                    uncompacted_indexes.push(child_cell.h3index() as u64);
+                }
+            }
         }
 
         let join_df = DataFrame::new(vec![
@@ -123,14 +119,13 @@ impl UnCompact for H3DataFrame {
         let out_df = self
             .dataframe
             .lazy()
-            .left_join(
+            .inner_join(
                 join_df.lazy(),
                 col(&self.h3index_column_name),
                 col(&self.h3index_column_name),
             )
             .drop_columns(&[&self.h3index_column_name])
             .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&self.h3index_column_name])
-            .explode(&[col(&self.h3index_column_name)])
             .collect()?;
         Ok(H3DataFrame::from_dataframe(
             out_df,
