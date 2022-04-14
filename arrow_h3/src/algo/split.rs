@@ -1,5 +1,6 @@
 use crate::{Error, H3DataFrame};
 use polars_core::series::ChunkCompare;
+use tracing::{span, Level};
 
 pub trait SplitByH3Resolution {
     fn split_by_h3_resolution(self) -> Result<Vec<Self>, Error>
@@ -14,6 +15,14 @@ impl SplitByH3Resolution for H3DataFrame {
     where
         Self: Sized,
     {
+        let span = span!(
+            Level::DEBUG,
+            "Splitting H3DataFrame by H3 resolutions",
+            n_rows = self.dataframe.shape().0,
+            n_columns = self.dataframe.shape().1
+        );
+        let _enter = span.enter();
+
         let mut contained_resolutions = self.resolutions_series()?;
         contained_resolutions.rename(RESSPLIT_HELPER_COL_NAME);
 
@@ -21,7 +30,7 @@ impl SplitByH3Resolution for H3DataFrame {
             .unique()?
             .u8()?
             .into_iter()
-            .filter_map(|d| d)
+            .flatten()
             .collect();
         if distinct_resolutions.len() < 2 {
             Ok(vec![self])

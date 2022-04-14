@@ -4,7 +4,7 @@ use polars::prelude::{col, IntoLazy};
 use polars_core::frame::DataFrame;
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
-use tracing::Level;
+use tracing::{span, Level};
 
 use crate::frame::series_iter_indexes;
 use crate::{Error, H3DataFrame};
@@ -24,7 +24,7 @@ pub trait UnCompact {
 
 impl Compact for H3DataFrame {
     fn compact(self) -> Result<Self, Error> {
-        let span = tracing::span!(
+        let span = span!(
             Level::DEBUG,
             "Compacting H3DataFrame",
             n_rows = self.dataframe.shape().0,
@@ -102,7 +102,7 @@ impl UnCompact for H3DataFrame {
     where
         Self: Sized,
     {
-        let span = tracing::span!(
+        let span = span!(
             Level::DEBUG,
             "Uncompacting H3DataFrame",
             n_rows = self.dataframe.shape().0,
