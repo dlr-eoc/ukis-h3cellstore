@@ -57,27 +57,32 @@ impl H3DataFrame {
             dataframe.shape(),
             dataframe.get_column_names().join(", ")
         );
-        let h3index_column_name_string = h3index_column_name.as_ref().to_string();
-        match dataframe.column(&h3index_column_name_string) {
+        let h3df = H3DataFrame {
+            dataframe,
+            h3index_column_name: h3index_column_name.as_ref().to_string(),
+        };
+        h3df.validate()?;
+        Ok(h3df)
+    }
+
+    pub fn validate(&self) -> Result<(), Error> {
+        match self.dataframe.column(&self.h3index_column_name) {
             Ok(column) => {
                 if column.dtype() != &DataType::UInt64 {
                     return Err(Error::DataframeInvalidH3IndexType(
-                        h3index_column_name_string,
+                        self.h3index_column_name.clone(),
                         column.dtype().to_string(),
                     ));
                 }
             }
             Err(_) => {
-                return Err(Error::DataframeMissingColumn(h3index_column_name_string));
+                return Err(Error::DataframeMissingColumn(
+                    self.h3index_column_name.clone(),
+                ));
             }
         };
-
-        Ok(H3DataFrame {
-            dataframe,
-            h3index_column_name: h3index_column_name_string,
-        })
+        Ok(())
     }
-
     /// build a collection from a [`Series`] of `u64` from a [`DataFrame`] values.
     /// values will be validated and invalid values will be ignored.
     #[inline]
