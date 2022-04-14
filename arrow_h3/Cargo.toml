@@ -1,0 +1,28 @@
+[package]
+name = "arrow_h3"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1"
+itertools = "0.10"
+tracing = "0.1"
+
+[dependencies.h3ron]
+git = "https://github.com/nmandery/h3ron.git"
+rev = "90db233174997d8483982f5255dfff597642c2f1"
+features = ["use-rayon"]
+
+[dependencies.polars]
+version = "0.20"
+features = ["dtype-full"]
+
+[dependencies.polars-core]
+version = "0.20"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+optional = true

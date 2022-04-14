@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use polars_core::frame::DataFrame;
 use tokio::task::spawn_blocking;
 use tonic::transport::Channel;
-use tracing::{span, Level};
+use tracing::{span, Instrument, Level};
 
 pub use crate::api::click_house_client::ClickHouseClient;
 pub use crate::api::{QueryInfo, Result as QueryResult};
@@ -33,9 +33,8 @@ pub trait ArrowInterface {
 impl ArrowInterface for ClickHouseClient<Channel> {
     async fn execute_query_checked(&mut self, q: QueryInfo) -> Result<QueryResult, Error> {
         let span = span!(Level::DEBUG, "Executing query", query = q.query.as_str());
-        let _enter = span.enter();
 
-        let response = self.execute_query(q).await?.into_inner();
+        let response = self.execute_query(q).instrument(span).await?.into_inner();
 
         match response.exception {
             Some(ex) => Err(Error::ClickhouseException {
