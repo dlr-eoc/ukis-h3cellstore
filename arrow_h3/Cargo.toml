@@ -17,7 +17,7 @@ features = ["use-rayon"]
 
 [dependencies.polars]
 version = "0.20"
-features = ["dtype-full"]
+features = ["dtype-full", "lazy", "list"]
 
 [dependencies.polars-core]
 version = "0.20"

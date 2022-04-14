@@ -3,10 +3,11 @@
 //!
 
 use std::borrow::Borrow;
+use std::fmt::{Debug, Display, Formatter};
 use std::iter::FromIterator;
 use std::marker::PhantomData;
 
-use h3ron::Index;
+use h3ron::{H3Cell, Index};
 use itertools::Itertools;
 use polars_core::prelude::{DataFrame, DataType, JoinType, NamedFrom, PolarsIterator, Series};
 
@@ -17,7 +18,6 @@ use crate::Error;
 
 /// wrapper around a `DataFrame` to store a bit of metainformation
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug)]
 pub struct H3DataFrame {
     /// the dataframe itself
     pub dataframe: DataFrame,
@@ -35,33 +35,46 @@ impl Default for H3DataFrame {
     }
 }
 
+impl Debug for H3DataFrame {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.dataframe, f)
+    }
+}
+
+impl Display for H3DataFrame {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.dataframe, f)
+    }
+}
+
 impl H3DataFrame {
-    pub fn from_dataframe(
-        dataframe: DataFrame,
-        h3index_column_name: String,
-    ) -> Result<Self, Error> {
+    pub fn from_dataframe<S>(dataframe: DataFrame, h3index_column_name: S) -> Result<Self, Error>
+    where
+        S: AsRef<str>,
+    {
         tracing::info!(
             "loaded dataframe with {:?} shape, columns: {}",
             dataframe.shape(),
             dataframe.get_column_names().join(", ")
         );
-        match dataframe.column(&h3index_column_name) {
+        let h3index_column_name_string = h3index_column_name.as_ref().to_string();
+        match dataframe.column(&h3index_column_name_string) {
             Ok(column) => {
                 if column.dtype() != &DataType::UInt64 {
                     return Err(Error::DataframeInvalidH3IndexType(
-                        h3index_column_name,
+                        h3index_column_name_string,
                         column.dtype().to_string(),
                     ));
                 }
             }
             Err(_) => {
-                return Err(Error::DataframeMissingColumn(h3index_column_name));
+                return Err(Error::DataframeMissingColumn(h3index_column_name_string));
             }
         };
 
         Ok(H3DataFrame {
             dataframe,
-            h3index_column_name,
+            h3index_column_name: h3index_column_name_string,
         })
     }
 
@@ -91,10 +104,28 @@ impl H3DataFrame {
     {
         self.index_collection_from_column(&self.h3index_column_name)
     }
+
+    pub fn iter_indexes<I>(&self) -> Result<SeriesIndexIter<'_, I>, Error>
+    where
+        I: Index,
+    {
+        series_iter_indexes(self.dataframe.column(&self.h3index_column_name)?)
+    }
+
+    pub fn resolutions(&self) -> Result<Vec<u8>, Error> {
+        // TODO: assumes cells
+        Ok(self
+            .iter_indexes::<H3Cell>()?
+            .map(|cell| cell.resolution())
+            .collect())
+    }
+
+    pub fn resolutions_series(&self) -> Result<Series, Error> {
+        Ok(Series::new("resolutions", self.resolutions()?))
+    }
 }
 
 /// create a `Series` from an iterator of `Index`-implementing values
-#[allow(dead_code)]
 #[inline]
 pub fn to_index_series<I, IX>(series_name: &str, iter: I) -> Series
 where
