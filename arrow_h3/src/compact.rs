@@ -9,7 +9,7 @@ use crate::frame::series_iter_indexes;
 use crate::{Error, H3DataFrame};
 
 pub trait Compact {
-    // Also handles partially compacted and pre-compacted data
+    /// Also handles partially compacted and pre-compacted data
     fn compact(self) -> Result<Self, Error>
     where
         Self: Sized;
@@ -88,6 +88,57 @@ fn compact_cell_series(series: &Series) -> Result<Series, Error> {
     ))
 }
 
+const UNCOMPACT_HELPER_COL_NAME: &str = "_uncompact_helper";
+
+impl UnCompact for H3DataFrame {
+    fn uncompact(self, target_resolution: u8) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        // create a temporary df mapping index to uncompacted indexes to use for joining
+        let mut original_index = Vec::with_capacity(self.dataframe.shape().0);
+        let mut uncompacted_indexes = Vec::with_capacity(self.dataframe.shape().0);
+
+        for cell in self.iter_indexes::<H3Cell>()? {
+            original_index.push(cell.h3index() as u64);
+            uncompacted_indexes.push(Series::new(
+                "",
+                if cell.resolution() >= target_resolution {
+                    // already uncompacted or below of what we want to touch
+                    vec![cell.h3index() as u64]
+                } else {
+                    cell.get_children(target_resolution)?
+                        .iter()
+                        .map(|cell| cell.h3index() as u64)
+                        .collect::<Vec<_>>()
+                },
+            ));
+        }
+
+        let join_df = DataFrame::new(vec![
+            Series::new(&self.h3index_column_name, original_index),
+            Series::new(UNCOMPACT_HELPER_COL_NAME, uncompacted_indexes),
+        ])?;
+
+        let out_df = self
+            .dataframe
+            .lazy()
+            .left_join(
+                join_df.lazy(),
+                col(&self.h3index_column_name),
+                col(&self.h3index_column_name),
+            )
+            .drop_columns(&[&self.h3index_column_name])
+            .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&self.h3index_column_name])
+            .explode(&[col(&self.h3index_column_name)])
+            .collect()?;
+        Ok(H3DataFrame::from_dataframe(
+            out_df,
+            self.h3index_column_name,
+        )?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use h3ron::H3Cell;
@@ -95,7 +146,7 @@ mod tests {
     use polars_core::prelude::NamedFrom;
     use polars_core::series::Series;
 
-    use crate::compact::Compact;
+    use crate::compact::{Compact, UnCompact};
     use crate::frame::to_index_series;
     use crate::{Error, H3DataFrame};
 
@@ -124,7 +175,7 @@ mod tests {
         Ok(H3DataFrame::from_dataframe(df, "cell_h3index")?)
     }
 
-    fn compact_dataframe_helper(value: Option<u32>) {
+    fn compact_roundtrip_dataframe_helper(value: Option<u32>) {
         let max_res = 8;
         let h3df = make_h3_dataframe(max_res, value).unwrap();
         let shape_before = h3df.dataframe.shape();
@@ -141,15 +192,25 @@ mod tests {
         for res in resolutions {
             assert!(res <= max_res)
         }
+
+        let uncompacted = compacted.uncompact(max_res).unwrap();
+        assert_eq!(shape_before, uncompacted.dataframe.shape());
+        assert_eq!(name_before, uncompacted.h3index_column_name);
+
+        let resolutions = uncompacted.resolutions().unwrap();
+        assert_eq!(resolutions.len(), uncompacted.dataframe.shape().0);
+        for res in resolutions {
+            assert_eq!(res, max_res);
+        }
     }
 
     #[test]
-    fn compact_dataframe_with_value() {
-        compact_dataframe_helper(Some(7))
+    fn compact_roundtrip_dataframe_with_value() {
+        compact_roundtrip_dataframe_helper(Some(7))
     }
 
     #[test]
-    fn compact_dataframe_without_value() {
-        compact_dataframe_helper(None)
+    fn compact_roundtrip_dataframe_without_value() {
+        compact_roundtrip_dataframe_helper(None)
     }
 }
