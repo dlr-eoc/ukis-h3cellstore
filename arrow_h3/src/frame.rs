@@ -18,6 +18,7 @@ use crate::Error;
 
 /// wrapper around a `DataFrame` to store a bit of metainformation
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct H3DataFrame {
     /// the dataframe itself
     pub dataframe: DataFrame,
@@ -127,6 +128,17 @@ impl H3DataFrame {
 
     pub fn resolutions_series(&self) -> Result<Series, Error> {
         Ok(Series::new("resolutions", self.resolutions()?))
+    }
+}
+
+impl<S> TryFrom<(DataFrame, S)> for H3DataFrame
+where
+    S: AsRef<str>,
+{
+    type Error = Error;
+
+    fn try_from(value: (DataFrame, S)) -> Result<Self, Self::Error> {
+        H3DataFrame::from_dataframe(value.0, value.1)
     }
 }
 

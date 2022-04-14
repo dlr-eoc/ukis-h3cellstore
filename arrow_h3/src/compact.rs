@@ -97,7 +97,7 @@ fn compact_cell_series(series: &Series) -> Result<Series, Error> {
     ))
 }
 
-const UNCOMPACT_HELPER_COL_NAME: &str = "_uncompact_helper";
+const UNCOMPACT_HELPER_COL_NAME: &str = "_uncompact_helper_idx";
 
 impl UnCompact for H3DataFrame {
     fn uncompact(self, target_resolution: u8) -> Result<Self, Error>
@@ -145,7 +145,7 @@ impl UnCompact for H3DataFrame {
             .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&self.h3index_column_name])
             .collect()?;
 
-        H3DataFrame::from_dataframe(out_df, self.h3index_column_name)
+        (out_df, self.h3index_column_name).try_into()
     }
 }
 
