@@ -6,6 +6,7 @@ edition = "2021"
 
 [features]
 simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
+tls = ["tonic/tls"]
 
 [dependencies]
 prost = "0.10"

@@ -99,8 +99,8 @@ mod tests {
         let splitted = h3df.split_by_h3_resolution().unwrap();
         assert_eq!(splitted.len(), 3);
         for (h3_resolution, h3df) in splitted {
-            let rows_expected = if h3_resolution == 8 { 2 } else { 1 };
-            assert_eq!(h3df.dataframe.shape(), (rows_expected, 1));
+            let num_rows_expected = if h3_resolution == 8 { 2 } else { 1 };
+            assert_eq!(h3df.dataframe.shape(), (num_rows_expected, 1));
         }
     }
 }
