@@ -127,10 +127,8 @@ impl UnCompact for H3DataFrame {
             .drop_columns(&[&self.h3index_column_name])
             .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&self.h3index_column_name])
             .collect()?;
-        Ok(H3DataFrame::from_dataframe(
-            out_df,
-            self.h3index_column_name,
-        )?)
+
+        H3DataFrame::from_dataframe(out_df, self.h3index_column_name)
     }
 }
 
