@@ -52,7 +52,7 @@ impl H3DataFrame {
     where
         S: AsRef<str>,
     {
-        tracing::info!(
+        tracing::debug!(
             "loaded dataframe with {:?} shape, columns: {}",
             dataframe.shape(),
             dataframe.get_column_names().join(", ")

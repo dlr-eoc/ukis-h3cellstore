@@ -4,6 +4,7 @@ use polars::prelude::{col, IntoLazy};
 use polars_core::frame::DataFrame;
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
+use tracing::Level;
 
 use crate::frame::series_iter_indexes;
 use crate::{Error, H3DataFrame};
@@ -23,6 +24,14 @@ pub trait UnCompact {
 
 impl Compact for H3DataFrame {
     fn compact(self) -> Result<Self, Error> {
+        let span = tracing::span!(
+            Level::DEBUG,
+            "Compacting H3DataFrame",
+            n_rows = self.dataframe.shape().0,
+            n_columns = self.dataframe.shape().1
+        );
+        let _enter = span.enter();
+
         let group_by_columns = self
             .dataframe
             .fields()
@@ -95,6 +104,14 @@ impl UnCompact for H3DataFrame {
     where
         Self: Sized,
     {
+        let span = tracing::span!(
+            Level::DEBUG,
+            "Uncompacting H3DataFrame",
+            n_rows = self.dataframe.shape().0,
+            n_columns = self.dataframe.shape().1
+        );
+        let _enter = span.enter();
+
         // create a temporary df mapping index to uncompacted indexes to use for joining
         let mut original_index = Vec::with_capacity(self.dataframe.shape().0);
         let mut uncompacted_indexes = Vec::with_capacity(self.dataframe.shape().0);
