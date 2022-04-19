@@ -4,7 +4,8 @@ members = [
     "bamboo_h3",
     "bamboo_h3_core",
     "clickhouse_arrow_grpc",
-    "arrow_h3"
+    "arrow_h3",
+    "h3cellstore"
 ]
 
 [profile.release]

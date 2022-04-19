@@ -1,0 +1,24 @@
+[package]
+name = "h3cellstore"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+serde = ["arrow_h3/serde"]
+simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
+tls = ["clickhouse_arrow_grpc/tls"]
+reexport-deps = []
+
+[dependencies]
+async-trait = "0.1"
+thiserror = "1"
+
+[dependencies.clickhouse_arrow_grpc]
+path = "../clickhouse_arrow_grpc"
+features = ["reexport-deps"]
+
+[dependencies.arrow_h3]
+path = "../arrow_h3"
+features = ["reexport-deps"]

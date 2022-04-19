@@ -8,6 +8,7 @@ edition = "2021"
 [features]
 serde = ["dep:serde", "polars/serde"]
 simd = ["polars-core/simd", "polars/simd"]
+reexport-deps = []
 
 [dependencies]
 thiserror = "1"
