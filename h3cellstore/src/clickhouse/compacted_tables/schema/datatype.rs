@@ -29,6 +29,25 @@ impl ClickhouseDataType {
         matches!(self, Self::Date | Self::DateTime | Self::DateTime64)
     }
 
+    pub fn is_signed_integer(&self) -> bool {
+        matches!(self, Self::Int8 | Self::Int16 | Self::Int32 | Self::Int64)
+    }
+
+    pub fn is_unsigned_integer(&self) -> bool {
+        matches!(
+            self,
+            Self::UInt8 | Self::UInt16 | Self::UInt32 | Self::UInt64
+        )
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float32 | Self::Float64)
+    }
+
+    pub fn is_number(&self) -> bool {
+        self.is_signed_integer() || self.is_unsigned_integer() || self.is_float()
+    }
+
     pub fn sql_type_name(&self) -> &'static str {
         match self {
             ClickhouseDataType::UInt8 => "UInt8",

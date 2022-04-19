@@ -18,11 +18,11 @@ pub enum AggregationMethod {
 impl AggregationMethod {
     pub fn is_applicable_to_datatype(&self, datatype: &ClickhouseDataType) -> bool {
         match self {
-            Self::RelativeToCellArea => !datatype.is_temporal(),
-            Self::Sum => !datatype.is_temporal(),
-            Self::Max => true,
-            Self::Min => true,
-            Self::Average => true,
+            Self::RelativeToCellArea => !datatype.is_temporal() && datatype.is_number(),
+            Self::Sum => !datatype.is_temporal() && datatype.is_number(),
+            Self::Max => datatype.is_number(),
+            Self::Min => datatype.is_number(),
+            Self::Average => datatype.is_number(),
         }
     }
 }
