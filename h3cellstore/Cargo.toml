@@ -17,6 +17,7 @@ thiserror = "1"
 lazy_static = "1"
 regex = "1.5"
 itertools = "0.10"
+tracing = "0.1"
 
 
 [dependencies.clickhouse_arrow_grpc]
