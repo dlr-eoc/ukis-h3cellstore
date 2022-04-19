@@ -24,6 +24,10 @@ impl Default for TableEngine {
 pub enum CompressionMethod {
     LZ4HC(u8),
     ZSTD(u8),
+    Delta(u8),
+    DoubleDelta,
+    Gorilla,
+    T64,
 }
 
 impl ValidateSchema for CompressionMethod {
@@ -43,6 +47,16 @@ impl ValidateSchema for CompressionMethod {
                 }
                 Ok(())
             }
+            Self::Delta(delta_bytes) => {
+                if ![1, 2, 4, 8].contains(delta_bytes) {
+                    return Err(Error::SchemaValidationError(
+                        "Delta compression",
+                        format!("Unsupported value for delta_bytes: {}", delta_bytes),
+                    ));
+                }
+                Ok(())
+            }
+            _ => Ok(()),
         }
     }
 }

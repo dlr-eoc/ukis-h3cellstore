@@ -307,6 +307,10 @@ impl CompactedTableSchema {
         let codec = match &self.compression_method {
             CompressionMethod::LZ4HC(level) => format!("LZ4HC({})", level),
             CompressionMethod::ZSTD(level) => format!("ZSTD({})", level),
+            CompressionMethod::Delta(delta_bytes) => format!("Delta({})", delta_bytes),
+            CompressionMethod::DoubleDelta => "DoubleDelta".to_string(),
+            CompressionMethod::Gorilla => "Gorilla".to_string(),
+            CompressionMethod::T64 => "T64".to_string(),
         };
         let columns = &self
             .columns
