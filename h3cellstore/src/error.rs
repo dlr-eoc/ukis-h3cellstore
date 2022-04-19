@@ -41,6 +41,18 @@ pub enum Error {
 
     #[error("Unsupported H3 resolution: {0}")]
     UnsupportedH3Resolution(u8),
+
+    #[error("no queryable tables found")]
+    NoQueryableTables,
+
+    #[error("mixed h3 resolutions")]
+    MixedH3Resolutions,
+
+    #[error("empty cells")]
+    EmptyCells,
+
+    #[error("missing query placeholder {0}")]
+    MissingQueryPlaceholder(String),
 }
 
 impl From<AH3Error> for Error {

@@ -14,6 +14,10 @@ reexport-deps = []
 [dependencies]
 async-trait = "0.1"
 thiserror = "1"
+lazy_static = "1"
+regex = "1.5"
+itertools = "0.10"
+
 
 [dependencies.clickhouse_arrow_grpc]
 path = "../clickhouse_arrow_grpc"
