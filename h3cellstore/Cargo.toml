@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-serde = ["arrow_h3/serde"]
+serde = ["dep:serde", "arrow_h3/serde"]
 simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
 tls = ["clickhouse_arrow_grpc/tls"]
-reexport-deps = []
+reexport-deps = ["arrow_h3/reexport-deps", "clickhouse_arrow_grpc/reexport-deps"]
 
 [dependencies]
 async-trait = "0.1"
@@ -27,3 +27,12 @@ features = ["reexport-deps"]
 [dependencies.arrow_h3]
 path = "../arrow_h3"
 features = ["reexport-deps"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+optional = true
+
+
+[dev-dependencies]
+serde_json = "1"

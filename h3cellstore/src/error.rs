@@ -53,6 +53,9 @@ pub enum Error {
 
     #[error("missing query placeholder {0}")]
     MissingQueryPlaceholder(String),
+
+    #[error("schema error validating {0}: {1}")]
+    SchemaValidationError(&'static str, String),
 }
 
 impl From<AH3Error> for Error {
