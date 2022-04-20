@@ -27,12 +27,15 @@ pub trait ArrowInterface {
 
     async fn execute_into_dataframe(&mut self, mut q: QueryInfo) -> Result<DataFrame, Error>;
 
-    async fn insert_dataframe(
+    async fn insert_dataframe<S1, S2>(
         &mut self,
-        database_name: &str,
-        table_name: &str,
+        database_name: S1,
+        table_name: S2,
         mut df: DataFrame,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error>
+    where
+        S1: AsRef<str> + Send,
+        S2: AsRef<str> + Send;
 }
 
 #[async_trait]
@@ -59,16 +62,20 @@ impl ArrowInterface for ClickHouseClient<Channel> {
         spawn_blocking(move || response.try_into()).await?
     }
 
-    async fn insert_dataframe(
+    async fn insert_dataframe<S1, S2>(
         &mut self,
-        database_name: &str,
-        table_name: &str,
+        database_name: S1,
+        table_name: S2,
         mut df: DataFrame,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        S1: AsRef<str> + Send,
+        S2: AsRef<str> + Send,
+    {
         let input_data = spawn_blocking(move || serialize_for_clickhouse(&mut df)).await??;
         let q = QueryInfo {
-            query: format!("insert into {} FORMAT Arrow", table_name),
-            database: database_name.to_string(),
+            query: format!("insert into {} FORMAT Arrow", table_name.as_ref()),
+            database: database_name.as_ref().to_string(),
             input_data,
             ..Default::default()
         };
