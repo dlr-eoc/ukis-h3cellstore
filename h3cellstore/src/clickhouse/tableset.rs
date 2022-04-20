@@ -285,6 +285,12 @@ impl TableSet {
     }
 }
 
+impl AsRef<str> for TableSet {
+    fn as_ref(&self) -> &str {
+        &self.basename
+    }
+}
+
 /// identify the tablesets from a slice of tablenames
 pub(crate) fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String, TableSet> {
     let mut tablesets = HashMap::default();

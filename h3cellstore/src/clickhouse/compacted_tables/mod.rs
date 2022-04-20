@@ -1,6 +1,7 @@
 pub mod schema;
 
 use async_trait::async_trait;
+use std::default::Default;
 use tracing::warn;
 
 use arrow_h3::h3ron::collections::HashMap;
@@ -19,6 +20,15 @@ pub trait CompactedTablesStore {
     ) -> Result<HashMap<String, TableSet>, Error>
     where
         S: AsRef<str> + Sync + Send;
+
+    async fn drop_tableset<S1, S2>(
+        &mut self,
+        database_name: S1,
+        tableset_name: S2,
+    ) -> Result<(), Error>
+    where
+        S1: AsRef<str> + Send + Sync,
+        S2: AsRef<str> + Send + Sync;
 
     async fn create_tableset_schema<S>(
         &mut self,
@@ -111,6 +121,36 @@ where
             }
         }
         Ok(tablesets)
+    }
+
+    async fn drop_tableset<S1, S2>(
+        &mut self,
+        database_name: S1,
+        tableset_name: S2,
+    ) -> Result<(), Error>
+    where
+        S1: AsRef<str> + Send + Sync,
+        S2: AsRef<str> + Send + Sync,
+    {
+        if let Some(tableset) = self
+            .list_tablesets(&database_name)
+            .await?
+            .remove(tableset_name.as_ref())
+        {
+            for table in tableset
+                .base_tables()
+                .iter()
+                .chain(tableset.compacted_tables().iter())
+            {
+                self.execute_query_checked(QueryInfo {
+                    query: format!("drop table if exists {}", table.to_table_name()),
+                    database: database_name.as_ref().to_string(),
+                    ..Default::default()
+                })
+                .await?;
+            }
+        }
+        Ok(())
     }
 
     async fn create_tableset_schema<S>(

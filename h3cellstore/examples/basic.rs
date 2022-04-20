@@ -48,5 +48,11 @@ async fn main() -> eyre::Result<()> {
     let tablesets = client.list_tablesets(&play_db).await?;
     assert!(tablesets.contains_key("okavango_delta"));
 
+    client.drop_tableset(&play_db, "okavango_delta").await?;
+    assert!(!client
+        .list_tablesets(&play_db)
+        .await?
+        .contains_key("okavango_delta"));
+
     Ok(())
 }
