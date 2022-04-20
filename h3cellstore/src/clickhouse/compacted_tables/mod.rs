@@ -6,6 +6,7 @@ use tracing::warn;
 use arrow_h3::h3ron::collections::HashMap;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 
+use crate::clickhouse::compacted_tables::schema::CompactedTableSchema;
 use crate::clickhouse::tableset::{find_tablesets, TableSet};
 use crate::clickhouse::COL_NAME_H3INDEX;
 use crate::Error;
@@ -16,6 +17,14 @@ pub trait CompactedTablesStore {
         &mut self,
         database_name: S,
     ) -> Result<HashMap<String, TableSet>, Error>
+    where
+        S: AsRef<str> + Sync + Send;
+
+    async fn create_tableset_schema<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+    ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send;
 }
@@ -102,5 +111,24 @@ where
             }
         }
         Ok(tablesets)
+    }
+
+    async fn create_tableset_schema<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+    ) -> Result<(), Error>
+    where
+        S: AsRef<str> + Sync + Send,
+    {
+        for stmt in schema.build_create_statements(&None)? {
+            self.execute_query_checked(QueryInfo {
+                query: stmt,
+                database: database_name.as_ref().to_string(),
+                ..Default::default()
+            })
+            .await?;
+        }
+        Ok(())
     }
 }

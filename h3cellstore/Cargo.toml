@@ -36,3 +36,18 @@ optional = true
 
 [dev-dependencies]
 serde_json = "1"
+eyre = "0.6"
+tracing-subscriber = "0.3"
+chrono = "0.4"
+
+[dev-dependencies.tokio]
+version = "1.12"
+features = [
+    "rt-multi-thread",
+    "macros",
+    "sync"
+]
+
+[[example]]
+name = "basic"
+required-features = ["reexport-deps"]

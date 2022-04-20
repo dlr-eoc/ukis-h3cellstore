@@ -4,13 +4,9 @@
 * Improves on [Clickhouse default type mappings](https://clickhouse.com/docs/en/interfaces/formats/#data_types-matching-arrow) 
   * auto-converting strings and booleans based on Clickhouse column types
 
-## Launching a Clickhouse instance for the example to work
+## Run the examples
 
-```shell
-podman run --rm -it -u 101 -v $PWD/clickhouse-server/config.xml:/etc/clickhouse-server/config.xml -p 9100:9100 clickhouse/clickhouse-server:22.3
-```
-
-After that, you should be able to run the example:
+Launch a ClickHouse server as described in the main README. After that, you should be able to run the example:
 
 ```shell
 cargo run --example helloworld

@@ -1,19 +1,12 @@
-pub mod agg;
-pub mod column;
-pub mod datatype;
-pub mod other;
-pub mod temporal;
+use std::any::type_name;
+use std::cmp::Ordering;
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
 pub use regex::Regex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::any::type_name;
-use std::cmp::Ordering;
 
-use crate::clickhouse::{Table, TableSpec, COL_NAME_H3INDEX};
-use crate::Error;
 pub use agg::AggregationMethod;
 use arrow_h3::h3ron::collections::HashMap;
 use arrow_h3::h3ron::H3_MAX_RESOLUTION;
@@ -21,6 +14,15 @@ pub use column::{ColumnDefinition, SimpleColumn};
 pub use datatype::ClickhouseDataType;
 pub use other::{CompressionMethod, TableEngine};
 pub use temporal::{TemporalPartitioning, TemporalResolution};
+
+use crate::clickhouse::{Table, TableSpec, COL_NAME_H3INDEX};
+use crate::Error;
+
+pub mod agg;
+pub mod column;
+pub mod datatype;
+pub mod other;
+pub mod temporal;
 
 pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
@@ -327,14 +329,12 @@ impl CompactedTableSchema {
             .join(",\n");
 
         Ok(format!(
-            "
-CREATE TABLE IF NOT EXISTS {} (
+            "CREATE TABLE IF NOT EXISTS {} (
 {}
 )
 ENGINE {}
 {}
-ORDER BY ({});
-",
+ORDER BY ({});",
             table.to_table_name(),
             columns,
             engine,
@@ -343,7 +343,7 @@ ORDER BY ({});
         ))
     }
 
-    fn build_create_statements(
+    pub fn build_create_statements(
         &self,
         temporary_key: &Option<String>,
     ) -> Result<Vec<String>, Error> {
@@ -357,7 +357,7 @@ ORDER BY ({});
     }
 }
 
-pub fn ordered_h3_resolutions(h3res_slice: &[u8]) -> Result<Vec<u8>, Error> {
+fn ordered_h3_resolutions(h3res_slice: &[u8]) -> Result<Vec<u8>, Error> {
     let mut cleaned = vec![];
     for res in h3res_slice.iter() {
         if res > &H3_MAX_RESOLUTION {
