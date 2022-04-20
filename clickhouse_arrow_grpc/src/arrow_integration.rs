@@ -7,13 +7,14 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use arrow2::array::Array;
+use arrow2::array::{new_empty_array, Array};
 use arrow2::chunk::Chunk;
 use arrow2::compute::cast::cast;
 use arrow2::datatypes::{DataType, Schema};
 use arrow2::io::ipc::read::{read_file_metadata, FileReader};
 use arrow2::io::ipc::write::FileWriter;
 use polars_core::prelude::DataFrame;
+use polars_core::series::Series;
 use polars_core::utils::accumulate_dataframes_vertical;
 
 use crate::Error;
@@ -63,6 +64,7 @@ impl TryInto<DataFrame> for super::api::Result {
             .iter()
             .map(|field| (&field.name, field))
             .collect();
+        dbg!(&schema_fields_by_name);
 
         // cast based on the output_column type info provided by clickhouse. In case this
         // is not set, this implementation should not fail and just return the dataframe without the
@@ -100,9 +102,24 @@ impl TryInto<DataFrame> for super::api::Result {
             ))?);
         }
 
-        let mut df = accumulate_dataframes_vertical(dfs)?;
-        df.rechunk();
-        Ok(df)
+        if dfs.is_empty() {
+            // See https://github.com/pola-rs/polars/blob/8b2db30ac18d219f4c3d02e2d501d2966cf58930/polars/polars-io/src/lib.rs#L127
+            // Create an empty dataframe with the correct data types
+            let empty_cols = fields
+                .iter()
+                .map(|fld| {
+                    Series::try_from((
+                        fld.name.as_str(),
+                        Arc::from(new_empty_array(fld.data_type.clone())),
+                    ))
+                })
+                .collect::<polars_core::error::Result<_>>()?;
+            Ok(DataFrame::new(empty_cols)?)
+        } else {
+            let mut df = accumulate_dataframes_vertical(dfs)?;
+            df.rechunk();
+            Ok(df)
+        }
     }
 }
 
