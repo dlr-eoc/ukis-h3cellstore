@@ -64,7 +64,6 @@ impl TryInto<DataFrame> for super::api::Result {
             .iter()
             .map(|field| (&field.name, field))
             .collect();
-        dbg!(&schema_fields_by_name);
 
         // cast based on the output_column type info provided by clickhouse. In case this
         // is not set, this implementation should not fail and just return the dataframe without the

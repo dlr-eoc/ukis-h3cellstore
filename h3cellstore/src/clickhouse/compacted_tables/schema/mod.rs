@@ -329,12 +329,7 @@ impl CompactedTableSchema {
             .join(",\n");
 
         Ok(format!(
-            "CREATE TABLE IF NOT EXISTS {} (
-{}
-)
-ENGINE {}
-{}
-ORDER BY ({});",
+            "CREATE TABLE IF NOT EXISTS {} ( {} ) ENGINE {} {} ORDER BY ({});",
             table.to_table_name(),
             columns,
             engine,
