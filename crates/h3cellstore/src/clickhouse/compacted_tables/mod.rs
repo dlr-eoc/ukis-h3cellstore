@@ -15,7 +15,7 @@ pub use crate::clickhouse::compacted_tables::insert::InsertOptions;
 use crate::clickhouse::compacted_tables::insert::Inserter;
 use crate::clickhouse::compacted_tables::optimize::deduplicate_full;
 use crate::clickhouse::compacted_tables::schema::CompactedTableSchema;
-use crate::clickhouse::compacted_tables::select::BuildQuery;
+use crate::clickhouse::compacted_tables::select::BuildCellQueryString;
 pub use crate::clickhouse::compacted_tables::select::TableSetQuery;
 use crate::clickhouse::compacted_tables::tableset::{find_tablesets, LoadTableSet};
 use crate::Error;
@@ -300,11 +300,11 @@ where
             .await?;
 
         // todo: move to background thread?
-        let query = tableset.build_cell_query_string(&query, h3_resolution, cells)?;
+        let query_string = query.build_cell_query_string(&tableset, h3_resolution, cells)?;
 
         let df = self
             .execute_into_dataframe(QueryInfo {
-                query,
+                query: query_string,
                 database: database_name.as_ref().to_string(),
                 ..Default::default()
             })
