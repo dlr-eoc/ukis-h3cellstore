@@ -85,7 +85,7 @@ async fn main() -> eyre::Result<()> {
     let h3df = make_h3dataframe()?;
 
     client
-        .insert_h3dataframe_into_tableset(&play_db, &schema, h3df, false)
+        .insert_h3dataframe_into_tableset(&play_db, &schema, h3df, Default::default())
         .await?;
 
     /*

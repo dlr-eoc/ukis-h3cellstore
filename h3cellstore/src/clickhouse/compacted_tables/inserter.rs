@@ -20,12 +20,26 @@ use tracing::{debug, debug_span, error, trace_span, Instrument};
 const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";
 const ALIAS_SOURCE_TABLE: &str = "src_table";
 
+pub struct InsertOptions {
+    pub create_schema: bool,
+    pub deduplicate_after_insert: bool,
+}
+
+impl Default for InsertOptions {
+    fn default() -> Self {
+        Self {
+            create_schema: true,
+            deduplicate_after_insert: true,
+        }
+    }
+}
+
 pub struct Inserter<C> {
     store: C,
     schema: CompactedTableSchema,
     temporary_key: TemporaryKey,
-    create_schema: bool,
     database_name: String,
+    options: InsertOptions,
 }
 
 impl<C> Inserter<C>
@@ -36,14 +50,14 @@ where
         store: C,
         schema: CompactedTableSchema,
         database_name: String,
-        create_schema: bool,
+        options: InsertOptions,
     ) -> Self {
         Self {
             store,
             schema,
             temporary_key: Default::default(),
-            create_schema,
             database_name,
+            options,
         }
     }
 
@@ -83,7 +97,7 @@ where
         let tk_str = self.temporary_key.to_string();
         let tk_opt = Some(self.temporary_key.clone());
 
-        if self.create_schema {
+        if self.options.create_schema {
             self.store
                 .create_tableset_schema(&self.database_name, &self.schema)
                 .await?;
@@ -132,36 +146,38 @@ where
             .await?;
 
         // deduplicate
-        if let Err(e) = deduplicate_partitions_based_on_temporary_tables(
-            &mut self.store,
-            &self.database_name,
-            &self.schema,
-            &resolution_metadata,
-            &tk_opt,
-        )
-        .instrument(debug_span!(
-            "De-duplicating touched partitions",
-            temporary_key = tk_str.as_str()
-        ))
-        .await
-        {
-            match e {
-                Error::MissingPrecondidtionsForPartialOptimization => {
-                    deduplicate_full(
-                        &mut self.store,
-                        &self.database_name,
-                        &self.schema,
-                        &resolution_metadata,
-                    )
-                    .instrument(debug_span!(
-                        "De-duplicating complete tables",
-                        temporary_key = tk_str.as_str()
-                    ))
-                    .await?
+        if self.options.deduplicate_after_insert {
+            if let Err(e) = deduplicate_partitions_based_on_temporary_tables(
+                &mut self.store,
+                &self.database_name,
+                &self.schema,
+                &resolution_metadata,
+                &tk_opt,
+            )
+            .instrument(debug_span!(
+                "De-duplicating touched partitions",
+                temporary_key = tk_str.as_str()
+            ))
+            .await
+            {
+                match e {
+                    Error::MissingPrecondidtionsForPartialOptimization => {
+                        deduplicate_full(
+                            &mut self.store,
+                            &self.database_name,
+                            &self.schema,
+                            &resolution_metadata,
+                        )
+                        .instrument(debug_span!(
+                            "De-duplicating complete tables",
+                            temporary_key = tk_str.as_str()
+                        ))
+                        .await?
+                    }
+                    _ => return Err(e),
                 }
-                _ => return Err(e),
             }
-        };
+        }
 
         Ok(())
     }

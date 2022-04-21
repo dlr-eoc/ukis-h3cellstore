@@ -11,6 +11,7 @@ use tracing::{info_span, warn, Instrument};
 use arrow_h3::h3ron::collections::HashMap;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 
+pub use crate::clickhouse::compacted_tables::inserter::InsertOptions;
 use crate::clickhouse::compacted_tables::inserter::Inserter;
 use crate::clickhouse::compacted_tables::optimize::deduplicate_full;
 use crate::clickhouse::compacted_tables::schema::CompactedTableSchema;
@@ -49,7 +50,7 @@ pub trait CompactedTablesStore {
         database_name: S,
         schema: &CompactedTableSchema,
         h3df: H3DataFrame,
-        create_schema: bool,
+        options: InsertOptions,
     ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send;
@@ -199,7 +200,7 @@ where
         database_name: S,
         schema: &CompactedTableSchema,
         h3df: H3DataFrame,
-        create_schema: bool,
+        options: InsertOptions,
     ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send,
@@ -214,7 +215,7 @@ where
             self.clone(),
             schema.clone(),
             database_name.as_ref().to_string(),
-            create_schema,
+            options,
         );
         let insert_result = inserter
             .insert(h3df)
