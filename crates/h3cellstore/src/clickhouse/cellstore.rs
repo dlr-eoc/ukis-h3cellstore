@@ -1,4 +1,5 @@
 use crate::Error;
+use arrow_h3::algo::IterRowCountLimited;
 use arrow_h3::H3DataFrame;
 use async_trait::async_trait;
 use clickhouse_arrow_grpc::ArrowInterface;
@@ -24,6 +25,27 @@ pub trait H3CellStore {
     where
         S1: AsRef<str> + Send,
         S2: AsRef<str> + Send;
+
+    async fn insert_h3dataframe_chunked<S1, S2>(
+        &mut self,
+
+        database_name: S1,
+        table_name: S2,
+        h3df: H3DataFrame,
+        max_num_rows_per_chunk: usize,
+    ) -> Result<(), Error>
+    where
+        S1: AsRef<str> + Send,
+        S2: AsRef<str> + Send,
+    {
+        let db_name = database_name.as_ref().to_string();
+        let tb_name = table_name.as_ref().to_string();
+        for chunk_h3df in h3df.iter_row_count_limited(max_num_rows_per_chunk)? {
+            self.insert_h3dataframe(&db_name, &tb_name, chunk_h3df)
+                .await?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]

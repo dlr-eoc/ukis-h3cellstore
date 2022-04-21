@@ -23,6 +23,7 @@ const ALIAS_SOURCE_TABLE: &str = "src_table";
 pub struct InsertOptions {
     pub create_schema: bool,
     pub deduplicate_after_insert: bool,
+    pub max_num_rows_per_chunk: usize,
 }
 
 impl Default for InsertOptions {
@@ -30,6 +31,7 @@ impl Default for InsertOptions {
         Self {
             create_schema: true,
             deduplicate_after_insert: true,
+            max_num_rows_per_chunk: 1_000_000,
         }
     }
 }
@@ -121,9 +123,13 @@ where
                 &tk_opt,
             );
 
-            // TODO: write in batches
             self.store
-                .insert_h3dataframe(self.database_name.as_str(), table.to_table_name(), h3df)
+                .insert_h3dataframe_chunked(
+                    self.database_name.as_str(),
+                    table.to_table_name(),
+                    h3df,
+                    self.options.max_num_rows_per_chunk,
+                )
                 .await?;
         }
 

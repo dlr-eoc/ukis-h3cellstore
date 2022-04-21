@@ -9,7 +9,7 @@ use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
     CompactedTableSchemaBuilder, SimpleColumn, TemporalPartitioning,
 };
-use h3cellstore::clickhouse::compacted_tables::CompactedTablesStore;
+use h3cellstore::clickhouse::compacted_tables::{CompactedTablesStore, InsertOptions};
 use h3cellstore::clickhouse::COL_NAME_H3INDEX;
 
 const MAX_H3_RES: u8 = 5;
@@ -86,7 +86,15 @@ async fn main() -> eyre::Result<()> {
     let h3df = make_h3dataframe()?;
 
     client
-        .insert_h3dataframe_into_tableset(&play_db, &schema, h3df, Default::default())
+        .insert_h3dataframe_into_tableset(
+            &play_db,
+            &schema,
+            h3df,
+            InsertOptions {
+                max_num_rows_per_chunk: 20,
+                ..Default::default()
+            },
+        )
         .await?;
 
     /*

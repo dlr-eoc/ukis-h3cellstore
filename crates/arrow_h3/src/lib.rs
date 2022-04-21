@@ -3,6 +3,8 @@
 //! Limitations:
 //! * Only intended to work with H3 Cells currently. Edges, Vertices, ... are not supported.
 
+extern crate core;
+
 pub mod algo;
 pub mod error;
 pub mod frame;
