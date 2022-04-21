@@ -5,6 +5,7 @@ use arrow_h3::polars::prelude::NamedFrom;
 use arrow_h3::polars::series::Series;
 use arrow_h3::H3DataFrame;
 use chrono::Local;
+use geo_types::Coordinate;
 use h3cellstore::clickhouse::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
@@ -34,10 +35,10 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
     Ok(schema)
 }
 
-fn make_h3dataframe() -> eyre::Result<H3DataFrame> {
+fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame> {
     let index_series = to_index_series(
         COL_NAME_H3INDEX,
-        H3Cell::from_coordinate((22.8996, -19.3325).into(), MAX_H3_RES)?
+        H3Cell::from_coordinate(center, MAX_H3_RES)?
             .grid_disk(10)?
             .iter(),
     );
@@ -65,6 +66,8 @@ async fn main() -> eyre::Result<()> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 
+    let center = Coordinate::from((22.8996, -19.3325));
+
     let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
         .await?
         .send_gzip()
@@ -85,7 +88,7 @@ async fn main() -> eyre::Result<()> {
     let tablesets = client.list_tablesets(&play_db).await?;
     assert!(tablesets.contains_key(&schema.name));
 
-    let h3df = make_h3dataframe()?;
+    let h3df = make_h3dataframe(center)?;
 
     client
         .insert_h3dataframe_into_tableset(
@@ -99,10 +102,7 @@ async fn main() -> eyre::Result<()> {
         )
         .await?;
 
-    let query_cells = vec![H3Cell::from_coordinate(
-        (22.8996, -19.3325).into(),
-        MAX_H3_RES - 1,
-    )?];
+    let query_cells = vec![H3Cell::from_coordinate(center, MAX_H3_RES - 1)?];
     let queried_df = client
         .query_tableset_cells(
             &play_db,
