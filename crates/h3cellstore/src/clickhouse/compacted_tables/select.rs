@@ -3,6 +3,7 @@ use crate::Error;
 use arrow_h3::h3ron::collections::{HashMap, HashSet};
 use arrow_h3::h3ron::iter::change_resolution;
 use arrow_h3::h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
+use tracing::error;
 
 #[derive(Clone)]
 pub enum TableSetQuery {
@@ -71,11 +72,17 @@ impl BuildQuery for TableSet {
         h3_resolution: u8,
         h3cells: &[H3Cell],
     ) -> Result<String, Error> {
-        query.validate()?;
-
+        if !self.base_tables.contains_key(&h3_resolution) {
+            error!(
+                "Resolution {} is not a part of the base tables of tableset {}",
+                h3_resolution, self.basename
+            );
+            return Err(Error::NoQueryableTables);
+        }
         if h3cells.is_empty() {
             return Err(Error::EmptyCells);
         };
+        query.validate()?;
 
         // collect the indexes and the parents (where the tables exist)
         let queryable_h3indexes = collect_queryable_h3indexes(self, h3cells, h3_resolution)?;
@@ -156,12 +163,13 @@ fn collect_queryable_h3indexes(
         .collect();
 
     for (resolution, queryable_h3indexes_set) in queryable_h3indexes.iter_mut() {
-        queryable_h3indexes_set.extend(
-            change_resolution(cells, *resolution)
-                .map(|cell_res| cell_res.map(|cell| cell.h3index()))
-                .collect::<Result<Vec<_>, _>>()?
-                .iter(),
-        );
+        let mut h3indexes_at_resolution = change_resolution(cells, *resolution)
+            .map(|cell_res| cell_res.map(|cell| cell.h3index()))
+            .collect::<Result<Vec<_>, _>>()?;
+        h3indexes_at_resolution.sort_unstable();
+        h3indexes_at_resolution.dedup();
+
+        queryable_h3indexes_set.extend(h3indexes_at_resolution.iter());
     }
     Ok(queryable_h3indexes)
 }
