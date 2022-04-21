@@ -1,4 +1,5 @@
-use arrow_h3::h3ron::{H3Cell, Index};
+use arrow_h3::frame::to_index_series;
+use arrow_h3::h3ron::H3Cell;
 use arrow_h3::polars::frame::DataFrame;
 use arrow_h3::polars::prelude::NamedFrom;
 use arrow_h3::polars::series::Series;
@@ -34,15 +35,16 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
 }
 
 fn make_h3dataframe() -> eyre::Result<H3DataFrame> {
-    let h3indexes = H3Cell::from_coordinate((22.8996, -19.3325).into(), MAX_H3_RES)?
-        .grid_disk(10)?
-        .iter()
-        .map(|cell| cell.h3index() as u64)
-        .collect::<Vec<_>>();
+    let index_series = to_index_series(
+        COL_NAME_H3INDEX,
+        H3Cell::from_coordinate((22.8996, -19.3325).into(), MAX_H3_RES)?
+            .grid_disk(10)?
+            .iter(),
+    );
 
-    let num_cells = h3indexes.len();
+    let num_cells = index_series.len();
     let df = DataFrame::new(vec![
-        Series::new(COL_NAME_H3INDEX, h3indexes),
+        index_series,
         Series::new(
             "elephant_count",
             (0..num_cells).map(|_| 2_u32).collect::<Vec<_>>(),
