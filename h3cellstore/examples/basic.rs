@@ -77,10 +77,11 @@ async fn main() -> eyre::Result<()> {
         .await?;
 
     let schema = okavango_delta_schema()?;
+    client.drop_tableset(&play_db, &schema.name).await?;
     client.create_tableset_schema(&play_db, &schema).await?;
 
     let tablesets = client.list_tablesets(&play_db).await?;
-    assert!(tablesets.contains_key("okavango_delta"));
+    assert!(tablesets.contains_key(&schema.name));
 
     let h3df = make_h3dataframe()?;
 

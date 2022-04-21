@@ -32,7 +32,7 @@ pub trait ValidateSchema {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
-    pub(crate) name: String,
+    pub name: String,
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     pub(crate) h3_base_resolutions: Vec<u8>,
