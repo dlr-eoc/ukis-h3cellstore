@@ -15,6 +15,7 @@ pub use datatype::ClickhouseDataType;
 pub use other::{CompressionMethod, TableEngine};
 pub use temporal::{TemporalPartitioning, TemporalResolution};
 
+use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
 use crate::clickhouse::{Table, TableSpec, COL_NAME_H3INDEX};
 use crate::Error;
 
@@ -35,19 +36,29 @@ pub struct CompactedTableSchema {
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     pub(crate) h3_base_resolutions: Vec<u8>,
-    max_h3_resolution: u8,
+    pub(crate) max_h3_resolution: u8,
     pub(crate) use_compaction: bool,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,
-    columns: HashMap<String, ColumnDefinition>,
+    pub(crate) columns: HashMap<String, ColumnDefinition>,
     partition_by_columns: Vec<String>,
     pub(crate) has_base_suffix: bool,
 }
 
 #[derive(Eq)]
-struct ResolutionMetadata {
+pub(crate) struct ResolutionMetadata {
     h3_resolution: u8,
     is_compacted: bool,
+}
+
+impl ResolutionMetadata {
+    #[inline]
+    pub fn new(h3_resolution: u8, is_compacted: bool) -> Self {
+        Self {
+            h3_resolution,
+            is_compacted,
+        }
+    }
 }
 
 impl PartialOrd for ResolutionMetadata {
@@ -139,17 +150,17 @@ fn validate_table_name(location: &'static str, name: &str) -> Result<(), Error> 
 }
 
 impl CompactedTableSchema {
-    fn build_table(
+    pub(crate) fn build_table(
         &self,
         resolution_metadata: &ResolutionMetadata,
-        temporary_key: &Option<String>,
+        temporary_key: &Option<TemporaryKey>,
     ) -> Table {
         Table {
             basename: self.name.clone(),
             spec: TableSpec {
                 h3_resolution: resolution_metadata.h3_resolution,
                 is_compacted: resolution_metadata.is_compacted,
-                temporary_key: temporary_key.clone(),
+                temporary_key: temporary_key.as_ref().map(|tk| tk.to_string()),
                 has_base_suffix: self.has_base_suffix,
             },
         }
@@ -263,7 +274,7 @@ impl CompactedTableSchema {
         Ok(partition_by)
     }
 
-    fn get_resolution_metadata(&self) -> Result<Vec<ResolutionMetadata>, Error> {
+    pub(crate) fn get_resolution_metadata(&self) -> Result<Vec<ResolutionMetadata>, Error> {
         let compacted_resolutions: Vec<_> = if self.use_compaction {
             let max_res = *self
                 .h3_base_resolutions
@@ -271,10 +282,7 @@ impl CompactedTableSchema {
                 .max()
                 .ok_or(Error::MixedH3Resolutions)?; // TODO: better error
             (0..=max_res)
-                .map(|r| ResolutionMetadata {
-                    h3_resolution: r,
-                    is_compacted: true,
-                })
+                .map(|r| ResolutionMetadata::new(r, true))
                 .collect()
         } else {
             vec![]
@@ -283,10 +291,7 @@ impl CompactedTableSchema {
             .h3_base_resolutions
             .iter()
             .cloned()
-            .map(|r| ResolutionMetadata {
-                h3_resolution: r,
-                is_compacted: false,
-            })
+            .map(|r| ResolutionMetadata::new(r, false))
             .chain(compacted_resolutions)
             .collect())
     }
@@ -340,7 +345,7 @@ impl CompactedTableSchema {
 
     pub fn build_create_statements(
         &self,
-        temporary_key: &Option<String>,
+        temporary_key: &Option<TemporaryKey>,
     ) -> Result<Vec<String>, Error> {
         self.get_resolution_metadata()?
             .iter()
@@ -349,6 +354,20 @@ impl CompactedTableSchema {
                 self.build_create_statement(&table)
             })
             .collect::<Result<Vec<String>, Error>>()
+    }
+
+    pub fn build_drop_statements(
+        &self,
+        temporary_key: &Option<TemporaryKey>,
+    ) -> Result<Vec<String>, Error> {
+        Ok(self
+            .get_resolution_metadata()?
+            .iter()
+            .map(|resolution_metadata| {
+                let table = self.build_table(resolution_metadata, temporary_key);
+                format!("drop table if exists {}", table.to_table_name())
+            })
+            .collect::<Vec<String>>())
     }
 }
 
@@ -538,28 +557,16 @@ mod tests {
     #[test]
     fn resolution_metadata_sort() {
         let mut v1 = vec![
-            ResolutionMetadata {
-                h3_resolution: 4,
-                is_compacted: false,
-            },
-            ResolutionMetadata {
-                h3_resolution: 3,
-                is_compacted: false,
-            },
+            ResolutionMetadata::new(4, false),
+            ResolutionMetadata::new(3, false),
         ];
         v1.sort_unstable();
         assert_eq!(v1[0].h3_resolution, 3);
         assert_eq!(v1[1].h3_resolution, 4);
 
         let mut v2 = vec![
-            ResolutionMetadata {
-                h3_resolution: 3,
-                is_compacted: true,
-            },
-            ResolutionMetadata {
-                h3_resolution: 3,
-                is_compacted: false,
-            },
+            ResolutionMetadata::new(3, true),
+            ResolutionMetadata::new(3, false),
         ];
         v2.sort_unstable();
         assert_eq!(v2[0].is_compacted, false);

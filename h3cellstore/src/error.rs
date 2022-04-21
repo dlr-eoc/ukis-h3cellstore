@@ -56,6 +56,12 @@ pub enum Error {
 
     #[error("schema error validating {0}: {1}")]
     SchemaValidationError(&'static str, String),
+
+    #[error("no h3 resolutions defined")]
+    NoH3ResolutionsDefined,
+
+    #[error("missing preconditions for partial optimization")]
+    MissingPrecondidtionsForPartialOptimization,
 }
 
 impl From<AH3Error> for Error {

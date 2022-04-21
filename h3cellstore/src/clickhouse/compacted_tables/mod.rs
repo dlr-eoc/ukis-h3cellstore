@@ -1,15 +1,21 @@
+mod inserter;
+mod optimize;
 pub mod schema;
+pub mod temporary_key;
 
+use arrow_h3::H3DataFrame;
 use async_trait::async_trait;
 use std::default::Default;
-use tracing::warn;
+use tracing::{info_span, warn, Instrument};
 
 use arrow_h3::h3ron::collections::HashMap;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 
+use crate::clickhouse::compacted_tables::inserter::Inserter;
+use crate::clickhouse::compacted_tables::optimize::deduplicate_full;
 use crate::clickhouse::compacted_tables::schema::CompactedTableSchema;
 use crate::clickhouse::tableset::{find_tablesets, TableSet};
-use crate::clickhouse::COL_NAME_H3INDEX;
+use crate::clickhouse::{H3CellStore, COL_NAME_H3INDEX};
 use crate::Error;
 
 #[async_trait]
@@ -37,12 +43,30 @@ pub trait CompactedTablesStore {
     ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send;
+
+    async fn insert_h3dataframe_into_tableset<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+        h3df: H3DataFrame,
+        create_schema: bool,
+    ) -> Result<(), Error>
+    where
+        S: AsRef<str> + Sync + Send;
+
+    async fn deduplicate_schema<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+    ) -> Result<(), Error>
+    where
+        S: AsRef<str> + Sync + Send;
 }
 
 #[async_trait]
 impl<C> CompactedTablesStore for C
 where
-    C: ArrowInterface + Send,
+    C: ArrowInterface + Send + H3CellStore + Clone + Sync,
 {
     async fn list_tablesets<S>(
         &mut self,
@@ -55,9 +79,7 @@ where
             let tableset_df = self
                 .execute_into_dataframe(QueryInfo {
                     query: format!(
-                        "select table
-                from system.columns
-                where name = '{}' and database = currentDatabase()",
+                        "select table from system.columns where name = '{}' and database = currentDatabase()",
                         COL_NAME_H3INDEX
                     ),
                     database: database_name.as_ref().to_string(),
@@ -170,5 +192,73 @@ where
             .await?;
         }
         Ok(())
+    }
+
+    async fn insert_h3dataframe_into_tableset<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+        h3df: H3DataFrame,
+        create_schema: bool,
+    ) -> Result<(), Error>
+    where
+        S: AsRef<str> + Sync + Send,
+    {
+        if h3df.dataframe.is_empty() {
+            return Ok(());
+        }
+
+        let h3df_shape = h3df.dataframe.shape();
+
+        let mut inserter = Inserter::new(
+            self.clone(),
+            schema.clone(),
+            database_name.as_ref().to_string(),
+            create_schema,
+        );
+        let insert_result = inserter
+            .insert(h3df)
+            .instrument(info_span!(
+                "Inserting H3DataFrame into tableset",
+                num_rows = h3df_shape.0,
+                num_cols = h3df_shape.1,
+                schema = schema.name.as_str(),
+            ))
+            .await;
+
+        // always attempt to cleanup regardless if how the insert went
+        let finish_result = inserter
+            .finish()
+            .instrument(info_span!(
+                "Finishing H3DataFrame inserter",
+                num_rows = h3df_shape.0,
+                num_cols = h3df_shape.1,
+                schema = schema.name.as_str(),
+            ))
+            .await;
+
+        // return the earliest-occurred error
+        if insert_result.is_err() {
+            insert_result
+        } else {
+            finish_result
+        }
+    }
+
+    async fn deduplicate_schema<S>(
+        &mut self,
+        database_name: S,
+        schema: &CompactedTableSchema,
+    ) -> Result<(), Error>
+    where
+        S: AsRef<str> + Sync + Send,
+    {
+        let resolution_metadata = schema.get_resolution_metadata()?;
+        deduplicate_full(self, database_name, schema, &resolution_metadata)
+            .instrument(info_span!(
+                "De-duplicating complete schema",
+                schema = schema.name.as_str()
+            ))
+            .await
     }
 }

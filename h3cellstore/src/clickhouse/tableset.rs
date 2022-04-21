@@ -8,7 +8,7 @@ use regex::Regex;
 use super::COL_NAME_H3INDEX;
 use crate::Error;
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct TableSpec {
     pub h3_resolution: u8,
     pub is_compacted: bool,
@@ -27,7 +27,7 @@ impl TableSpec {
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Table {
     pub basename: String,
     pub spec: TableSpec,
@@ -35,7 +35,7 @@ pub struct Table {
 
 lazy_static! {
     static ref RE_TABLE: Regex = Regex::new(
-        r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9]+))?$"
+        r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9_]+))?$"
     )
     .unwrap();
 }
@@ -79,6 +79,12 @@ impl Table {
                 "".to_string()
             }
         )
+    }
+}
+
+impl ToString for Table {
+    fn to_string(&self) -> String {
+        self.to_table_name()
     }
 }
 
@@ -321,6 +327,7 @@ pub(crate) fn find_tablesets<T: AsRef<str>>(tablenames: &[T]) -> HashMap<String,
 
 #[cfg(test)]
 mod tests {
+    use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
     use crate::clickhouse::tableset::{find_tablesets, Table, TableSpec};
 
     #[test]
@@ -361,6 +368,26 @@ mod tests {
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert_eq!(table_u.spec.is_compacted, false);
         assert_eq!(table_u.spec.is_temporary(), false);
+    }
+
+    #[test]
+    fn test_table_from_name_temporary_temporarykey() {
+        let temporary_key = TemporaryKey::new();
+        let table = Table {
+            basename: "some_table".to_string(),
+            spec: TableSpec {
+                h3_resolution: 5,
+                is_compacted: false,
+                temporary_key: Some(temporary_key.to_string()),
+                has_base_suffix: true,
+            },
+        };
+        let table2 = Table::parse(&table.to_table_name()).unwrap();
+        assert_eq!(table, table2);
+        assert_eq!(
+            temporary_key.to_string(),
+            table2.spec.temporary_key.unwrap()
+        );
     }
 
     #[test]
