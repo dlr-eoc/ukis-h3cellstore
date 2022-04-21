@@ -150,11 +150,12 @@ where
     I::Item: Borrow<IX>,
     IX: Index,
 {
-    let u64_indexes = iter
-        .into_iter()
-        .map(|v| v.borrow().h3index())
-        .collect::<Vec<_>>();
-    Series::new(series_name, u64_indexes.as_slice())
+    Series::new(
+        series_name,
+        iter.into_iter()
+            .map(|v| v.borrow().h3index())
+            .collect::<Vec<_>>(),
+    )
 }
 
 pub struct SeriesIndexIter<'a, I> {
