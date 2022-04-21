@@ -569,7 +569,7 @@ mod tests {
             ResolutionMetadata::new(3, false),
         ];
         v2.sort_unstable();
-        assert_eq!(v2[0].is_compacted, false);
-        assert_eq!(v2[1].is_compacted, true);
+        assert!(!v2[0].is_compacted);
+        assert!(v2[1].is_compacted);
     }
 }

@@ -355,8 +355,8 @@ mod tests {
         let table_u = table.unwrap();
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table_u.spec.is_compacted, false);
-        assert_eq!(table_u.spec.is_temporary(), false);
+        assert!(!table_u.spec.is_compacted);
+        assert!(!table_u.spec.is_temporary());
     }
 
     #[test]
@@ -366,8 +366,8 @@ mod tests {
         let table_u = table.unwrap();
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table_u.spec.is_compacted, false);
-        assert_eq!(table_u.spec.is_temporary(), false);
+        assert!(!table_u.spec.is_compacted);
+        assert!(!table_u.spec.is_temporary());
     }
 
     #[test]
@@ -397,8 +397,8 @@ mod tests {
         let table_u = table.unwrap();
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table_u.spec.is_compacted, false);
-        assert_eq!(table_u.spec.is_temporary(), true);
+        assert!(!table_u.spec.is_compacted);
+        assert!(table_u.spec.is_temporary());
         assert_eq!(table_u.spec.temporary_key, Some("5t".to_string()));
     }
 
@@ -409,8 +409,8 @@ mod tests {
         let table_u = table.unwrap();
         assert_eq!(table_u.basename, "some_ta78ble".to_string());
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
-        assert_eq!(table_u.spec.is_compacted, false);
-        assert_eq!(table_u.spec.is_temporary(), true);
+        assert!(!table_u.spec.is_compacted);
+        assert!(table_u.spec.is_temporary());
         assert_eq!(table_u.spec.temporary_key, Some("5t".to_string()));
     }
 
