@@ -69,7 +69,15 @@ mod tests {
         let h3df = make_h3_dataframe(6, Some(4)).unwrap();
 
         let max_num_rows = 10;
-        assert!(h3df.iter_row_count_limited(max_num_rows).unwrap().count() > 2);
+        {
+            let iter = h3df.iter_row_count_limited(max_num_rows).unwrap();
+            let num_expected = iter.size_hint().0;
+            assert!(num_expected > 2);
+            assert_eq!(
+                h3df.iter_row_count_limited(max_num_rows).unwrap().count(),
+                num_expected
+            );
+        }
         assert!(h3df
             .iter_row_count_limited(max_num_rows)
             .unwrap()
