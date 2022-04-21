@@ -62,6 +62,9 @@ pub enum Error {
 
     #[error("missing preconditions for partial optimization")]
     MissingPrecondidtionsForPartialOptimization,
+
+    #[error("tableset not found: {0}")]
+    TableSetNotFound(String),
 }
 
 impl From<AH3Error> for Error {

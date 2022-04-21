@@ -1,23 +1,34 @@
-mod inserter;
-mod optimize;
-pub mod schema;
-pub mod temporary_key;
-
-use arrow_h3::H3DataFrame;
-use async_trait::async_trait;
 use std::default::Default;
+
+use arrow_h3::algo::UnCompact;
+use async_trait::async_trait;
+use tokio::task::spawn_blocking;
 use tracing::{info_span, warn, Instrument};
 
 use arrow_h3::h3ron::collections::HashMap;
+use arrow_h3::h3ron::H3Cell;
+use arrow_h3::H3DataFrame;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
+pub use tableset::{Table, TableSet, TableSpec};
 
-pub use crate::clickhouse::compacted_tables::inserter::InsertOptions;
-use crate::clickhouse::compacted_tables::inserter::Inserter;
+pub use crate::clickhouse::compacted_tables::insert::InsertOptions;
+use crate::clickhouse::compacted_tables::insert::Inserter;
 use crate::clickhouse::compacted_tables::optimize::deduplicate_full;
 use crate::clickhouse::compacted_tables::schema::CompactedTableSchema;
-use crate::clickhouse::tableset::{find_tablesets, TableSet};
-use crate::clickhouse::{H3CellStore, COL_NAME_H3INDEX};
+use crate::clickhouse::compacted_tables::select::BuildQuery;
+pub use crate::clickhouse::compacted_tables::select::TableSetQuery;
+use crate::clickhouse::compacted_tables::tableset::{find_tablesets, LoadTableSet};
 use crate::Error;
+
+mod insert;
+mod optimize;
+pub mod schema;
+mod select;
+pub mod tableset;
+pub mod temporary_key;
+
+/// the column name which must be used for h3indexes.
+pub const COL_NAME_H3INDEX: &str = "h3index";
 
 #[async_trait]
 pub trait CompactedTablesStore {
@@ -28,14 +39,10 @@ pub trait CompactedTablesStore {
     where
         S: AsRef<str> + Sync + Send;
 
-    async fn drop_tableset<S1, S2>(
-        &mut self,
-        database_name: S1,
-        tableset_name: S2,
-    ) -> Result<(), Error>
+    async fn drop_tableset<S, TS>(&mut self, database_name: S, tableset: TS) -> Result<(), Error>
     where
-        S1: AsRef<str> + Send + Sync,
-        S2: AsRef<str> + Send + Sync;
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync;
 
     async fn create_tableset_schema<S>(
         &mut self,
@@ -62,12 +69,24 @@ pub trait CompactedTablesStore {
     ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send;
+
+    async fn query_tableset_cells<S, TS>(
+        &mut self,
+        database_name: S,
+        tableset: TS,
+        query: TableSetQuery,
+        cells: &[H3Cell],
+        h3_resolution: u8,
+    ) -> Result<H3DataFrame, Error>
+    where
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync;
 }
 
 #[async_trait]
 impl<C> CompactedTablesStore for C
 where
-    C: ArrowInterface + Send + H3CellStore + Clone + Sync,
+    C: ArrowInterface + Send + Clone + Sync,
 {
     async fn list_tablesets<S>(
         &mut self,
@@ -146,34 +165,35 @@ where
         Ok(tablesets)
     }
 
-    async fn drop_tableset<S1, S2>(
-        &mut self,
-        database_name: S1,
-        tableset_name: S2,
-    ) -> Result<(), Error>
+    async fn drop_tableset<S, TS>(&mut self, database_name: S, tableset: TS) -> Result<(), Error>
     where
-        S1: AsRef<str> + Send + Sync,
-        S2: AsRef<str> + Send + Sync,
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync,
     {
-        if let Some(tableset) = self
-            .list_tablesets(&database_name)
-            .await?
-            .remove(tableset_name.as_ref())
+        return match tableset
+            .load_tableset_from_store(self, database_name.as_ref())
+            .await
         {
-            for table in tableset
-                .base_tables()
-                .iter()
-                .chain(tableset.compacted_tables().iter())
-            {
-                self.execute_query_checked(QueryInfo {
-                    query: format!("drop table if exists {}", table.to_table_name()),
-                    database: database_name.as_ref().to_string(),
-                    ..Default::default()
-                })
-                .await?;
+            Ok(tableset) => {
+                for table in tableset
+                    .base_tables()
+                    .iter()
+                    .chain(tableset.compacted_tables().iter())
+                {
+                    self.execute_query_checked(QueryInfo {
+                        query: format!("drop table if exists {}", table.to_table_name()),
+                        database: database_name.as_ref().to_string(),
+                        ..Default::default()
+                    })
+                    .await?;
+                }
+                Ok(())
             }
-        }
-        Ok(())
+            Err(e) => match e {
+                Error::TableSetNotFound(_) => Ok(()),
+                _ => Err(e),
+            },
+        };
     }
 
     async fn create_tableset_schema<S>(
@@ -261,5 +281,36 @@ where
                 schema = schema.name.as_str()
             ))
             .await
+    }
+
+    async fn query_tableset_cells<S, TS>(
+        &mut self,
+        database_name: S,
+        tableset: TS,
+        query: TableSetQuery,
+        cells: &[H3Cell],
+        h3_resolution: u8,
+    ) -> Result<H3DataFrame, Error>
+    where
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync,
+    {
+        let tableset = tableset
+            .load_tableset_from_store(self, database_name.as_ref())
+            .await?;
+
+        // todo: move to background thread?
+        let query = tableset.build_cell_query_string(&query, h3_resolution, cells)?;
+
+        let df = self
+            .execute_into_dataframe(QueryInfo {
+                query,
+                database: database_name.as_ref().to_string(),
+                ..Default::default()
+            })
+            .await?;
+        let h3df = H3DataFrame::from_dataframe(df, COL_NAME_H3INDEX)?;
+
+        Ok(spawn_blocking(move || h3df.uncompact(h3_resolution)).await??)
     }
 }

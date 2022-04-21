@@ -5,8 +5,8 @@ use crate::clickhouse::compacted_tables::schema::{
     AggregationMethod, ColumnDefinition, CompactedTableSchema, ResolutionMetadata,
 };
 use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
-use crate::clickhouse::compacted_tables::CompactedTablesStore;
-use crate::clickhouse::{H3CellStore, COL_NAME_H3INDEX};
+use crate::clickhouse::compacted_tables::{CompactedTablesStore, COL_NAME_H3INDEX};
+use crate::clickhouse::H3CellStore;
 use crate::Error;
 use arrow_h3::algo::{Compact, SplitByH3Resolution};
 use arrow_h3::H3DataFrame;

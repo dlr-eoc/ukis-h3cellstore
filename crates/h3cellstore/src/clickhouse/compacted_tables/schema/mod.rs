@@ -16,7 +16,7 @@ pub use other::{CompressionMethod, TableEngine};
 pub use temporal::{TemporalPartitioning, TemporalResolution};
 
 use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
-use crate::clickhouse::{Table, TableSpec, COL_NAME_H3INDEX};
+use crate::clickhouse::compacted_tables::{Table, TableSpec, COL_NAME_H3INDEX};
 use crate::Error;
 
 pub mod agg;
