@@ -204,7 +204,7 @@ impl CompactedTableSchemaBuilder {
                         s.as_str().parse().map_err(|e: ParseIntError| {
                             PyValueError::new_err(format!(
                                 "Invalid number of years in temporal partitioning: {}",
-                                e.to_string()
+                                e
                             ))
                         })
                     })
