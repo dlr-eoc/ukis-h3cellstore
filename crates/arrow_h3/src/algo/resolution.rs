@@ -1,8 +1,9 @@
-use crate::algo::IterSeriesIndexes;
-use crate::{Error, H3DataFrame};
 use h3ron::{H3Cell, Index};
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
+
+use crate::algo::IterSeriesIndexes;
+use crate::{Error, H3DataFrame};
 
 // TODO: assumes cells
 pub trait ObtainH3Resolutions {

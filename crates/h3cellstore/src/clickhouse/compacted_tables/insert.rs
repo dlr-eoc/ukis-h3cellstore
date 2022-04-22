@@ -1,3 +1,13 @@
+use std::collections::HashMap;
+
+use itertools::Itertools;
+use tokio::task::spawn_blocking;
+use tracing::{debug, debug_span, error, trace_span, Instrument};
+
+use arrow_h3::algo::{Compact, SplitByH3Resolution};
+use arrow_h3::H3DataFrame;
+use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
+
 use crate::clickhouse::compacted_tables::optimize::{
     deduplicate_full, deduplicate_partitions_based_on_temporary_tables,
 };
@@ -8,13 +18,6 @@ use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
 use crate::clickhouse::compacted_tables::{CompactedTablesStore, COL_NAME_H3INDEX};
 use crate::clickhouse::H3CellStore;
 use crate::Error;
-use arrow_h3::algo::{Compact, SplitByH3Resolution};
-use arrow_h3::H3DataFrame;
-use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
-use itertools::Itertools;
-use std::collections::HashMap;
-use tokio::task::spawn_blocking;
-use tracing::{debug, debug_span, error, trace_span, Instrument};
 
 /// the name of the parent h3index column used for aggregation
 const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";

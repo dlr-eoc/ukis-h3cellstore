@@ -1,9 +1,11 @@
-use crate::Error;
+use async_trait::async_trait;
+
 use arrow_h3::algo::IterRowCountLimited;
 use arrow_h3::H3DataFrame;
-use async_trait::async_trait;
 use clickhouse_arrow_grpc::ArrowInterface;
 use clickhouse_arrow_grpc::QueryInfo;
+
+use crate::Error;
 
 #[async_trait]
 pub trait H3CellStore {

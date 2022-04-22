@@ -1,10 +1,11 @@
+use h3ron::Index;
+use polars_core::prelude::Series;
+
 use crate::series::{
     series_iter_indexes, series_iter_indexes_skip_invalid, SeriesIndexIter,
     SeriesIndexSkipInvalidIter,
 };
 use crate::{Error, H3DataFrame};
-use h3ron::Index;
-use polars_core::prelude::Series;
 
 /// iterate over parts of container yielding chunks of max. `max_num_rows` rows
 pub trait IterRowCountLimited<'a> {

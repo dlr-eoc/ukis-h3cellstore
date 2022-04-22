@@ -1,11 +1,12 @@
+use chrono::Local;
+use geo_types::Coordinate;
+
 use arrow_h3::h3ron::H3Cell;
 use arrow_h3::polars::frame::DataFrame;
 use arrow_h3::polars::prelude::NamedFrom;
 use arrow_h3::polars::series::Series;
 use arrow_h3::series::to_index_series;
 use arrow_h3::H3DataFrame;
-use chrono::Local;
-use geo_types::Coordinate;
 use h3cellstore::clickhouse::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,

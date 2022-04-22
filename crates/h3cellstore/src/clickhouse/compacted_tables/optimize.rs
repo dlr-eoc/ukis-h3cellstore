@@ -1,9 +1,11 @@
+use itertools::Itertools;
+use tracing::{debug_span, Instrument};
+
+use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
+
 use crate::clickhouse::compacted_tables::schema::{CompactedTableSchema, ResolutionMetadata};
 use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
 use crate::Error;
-use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
-use itertools::Itertools;
-use tracing::{debug_span, Instrument};
 
 // OLD MEMO:
 //

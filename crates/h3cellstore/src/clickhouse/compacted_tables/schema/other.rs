@@ -1,8 +1,10 @@
-use crate::clickhouse::compacted_tables::schema::ValidateSchema;
-use crate::Error;
+use std::any::type_name;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::any::type_name;
+
+use crate::clickhouse::compacted_tables::schema::ValidateSchema;
+use crate::Error;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone)]

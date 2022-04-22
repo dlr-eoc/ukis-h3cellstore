@@ -1,10 +1,10 @@
 use std::default::Default;
 
-use arrow_h3::algo::UnCompact;
 use async_trait::async_trait;
 use tokio::task::spawn_blocking;
 use tracing::{debug_span, info_span, warn, Instrument};
 
+use arrow_h3::algo::UnCompact;
 use arrow_h3::h3ron::collections::HashMap;
 use arrow_h3::h3ron::H3Cell;
 use arrow_h3::H3DataFrame;

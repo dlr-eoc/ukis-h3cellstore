@@ -1,12 +1,16 @@
+use std::borrow::Borrow;
+use std::cmp::Ordering;
+use std::sync::Arc;
+
 use h3ron::collections::{CompactedCellVec, H3CellSet};
 use h3ron::iter::change_resolution;
 use h3ron::{H3Cell, Index};
+use polars::export::arrow::array::new_empty_array;
+use polars::export::arrow::datatypes::DataType;
 use polars::prelude::{col, IntoLazy};
 use polars_core::frame::DataFrame;
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
-use std::borrow::Borrow;
-use std::cmp::Ordering;
 use tracing::{span, Level};
 
 use crate::algo::IterSeriesIndexes;
@@ -81,8 +85,7 @@ impl Compact for H3DataFrame {
                 let compacted_series = if let Some(cell_index_list) = cell_index_list {
                     compact_cell_series(cell_index_list.as_ref())?
                 } else {
-                    // todo: not sure if this is correct
-                    Series::new("", Vec::<u64>::new())
+                    Series::try_from(("", Arc::from(new_empty_array(DataType::UInt64))))?
                 };
                 compacted_series_vec.push(compacted_series);
             }
@@ -212,12 +215,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use h3ron::{H3Cell, Index};
+    use itertools::Itertools;
+
     use crate::algo::compact::{Compact, UnCompact};
     use crate::algo::tests::make_h3_dataframe;
     use crate::algo::{ObtainH3Resolutions, ToIndexCollection};
     use crate::H3DataFrame;
-    use h3ron::{H3Cell, Index};
-    use itertools::Itertools;
 
     fn compact_roundtrip_dataframe_helper(value: Option<u32>) {
         let max_res = 8;

@@ -1,6 +1,7 @@
-use crate::Named;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::Named;
 
 /// supported subset of the clickhouse datatypes.
 ///

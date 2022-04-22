@@ -1,20 +1,22 @@
+#[cfg(feature = "reexport-deps")]
+pub use arrow2;
 use async_trait::async_trait;
 use polars_core::frame::DataFrame;
+#[cfg(feature = "reexport-deps")]
+pub use tokio;
 use tokio::task::spawn_blocking;
+#[cfg(feature = "reexport-deps")]
+pub use tonic;
 use tonic::transport::Channel;
 use tracing::{span, Instrument, Level};
 
 pub use crate::api::click_house_client::ClickHouseClient;
 pub use crate::api::{QueryInfo, Result as QueryResult};
 use crate::arrow_integration::serialize_for_clickhouse;
-#[cfg(feature = "reexport-deps")]
-pub use arrow2;
-#[cfg(feature = "reexport-deps")]
-pub use tokio;
-#[cfg(feature = "reexport-deps")]
-pub use tonic; // for downstream dependency management
 
 pub use self::error::Error;
+
+// for downstream dependency management
 
 pub mod api;
 mod arrow_integration;

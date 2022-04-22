@@ -9,11 +9,10 @@ use std::iter::FromIterator;
 use h3ron::{H3Cell, Index};
 use itertools::Itertools;
 use polars_core::prelude::{DataFrame, DataType, JoinType, Series};
-
-use crate::algo::iter::ToIndexCollection;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::algo::iter::ToIndexCollection;
 use crate::series::to_index_series;
 use crate::Error;
 

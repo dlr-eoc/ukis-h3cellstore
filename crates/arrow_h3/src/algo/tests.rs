@@ -1,7 +1,8 @@
-use crate::series::to_index_series;
-use crate::{Error, H3DataFrame};
 use h3ron::H3Cell;
 use polars_core::prelude::{DataFrame, NamedFrom, Series};
+
+use crate::series::to_index_series;
+use crate::{Error, H3DataFrame};
 
 pub(crate) fn make_h3_dataframe(
     h3_resolution: u8,

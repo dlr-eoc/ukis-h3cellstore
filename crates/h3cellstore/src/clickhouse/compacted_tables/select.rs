@@ -1,9 +1,11 @@
-use crate::clickhouse::compacted_tables::{Table, TableSet, TableSpec, COL_NAME_H3INDEX};
-use crate::Error;
+use tracing::error;
+
 use arrow_h3::h3ron::collections::{HashMap, HashSet};
 use arrow_h3::h3ron::iter::change_resolution;
 use arrow_h3::h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
-use tracing::error;
+
+use crate::clickhouse::compacted_tables::{Table, TableSet, TableSpec, COL_NAME_H3INDEX};
+use crate::Error;
 
 #[derive(Clone)]
 pub enum TableSetQuery {

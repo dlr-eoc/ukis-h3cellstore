@@ -1,12 +1,12 @@
 use std::any::type_name;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ValidateSchema,
 };
-
 use crate::{Error, Named};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

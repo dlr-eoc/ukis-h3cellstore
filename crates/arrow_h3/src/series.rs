@@ -1,8 +1,10 @@
-use crate::Error;
-use h3ron::Index;
-use polars_core::prelude::{NamedFrom, PolarsIterator, Series};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
+
+use h3ron::Index;
+use polars_core::prelude::{NamedFrom, PolarsIterator, Series};
+
+use crate::Error;
 
 /// create a `Series` from an iterator of `Index`-implementing values
 #[inline]
