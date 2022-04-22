@@ -8,7 +8,7 @@ use std::iter::FromIterator;
 
 use h3ron::{H3Cell, Index};
 use itertools::Itertools;
-use polars_core::prelude::{DataFrame, DataType, JoinType};
+use polars_core::prelude::{DataFrame, DataType, JoinType, Series};
 
 use crate::algo::iter::ToIndexCollection;
 #[cfg(feature = "serde")]
@@ -83,7 +83,7 @@ impl H3DataFrame {
     }
 
     pub fn validate(&self) -> Result<(), Error> {
-        match self.dataframe.column(&self.h3index_column_name) {
+        match self.index_series() {
             Ok(column) => {
                 if column.dtype() != &DataType::UInt64 {
                     return Err(Error::DataframeInvalidH3IndexType(
@@ -112,6 +112,12 @@ impl H3DataFrame {
         } else {
             self.dataframe.column(column_name)?.to_index_collection()
         }
+    }
+
+    /// reference to the series containing the indexes
+    #[inline]
+    pub fn index_series(&self) -> Result<&Series, Error> {
+        Ok(self.dataframe.column(&self.h3index_column_name)?)
     }
 }
 

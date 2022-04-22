@@ -23,9 +23,7 @@ impl ObtainH3Resolutions for Series {
 
 impl ObtainH3Resolutions for H3DataFrame {
     fn h3_resolutions(&self) -> Result<Vec<u8>, Error> {
-        self.dataframe
-            .column(&self.h3index_column_name)?
-            .h3_resolutions()
+        self.index_series()?.h3_resolutions()
     }
 }
 

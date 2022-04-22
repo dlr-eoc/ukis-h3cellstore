@@ -6,9 +6,11 @@ use crate::{Error, H3DataFrame};
 use h3ron::Index;
 use polars_core::prelude::Series;
 
+/// iterate over parts of container yielding chunks of max. `max_num_rows` rows
 pub trait IterRowCountLimited<'a> {
     type Iter;
 
+    /// iterate over parts of container yielding chunks of max. `max_num_rows` rows
     fn iter_row_count_limited(&'a self, max_num_rows: usize) -> Result<Self::Iter, Error>;
 }
 
@@ -85,9 +87,7 @@ impl IterSeriesIndexes for H3DataFrame {
     where
         I: Index + TryFrom<u64, Error = h3ron::Error>,
     {
-        self.dataframe
-            .column(&self.h3index_column_name)?
-            .iter_indexes()
+        self.index_series()?.iter_indexes()
     }
 }
 
@@ -111,9 +111,7 @@ impl IterSeriesIndexesSkipInvalid for H3DataFrame {
     where
         I: Index,
     {
-        self.dataframe
-            .column(&self.h3index_column_name)?
-            .iter_indexes_skip_invalid()
+        self.index_series()?.iter_indexes_skip_invalid()
     }
 }
 
