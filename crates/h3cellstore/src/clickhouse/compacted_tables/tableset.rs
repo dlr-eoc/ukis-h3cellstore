@@ -3,7 +3,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use arrow_h3::h3ron::collections::HashMap;
+use arrow_h3::export::h3ron::collections::HashMap;
 
 use crate::clickhouse::compacted_tables::CompactedTablesStore;
 use crate::Error;

@@ -1,10 +1,9 @@
-#[cfg(feature = "reexport-deps")]
-pub use arrow_h3;
-
 pub use crate::error::Error;
 
 pub mod clickhouse;
 pub mod error;
+#[cfg(feature = "export")]
+pub mod export;
 
 pub trait Named {
     fn name(&self) -> &'static str;

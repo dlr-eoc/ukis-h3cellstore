@@ -10,7 +10,10 @@ authors = [
 [features]
 simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
 tls = ["tonic/tls"]
-reexport-deps = []
+
+# activate to re-export depdendencies
+export = []
+
 
 [dependencies]
 prost = "0.10"

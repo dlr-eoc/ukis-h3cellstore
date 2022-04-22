@@ -11,7 +11,9 @@ authors = [
 [features]
 serde = ["dep:serde", "polars/serde", "h3ron/use-serde"]
 simd = ["polars-core/simd", "polars/simd"]
-reexport-deps = []
+
+# activate to re-export depdendencies
+export = []
 
 [dependencies]
 thiserror = "1"

@@ -16,7 +16,7 @@ tracing = "0.1"
 [dependencies.h3cellstore]
 path =  "../h3cellstore"
 features = [
-    "reexport-deps",
+    "export",
     "tls"
 ]
 
@@ -35,7 +35,10 @@ features = [
 
 [dependencies.tracing-subscriber]
 version = "0.3"
-features = ["json", "env-filter"]
+features = [
+    #"json",
+    "env-filter"
+]
 
 [dependencies.tokio]
 version = "^1"

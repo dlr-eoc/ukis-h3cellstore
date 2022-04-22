@@ -1,4 +1,4 @@
-use h3cellstore::arrow_h3::h3ron;
+use h3cellstore::export::arrow_h3::export::h3ron;
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::PyResult;
 

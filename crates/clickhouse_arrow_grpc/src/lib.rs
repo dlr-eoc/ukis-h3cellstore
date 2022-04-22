@@ -1,12 +1,6 @@
-#[cfg(feature = "reexport-deps")]
-pub use arrow2;
 use async_trait::async_trait;
 use polars_core::frame::DataFrame;
-#[cfg(feature = "reexport-deps")]
-pub use tokio;
 use tokio::task::spawn_blocking;
-#[cfg(feature = "reexport-deps")]
-pub use tonic;
 use tonic::transport::Channel;
 use tracing::{span, Instrument, Level};
 
@@ -21,6 +15,9 @@ pub use self::error::Error;
 pub mod api;
 mod arrow_integration;
 mod error;
+
+#[cfg(feature = "export")]
+pub mod export;
 
 #[async_trait]
 pub trait ArrowInterface {

@@ -6,13 +6,13 @@ use clickhouse_arrow_grpc::Error as CAGError;
 #[derive(ThisError, Debug)]
 pub enum Error {
     #[error("polars error: {0}")]
-    Polars(#[from] arrow_h3::polars_core::error::PolarsError),
+    Polars(#[from] arrow_h3::export::polars_core::error::PolarsError),
 
     #[error("arrow error: {0}")]
-    Arrow(#[from] clickhouse_arrow_grpc::arrow2::error::ArrowError),
+    Arrow(#[from] clickhouse_arrow_grpc::export::arrow2::error::ArrowError),
 
     #[error("tonic GRPC status error: {0}")]
-    TonicStatus(#[from] clickhouse_arrow_grpc::tonic::Status),
+    TonicStatus(#[from] clickhouse_arrow_grpc::export::tonic::Status),
 
     #[error("ClickhouseException({name:?}, {display_text:?})")]
     ClickhouseException {
@@ -28,10 +28,10 @@ pub enum Error {
     ArrowChunkMissingField(String),
 
     #[error("join error")]
-    JoinError(#[from] clickhouse_arrow_grpc::tokio::task::JoinError),
+    JoinError(#[from] clickhouse_arrow_grpc::export::tokio::task::JoinError),
 
     #[error("h3ron error: {0}")]
-    H3ron(#[from] arrow_h3::h3ron::Error),
+    H3ron(#[from] arrow_h3::export::h3ron::Error),
 
     #[error("dataframe h3index column '{0}' is typed as {1}, but should be UInt64")]
     DataframeInvalidH3IndexType(String, String),

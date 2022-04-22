@@ -5,14 +5,8 @@
 
 extern crate core;
 
-#[cfg(feature = "reexport-deps")]
-pub use h3ron;
-// for downstream dependency management
-#[cfg(feature = "reexport-deps")]
-pub use polars;
-// for downstream dependency management
-#[cfg(feature = "reexport-deps")]
-pub use polars_core;
+#[cfg(feature = "export")]
+pub mod export;
 
 pub use error::Error;
 pub use frame::H3DataFrame;

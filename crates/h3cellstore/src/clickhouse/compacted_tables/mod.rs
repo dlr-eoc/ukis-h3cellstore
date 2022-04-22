@@ -5,8 +5,8 @@ use tokio::task::spawn_blocking;
 use tracing::{debug_span, info_span, warn, Instrument};
 
 use arrow_h3::algo::UnCompact;
-use arrow_h3::h3ron::collections::HashMap;
-use arrow_h3::h3ron::H3Cell;
+use arrow_h3::export::h3ron::collections::HashMap;
+use arrow_h3::export::h3ron::H3Cell;
 use arrow_h3::H3DataFrame;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 pub use tableset::{Table, TableSet, TableSpec};
