@@ -178,7 +178,7 @@ where
                 }
             }
             Ordering::Greater => {
-                // skip smaller cells as they can not be brought up to smaller resolutions withoud
+                // skip smaller cells as they can not be brought up to smaller resolutions without
                 // skewing data.
             }
         }
