@@ -75,7 +75,7 @@ pub trait CompactedTablesStore {
         database_name: S,
         tableset: TS,
         query: TableSetQuery,
-        cells: &[H3Cell],
+        cells: Vec<H3Cell>,
         h3_resolution: u8,
     ) -> Result<H3DataFrame, Error>
     where
@@ -288,7 +288,7 @@ where
         database_name: S,
         tableset: TS,
         query: TableSetQuery,
-        cells: &[H3Cell],
+        cells: Vec<H3Cell>, // TODO: iterator with borrow and normalize to `h3_resolution`
         h3_resolution: u8,
     ) -> Result<H3DataFrame, Error>
     where
@@ -299,8 +299,12 @@ where
             .load_tableset_from_store(self, database_name.as_ref())
             .await?;
 
-        // todo: move to background thread?
-        let query_string = query.build_cell_query_string(&tableset, h3_resolution, cells)?;
+        let (query_string, cells) = spawn_blocking(move || {
+            query
+                .build_cell_query_string(&tableset, h3_resolution, &cells)
+                .map(|query_string| (query_string, cells))
+        })
+        .await??;
 
         let df = self
             .execute_into_dataframe(QueryInfo {
@@ -311,6 +315,11 @@ where
             .await?;
         let h3df = H3DataFrame::from_dataframe(df, COL_NAME_H3INDEX)?;
 
-        Ok(spawn_blocking(move || h3df.uncompact(h3_resolution)).await??)
+        Ok(spawn_blocking(move || {
+            // use restricted uncompacting to filter by input cells so we
+            // avoid over-fetching in case of large, compacted cells.
+            h3df.uncompact_restricted(h3_resolution, cells)
+        })
+        .await??)
     }
 }

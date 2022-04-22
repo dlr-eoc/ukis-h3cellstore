@@ -1,9 +1,12 @@
-use h3ron::collections::CompactedCellVec;
+use h3ron::collections::{CompactedCellVec, H3CellSet};
+use h3ron::iter::change_resolution;
 use h3ron::{H3Cell, Index};
 use polars::prelude::{col, IntoLazy};
 use polars_core::frame::DataFrame;
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use tracing::{span, Level};
 
 use crate::frame::series_iter_indexes;
@@ -20,6 +23,18 @@ pub trait UnCompact {
     fn uncompact(self, target_resolution: u8) -> Result<Self, Error>
     where
         Self: Sized;
+
+    /// uncompact but limit the uncompaction the given cells. all other contents
+    /// will be discarded
+    fn uncompact_restricted<I>(
+        self,
+        target_resolution: u8,
+        restricted_subset: I,
+    ) -> Result<Self, Error>
+    where
+        Self: Sized,
+        I: IntoIterator,
+        I::Item: Borrow<H3Cell>;
 }
 
 impl Compact for H3DataFrame {
@@ -102,55 +117,100 @@ impl UnCompact for H3DataFrame {
     where
         Self: Sized,
     {
-        let span = span!(
-            Level::DEBUG,
-            "Uncompacting H3DataFrame",
-            n_rows = self.dataframe.shape().0,
-            n_columns = self.dataframe.shape().1
-        );
-        let _enter = span.enter();
+        uncompact_h3dataframe(self, target_resolution, |_| true)
+    }
 
-        // create a temporary df mapping index to uncompacted indexes to use for joining
-        let mut original_index = Vec::with_capacity(self.dataframe.shape().0);
-        let mut uncompacted_indexes = Vec::with_capacity(self.dataframe.shape().0);
+    fn uncompact_restricted<I>(
+        self,
+        target_resolution: u8,
+        restricted_subset: I,
+    ) -> Result<Self, Error>
+    where
+        Self: Sized,
+        I: IntoIterator,
+        I::Item: Borrow<H3Cell>,
+    {
+        let subset = change_resolution(restricted_subset.into_iter(), target_resolution)
+            .collect::<Result<H3CellSet, _>>()?;
 
-        for cell in self.iter_indexes::<H3Cell>()? {
-            if cell.resolution() >= target_resolution {
-                original_index.push(cell.h3index() as u64);
-                uncompacted_indexes.push(cell.h3index() as u64);
-            } else {
-                for child_cell in cell.get_children(target_resolution)?.iter() {
-                    original_index.push(cell.h3index() as u64);
+        uncompact_h3dataframe(self, target_resolution, |cell| subset.contains(cell))
+    }
+}
+
+fn uncompact_h3dataframe<F>(
+    h3df: H3DataFrame,
+    target_resolution: u8,
+    cell_filter: F,
+) -> Result<H3DataFrame, Error>
+where
+    F: Fn(&H3Cell) -> bool,
+{
+    let span = span!(
+        Level::DEBUG,
+        "Uncompacting H3DataFrame",
+        n_rows = h3df.dataframe.shape().0,
+        n_columns = h3df.dataframe.shape().1
+    );
+    let _enter = span.enter();
+
+    // create a temporary df mapping index to uncompacted indexes to use for joining
+    let mut original_index = Vec::with_capacity(h3df.dataframe.shape().0);
+    let mut uncompacted_indexes = Vec::with_capacity(h3df.dataframe.shape().0);
+
+    for h3df_cell in h3df.iter_indexes::<H3Cell>()? {
+        match h3df_cell.resolution().cmp(&target_resolution) {
+            Ordering::Less => {
+                // todo: Not needing to un-compact all children when a filter is specified would be an improvement,
+                //     especially with large resolution differences.
+                for child_cell in h3df_cell
+                    .get_children(target_resolution)?
+                    .iter()
+                    .filter(&cell_filter)
+                {
+                    original_index.push(h3df_cell.h3index() as u64);
                     uncompacted_indexes.push(child_cell.h3index() as u64);
                 }
             }
+            Ordering::Equal => {
+                if cell_filter(&h3df_cell) {
+                    original_index.push(h3df_cell.h3index() as u64);
+                    uncompacted_indexes.push(h3df_cell.h3index() as u64);
+                }
+            }
+            Ordering::Greater => {
+                // skip smaller cells as they can not be brought up to smaller resolutions withoud
+                // skewing data.
+            }
         }
-
-        let join_df = DataFrame::new(vec![
-            Series::new(&self.h3index_column_name, original_index),
-            Series::new(UNCOMPACT_HELPER_COL_NAME, uncompacted_indexes),
-        ])?;
-
-        let out_df = self
-            .dataframe
-            .lazy()
-            .inner_join(
-                join_df.lazy(),
-                col(&self.h3index_column_name),
-                col(&self.h3index_column_name),
-            )
-            .drop_columns(&[&self.h3index_column_name])
-            .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&self.h3index_column_name])
-            .collect()?;
-
-        (out_df, self.h3index_column_name).try_into()
     }
+
+    let join_df = DataFrame::new(vec![
+        Series::new(&h3df.h3index_column_name, original_index),
+        Series::new(UNCOMPACT_HELPER_COL_NAME, uncompacted_indexes),
+    ])?;
+
+    let out_df = h3df
+        .dataframe
+        .lazy()
+        .inner_join(
+            join_df.lazy(),
+            col(&h3df.h3index_column_name),
+            col(&h3df.h3index_column_name),
+        )
+        .drop_columns(&[&h3df.h3index_column_name])
+        .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&h3df.h3index_column_name])
+        .collect()?;
+
+    (out_df, h3df.h3index_column_name).try_into()
 }
 
 #[cfg(test)]
 mod tests {
     use crate::algo::compact::{Compact, UnCompact};
     use crate::algo::tests::make_h3_dataframe;
+    use crate::H3DataFrame;
+    use h3ron::{H3Cell, Index};
+    use itertools::Itertools;
 
     fn compact_roundtrip_dataframe_helper(value: Option<u32>) {
         let max_res = 8;
@@ -189,5 +249,32 @@ mod tests {
     #[test]
     fn compact_roundtrip_dataframe_without_value() {
         compact_roundtrip_dataframe_helper(None)
+    }
+
+    #[test]
+    fn uncompact_restricted() {
+        let origin_cell = H3Cell::from_coordinate((12.0, 12.0).into(), 5).unwrap();
+        let h3df =
+            H3DataFrame::from_cell_iter(origin_cell.grid_disk(10).unwrap().iter(), "myindex")
+                .unwrap();
+
+        let subset_origin = origin_cell.center_child(7).unwrap();
+        let subset = subset_origin
+            .grid_disk(1)
+            .unwrap()
+            .iter()
+            .sorted()
+            .collect::<Vec<_>>();
+        let subset_h3df = h3df
+            .uncompact_restricted(subset_origin.resolution(), subset.iter())
+            .unwrap();
+        assert_eq!(subset_h3df.dataframe.shape().0, subset.len());
+
+        let subset_from_subset_h3df = {
+            let mut sbs: Vec<_> = subset_h3df.index_collection().unwrap();
+            sbs.sort();
+            sbs
+        };
+        assert_eq!(subset, subset_from_subset_h3df);
     }
 }

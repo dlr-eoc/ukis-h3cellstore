@@ -66,6 +66,21 @@ impl H3DataFrame {
         Ok(h3df)
     }
 
+    pub fn from_cell_iter<I, S>(cells_iter: I, h3index_column_name: S) -> Result<Self, Error>
+    where
+        S: AsRef<str>,
+        I: IntoIterator,
+        I::Item: Borrow<H3Cell>,
+    {
+        Ok(Self {
+            dataframe: DataFrame::new(vec![to_index_series(
+                h3index_column_name.as_ref(),
+                cells_iter,
+            )])?,
+            h3index_column_name: h3index_column_name.as_ref().to_string(),
+        })
+    }
+
     pub fn validate(&self) -> Result<(), Error> {
         match self.dataframe.column(&self.h3index_column_name) {
             Ok(column) => {
