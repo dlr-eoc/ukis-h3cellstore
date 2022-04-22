@@ -2,6 +2,9 @@
 name = "clickhouse_arrow_grpc"
 version = "0.1.0"
 edition = "2021"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
 
 
 [features]

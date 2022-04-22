@@ -2,6 +2,9 @@
 name = "arrow_h3"
 version = "0.1.0"
 edition = "2021"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

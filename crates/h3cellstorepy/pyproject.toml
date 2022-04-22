@@ -1,0 +1,15 @@
+[build-system]
+requires = [
+    "maturin==0.12",
+    "pytest==6.2",
+]
+build-backend = "maturin"
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--doctest-modules"
+testpaths = [
+    "h3cellstorepy",
+    "tests"
+]
