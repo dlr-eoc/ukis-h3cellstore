@@ -12,12 +12,16 @@ crate-type = ["cdylib"]
 
 [dependencies]
 tracing = "0.1"
+serde_json = "1"
+lazy_static = "1"
+regex = "1.5.5"
 
 [dependencies.h3cellstore]
 path =  "../h3cellstore"
 features = [
     "export",
-    "tls"
+    "tls",
+    "serde"
 ]
 
 [dependencies.pyo3]

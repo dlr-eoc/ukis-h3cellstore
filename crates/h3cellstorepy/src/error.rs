@@ -52,7 +52,7 @@ impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),
-            // TODO: more fine-grained mapping to pyhton exceptions
+            // TODO: more fine-grained mapping to python exceptions
             Err(err) => Err(PyValueError::new_err(err.to_string())),
         }
     }
@@ -64,6 +64,18 @@ impl<T> IntoPyResult<T> for Result<T, tokio::task::JoinError> {
             Ok(v) => Ok(v),
             Err(err) => Err(PyRuntimeError::new_err(format!(
                 "joining task failed: {}",
+                err.to_string()
+            ))),
+        }
+    }
+}
+
+impl<T> IntoPyResult<T> for serde_json::Result<T> {
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyIOError::new_err(format!(
+                "JSON (de-)serializaiton failed: {}",
                 err.to_string()
             ))),
         }
