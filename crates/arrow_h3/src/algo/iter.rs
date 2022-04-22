@@ -1,4 +1,10 @@
+use crate::series::{
+    series_iter_indexes, series_iter_indexes_skip_invalid, SeriesIndexIter,
+    SeriesIndexSkipInvalidIter,
+};
 use crate::{Error, H3DataFrame};
+use h3ron::Index;
+use polars_core::prelude::Series;
 
 pub trait IterRowCountLimited<'a> {
     type Iter;
@@ -56,6 +62,92 @@ impl<'a> Iterator for H3DataFrameRCLIter<'a> {
                 .ceil() as usize,
             None,
         )
+    }
+}
+
+pub trait IterSeriesIndexes {
+    fn iter_indexes<I>(&self) -> Result<SeriesIndexIter<'_, I>, Error>
+    where
+        I: Index + TryFrom<u64, Error = h3ron::Error>;
+}
+
+impl IterSeriesIndexes for Series {
+    fn iter_indexes<I>(&self) -> Result<SeriesIndexIter<'_, I>, Error>
+    where
+        I: Index + TryFrom<u64, Error = h3ron::Error>,
+    {
+        series_iter_indexes(self)
+    }
+}
+
+impl IterSeriesIndexes for H3DataFrame {
+    fn iter_indexes<I>(&self) -> Result<SeriesIndexIter<'_, I>, Error>
+    where
+        I: Index + TryFrom<u64, Error = h3ron::Error>,
+    {
+        self.dataframe
+            .column(&self.h3index_column_name)?
+            .iter_indexes()
+    }
+}
+
+pub trait IterSeriesIndexesSkipInvalid {
+    fn iter_indexes_skip_invalid<I>(&self) -> Result<SeriesIndexSkipInvalidIter<'_, I>, Error>
+    where
+        I: Index;
+}
+
+impl IterSeriesIndexesSkipInvalid for Series {
+    fn iter_indexes_skip_invalid<I>(&self) -> Result<SeriesIndexSkipInvalidIter<'_, I>, Error>
+    where
+        I: Index,
+    {
+        series_iter_indexes_skip_invalid(self)
+    }
+}
+
+impl IterSeriesIndexesSkipInvalid for H3DataFrame {
+    fn iter_indexes_skip_invalid<I>(&self) -> Result<SeriesIndexSkipInvalidIter<'_, I>, Error>
+    where
+        I: Index,
+    {
+        self.dataframe
+            .column(&self.h3index_column_name)?
+            .iter_indexes_skip_invalid()
+    }
+}
+
+pub trait ToIndexCollection {
+    /// build a collection from the contained Indexes.
+    fn to_index_collection<C, I>(&self) -> Result<C, Error>
+    where
+        C: FromIterator<I>,
+        I: Index + TryFrom<u64, Error = h3ron::Error>;
+}
+
+impl ToIndexCollection for Series {
+    fn to_index_collection<C, I>(&self) -> Result<C, Error>
+    where
+        C: FromIterator<I>,
+        I: Index + TryFrom<u64, Error = h3ron::Error>,
+    {
+        self.iter_indexes()?.collect::<Result<C, _>>()
+    }
+}
+
+impl ToIndexCollection for H3DataFrame {
+    fn to_index_collection<C, I>(&self) -> Result<C, Error>
+    where
+        C: FromIterator<I>,
+        I: Index + TryFrom<u64, Error = h3ron::Error>,
+    {
+        if self.dataframe.is_empty() {
+            Ok(std::iter::empty().collect())
+        } else {
+            self.dataframe
+                .column(&self.h3index_column_name)?
+                .to_index_collection()
+        }
     }
 }
 

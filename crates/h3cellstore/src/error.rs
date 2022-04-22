@@ -65,6 +65,9 @@ pub enum Error {
 
     #[error("tableset not found: {0}")]
     TableSetNotFound(String),
+
+    #[error("missing index value")]
+    MissingIndexValue,
 }
 
 impl From<AH3Error> for Error {
@@ -79,6 +82,7 @@ impl From<AH3Error> for Error {
             AH3Error::UnsupportedH3Resolution(resolution) => {
                 Error::UnsupportedH3Resolution(resolution)
             }
+            AH3Error::MissingIndexValue => Error::MissingIndexValue,
         }
     }
 }

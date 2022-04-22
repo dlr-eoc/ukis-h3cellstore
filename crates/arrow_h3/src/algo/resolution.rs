@@ -1,7 +1,33 @@
+use crate::algo::IterSeriesIndexes;
 use crate::{Error, H3DataFrame};
 use h3ron::{H3Cell, Index};
 use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
+
+// TODO: assumes cells
+pub trait ObtainH3Resolutions {
+    fn h3_resolutions(&self) -> Result<Vec<u8>, Error>;
+
+    fn h3_resolutions_series(&self) -> Result<Series, Error> {
+        Ok(Series::new("resolutions", self.h3_resolutions()?))
+    }
+}
+
+impl ObtainH3Resolutions for Series {
+    fn h3_resolutions(&self) -> Result<Vec<u8>, Error> {
+        self.iter_indexes::<H3Cell>()?
+            .map(|cell_result| cell_result.map(|cell| cell.resolution()))
+            .collect::<Result<Vec<_>, _>>()
+    }
+}
+
+impl ObtainH3Resolutions for H3DataFrame {
+    fn h3_resolutions(&self) -> Result<Vec<u8>, Error> {
+        self.dataframe
+            .column(&self.h3index_column_name)?
+            .h3_resolutions()
+    }
+}
 
 pub trait AppendResolutionColumn {
     /// Also handles partially compacted and pre-compacted data
@@ -17,10 +43,7 @@ impl AppendResolutionColumn for H3DataFrame {
         Self: Sized,
         S: AsRef<str>,
     {
-        let resolutions = self
-            .iter_indexes::<H3Cell>()?
-            .map(|cell| cell.resolution())
-            .collect::<Vec<_>>();
+        let resolutions = self.h3_resolutions()?;
         self.dataframe
             .with_column(Series::new(column_name.as_ref(), resolutions))?;
         Ok(())

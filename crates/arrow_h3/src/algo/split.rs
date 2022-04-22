@@ -1,6 +1,7 @@
 use polars_core::series::ChunkCompare;
 use tracing::{span, Level};
 
+use crate::algo::ObtainH3Resolutions;
 use crate::{Error, H3DataFrame};
 
 pub trait SplitByH3Resolution {
@@ -24,7 +25,7 @@ impl SplitByH3Resolution for H3DataFrame {
         );
         let _enter = span.enter();
 
-        let mut contained_resolutions = self.resolutions_series()?;
+        let mut contained_resolutions = self.h3_resolutions_series()?;
         contained_resolutions.rename(RESSPLIT_HELPER_COL_NAME);
 
         let distinct_resolutions: Vec<u8> = contained_resolutions

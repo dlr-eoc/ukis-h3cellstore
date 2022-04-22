@@ -9,7 +9,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use tracing::{span, Level};
 
-use crate::frame::series_iter_indexes;
+use crate::algo::IterSeriesIndexes;
 use crate::{Error, H3DataFrame};
 
 pub trait Compact {
@@ -101,7 +101,12 @@ impl Compact for H3DataFrame {
 
 fn compact_cell_series(series: &Series) -> Result<Series, Error> {
     let mut ccv = CompactedCellVec::new();
-    ccv.add_cells(series_iter_indexes::<H3Cell>(series)?, true)?;
+    ccv.add_cells(
+        series
+            .iter_indexes::<H3Cell>()?
+            .collect::<Result<Vec<_>, _>>()?,
+        true,
+    )?;
     Ok(Series::new(
         series.name(), // always keep the name of the imput series
         ccv.iter_compacted_cells()
@@ -158,6 +163,7 @@ where
     let mut uncompacted_indexes = Vec::with_capacity(h3df.dataframe.shape().0);
 
     for h3df_cell in h3df.iter_indexes::<H3Cell>()? {
+        let h3df_cell = h3df_cell?;
         match h3df_cell.resolution().cmp(&target_resolution) {
             Ordering::Less => {
                 // todo: Not needing to un-compact all children when a filter is specified would be an improvement,
@@ -208,6 +214,7 @@ where
 mod tests {
     use crate::algo::compact::{Compact, UnCompact};
     use crate::algo::tests::make_h3_dataframe;
+    use crate::algo::{ObtainH3Resolutions, ToIndexCollection};
     use crate::H3DataFrame;
     use h3ron::{H3Cell, Index};
     use itertools::Itertools;
@@ -224,7 +231,7 @@ mod tests {
         assert_eq!(shape_before.1, compacted.dataframe.shape().1);
         assert_eq!(name_before, compacted.h3index_column_name);
 
-        let resolutions = compacted.resolutions().unwrap();
+        let resolutions = compacted.h3_resolutions().unwrap();
         assert_eq!(resolutions.len(), compacted.dataframe.shape().0);
         for res in resolutions {
             assert!(res <= max_res)
@@ -234,7 +241,7 @@ mod tests {
         assert_eq!(shape_before, uncompacted.dataframe.shape());
         assert_eq!(name_before, uncompacted.h3index_column_name);
 
-        let resolutions = uncompacted.resolutions().unwrap();
+        let resolutions = uncompacted.h3_resolutions().unwrap();
         assert_eq!(resolutions.len(), uncompacted.dataframe.shape().0);
         for res in resolutions {
             assert_eq!(res, max_res);
@@ -271,7 +278,7 @@ mod tests {
         assert_eq!(subset_h3df.dataframe.shape().0, subset.len());
 
         let subset_from_subset_h3df = {
-            let mut sbs: Vec<_> = subset_h3df.index_collection().unwrap();
+            let mut sbs: Vec<H3Cell> = subset_h3df.to_index_collection().unwrap();
             sbs.sort();
             sbs
         };

@@ -1,4 +1,4 @@
-use crate::frame::to_index_series;
+use crate::series::to_index_series;
 use crate::{Error, H3DataFrame};
 use h3ron::H3Cell;
 use polars_core::prelude::{DataFrame, NamedFrom, Series};

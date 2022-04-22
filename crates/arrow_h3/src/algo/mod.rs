@@ -7,6 +7,8 @@ pub mod split;
 pub(crate) mod tests;
 
 pub use compact::{Compact, UnCompact};
-pub use iter::IterRowCountLimited;
-pub use resolution::AppendResolutionColumn;
+pub use iter::{
+    IterRowCountLimited, IterSeriesIndexes, IterSeriesIndexesSkipInvalid, ToIndexCollection,
+};
+pub use resolution::{AppendResolutionColumn, ObtainH3Resolutions};
 pub use split::SplitByH3Resolution;

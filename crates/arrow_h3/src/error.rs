@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("Unsupported H3 resolution: {0}")]
     UnsupportedH3Resolution(u8),
+
+    #[error("missing index value")]
+    MissingIndexValue,
 }

@@ -8,6 +8,7 @@ extern crate core;
 pub mod algo;
 pub mod error;
 pub mod frame;
+pub mod series;
 
 pub use error::Error;
 pub use frame::H3DataFrame;
