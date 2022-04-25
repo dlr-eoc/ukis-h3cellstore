@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # install the dependencies needed for development and ci by
 # collecting them from all relevant files
 
