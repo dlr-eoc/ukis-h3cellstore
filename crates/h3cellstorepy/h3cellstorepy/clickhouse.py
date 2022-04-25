@@ -1,3 +1,4 @@
+# noinspection PyUnresolvedReferences
 from .h3cellstorepy import clickhouse
 from .frame import DataFrameWrapper
 

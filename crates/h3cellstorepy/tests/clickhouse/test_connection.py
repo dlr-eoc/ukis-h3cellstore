@@ -1,4 +1,6 @@
+# noinspection PyUnresolvedReferences
 from ..fixtures import clickhouse_grpc_endpoint, has_polars
+
 from h3cellstorepy.clickhouse import GRPCConnection
 
 import pytest

@@ -1,3 +1,4 @@
+# noinspection PyUnresolvedReferences
 from .h3cellstorepy import PyDataFrame, PyH3DataFrame
 import pyarrow as pa
 import typing

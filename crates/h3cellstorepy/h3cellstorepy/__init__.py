@@ -1,3 +1,5 @@
+
+# noinspection PyUnresolvedReferences
 from .h3cellstorepy import version
 
 __version__ = version()
