@@ -1,5 +1,5 @@
 use crate::error::IntoPyResult;
-use crate::PyDataFrame;
+use crate::{PyDataFrame, PyH3DataFrame};
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
@@ -96,6 +96,35 @@ impl GRPCConnection {
             })
             .into_pyresult()?;
         Ok(df.into())
+    }
+
+    pub fn execute_into_h3dataframe(
+        &mut self,
+        query: String,
+        h3index_column_name: String,
+    ) -> PyResult<PyH3DataFrame> {
+        let df = self
+            .runtime
+            .block_on(async {
+                self.client
+                    .execute_into_h3dataframe(
+                        QueryInfo {
+                            query: query,
+                            database: self.database_name.clone(),
+                            ..Default::default()
+                        },
+                        h3index_column_name,
+                    )
+                    .await
+            })
+            .into_pyresult()?;
+        Ok(df.into())
+    }
+
+    pub fn database_exists(&mut self, database_name: String) -> PyResult<bool> {
+        self.runtime
+            .block_on(async { self.client.database_exists(database_name).await })
+            .into_pyresult()
     }
 }
 

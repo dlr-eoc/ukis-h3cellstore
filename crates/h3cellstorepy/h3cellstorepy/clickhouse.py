@@ -24,10 +24,18 @@ class GRPCConnection:
     def __init__(self, grpc_endpoint: str, database_name: str, create_db: bool = False):
         self._connection = clickhouse.GRPCConnection.connect(grpc_endpoint, database_name, create_db, _RUNTIME)
 
-    def execute(self, query):
+    def execute(self, query: str):
         """execute the given query in the database without returning any result"""
         return self._connection.execute(query)
 
     def execute_into_dataframe(self, query: str) -> DataFrameWrapper:
         """execute the given query and return a non-H3 dataframe of it"""
         return DataFrameWrapper(self._connection.execute_into_dataframe(query))
+
+    def execute_into_h3dataframe(self, query: str, h3index_column_name) -> DataFrameWrapper:
+        """execute the given query and return a H3 dataframe of it"""
+        return DataFrameWrapper(self._connection.execute_into_h3dataframe(query, h3index_column_name))
+
+    def database_exists(self, database_name: str) -> bool:
+        """Check if the given DB exists"""
+        return self._connection.database_exists(database_name)
