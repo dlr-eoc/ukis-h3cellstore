@@ -48,6 +48,10 @@ pub trait H3CellStore {
         }
         Ok(())
     }
+
+    async fn database_exists<S>(&mut self, database_name: S) -> Result<bool, Error>
+    where
+        S: AsRef<str> + Send;
 }
 
 #[async_trait]
@@ -80,5 +84,22 @@ where
         Ok(self
             .insert_dataframe(database_name, table_name, h3df.dataframe)
             .await?)
+    }
+
+    async fn database_exists<S>(&mut self, database_name: S) -> Result<bool, Error>
+    where
+        S: AsRef<str> + Send,
+    {
+        let df = self
+            .execute_into_dataframe(QueryInfo {
+                query: format!(
+                    "select name from databases where name = '{}'",
+                    database_name.as_ref()
+                ),
+                database: "system".to_string(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(!(df.shape().0 == 0))
     }
 }

@@ -81,3 +81,34 @@ impl<T> IntoPyResult<T> for serde_json::Result<T> {
         }
     }
 }
+
+impl<T> IntoPyResult<T>
+    for std::result::Result<
+        T,
+        h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Error,
+    >
+{
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyIOError::new_err(format!(
+                "tonic transport error: {}",
+                err
+            ))),
+        }
+    }
+}
+
+impl<T> IntoPyResult<T>
+    for std::result::Result<T, h3cellstore::export::clickhouse_arrow_grpc::Error>
+{
+    fn into_pyresult(self) -> PyResult<T> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(err) => Err(PyIOError::new_err(format!(
+                "clickhouse_arrow_grpc error: {:?}",
+                err
+            ))),
+        }
+    }
+}
