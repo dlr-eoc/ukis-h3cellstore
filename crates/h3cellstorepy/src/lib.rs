@@ -1,10 +1,12 @@
 mod clickhouse;
 mod error;
+mod frame;
 
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 use tracing_subscriber::EnvFilter;
 
 use crate::clickhouse::init_clickhouse_submodule;
+use crate::frame::{PyDataFrame, PyH3DataFrame};
 
 /// version of the module
 #[pyfunction]
@@ -35,6 +37,9 @@ fn h3cellstorepy(py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(version, m)?)?;
     m.add_function(wrap_pyfunction!(is_release_build, m)?)?;
+
+    m.add("PyH3DataFrame", py.get_type::<PyH3DataFrame>())?;
+    m.add("PyDataFrame", py.get_type::<PyDataFrame>())?;
 
     let clickhouse_submod = PyModule::new(py, "clickhouse")?;
     init_clickhouse_submodule(py, clickhouse_submod)?;

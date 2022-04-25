@@ -1,6 +1,32 @@
 use h3cellstore::export::arrow_h3::export::h3ron;
+use h3cellstore::export::clickhouse_arrow_grpc::export::tonic;
+use h3cellstore::export::clickhouse_arrow_grpc::{ClickhouseException, Error};
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
-use pyo3::PyResult;
+use pyo3::{PyErr, PyResult};
+use tracing::debug;
+
+trait ToCustomPyErr {
+    fn to_custom_pyerr(self) -> PyErr;
+}
+
+impl ToCustomPyErr for tonic::Status {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyIOError::new_err(format!("GRPC status {}", self))
+    }
+}
+
+impl ToCustomPyErr for ClickhouseException {
+    fn to_custom_pyerr(self) -> PyErr {
+        debug!(
+            "clickhouse error: {} {}: stacktrace {}",
+            self.name, self.display_text, self.stack_trace
+        );
+        PyIOError::new_err(format!(
+            "Clickhouse error {}: {}",
+            self.name, self.display_text
+        ))
+    }
+}
 
 /// convert the result of some other crate into a PyResult
 pub trait IntoPyResult<T> {
@@ -17,11 +43,13 @@ impl<T> IntoPyResult<T> for Result<T, h3cellstore::Error> {
                     Err(PyRuntimeError::new_err(err.to_string()))
                 }
 
-                Error::TonicStatus(_)
-                | Error::ClickhouseException { .. }
-                | Error::MissingPrecondidtionsForPartialOptimization
+                Error::TonicStatus(status) => Err(status.to_custom_pyerr()),
+
+                Error::MissingPrecondidtionsForPartialOptimization
                 | Error::TableSetNotFound(_)
                 | Error::NoQueryableTables => Err(PyIOError::new_err(err.to_string())),
+
+                Error::ClickhouseException(ce) => Err(ce.to_custom_pyerr()),
 
                 Error::CastArrayLengthMismatch
                 | Error::ArrowChunkMissingField(_)
@@ -105,10 +133,16 @@ impl<T> IntoPyResult<T>
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(err) => Err(PyIOError::new_err(format!(
-                "clickhouse_arrow_grpc error: {:?}",
-                err
-            ))),
+            Err(err) => Err(match err {
+                Error::TonicStatus(status) => status.to_custom_pyerr(),
+                Error::ClickhouseException(ce) => ce.to_custom_pyerr(),
+
+                Error::Arrow(_)
+                | Error::Polars(_)
+                | Error::CastArrayLengthMismatch
+                | Error::ArrowChunkMissingField(_)
+                | Error::JoinError(_) => PyRuntimeError::new_err(err.to_string()),
+            }),
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::ClickhouseException;
 use thiserror::Error as ThisError;
 
 #[derive(ThisError, Debug)]
@@ -11,12 +12,8 @@ pub enum Error {
     #[error("tonic GRPC status error: {0}")]
     TonicStatus(#[from] tonic::Status),
 
-    #[error("ClickhouseException({name:?}, {display_text:?})")]
-    ClickhouseException {
-        name: String,
-        display_text: String,
-        stack_trace: String,
-    },
+    #[error("ClickhouseException({})", .0.to_string())]
+    ClickhouseException(ClickhouseException),
 
     #[error("mismatch of arrays in chunk to number of casts")]
     CastArrayLengthMismatch,

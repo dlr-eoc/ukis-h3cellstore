@@ -1,7 +1,7 @@
 use thiserror::Error as ThisError;
 
 use arrow_h3::Error as AH3Error;
-use clickhouse_arrow_grpc::Error as CAGError;
+use clickhouse_arrow_grpc::{ClickhouseException, Error as CAGError};
 
 #[derive(ThisError, Debug)]
 pub enum Error {
@@ -14,12 +14,8 @@ pub enum Error {
     #[error("tonic GRPC status error: {0}")]
     TonicStatus(#[from] clickhouse_arrow_grpc::export::tonic::Status),
 
-    #[error("ClickhouseException({name:?}, {display_text:?})")]
-    ClickhouseException {
-        name: String,
-        display_text: String,
-        stack_trace: String,
-    },
+    #[error("ClickhouseException({})", .0.to_string())]
+    ClickhouseException(ClickhouseException),
 
     #[error("mismatch of arrays in chunk to number of casts")]
     CastArrayLengthMismatch,
@@ -93,15 +89,7 @@ impl From<CAGError> for Error {
             CAGError::Polars(e) => Self::Polars(e),
             CAGError::Arrow(e) => Self::Arrow(e),
             CAGError::TonicStatus(e) => Self::TonicStatus(e),
-            CAGError::ClickhouseException {
-                name,
-                display_text,
-                stack_trace,
-            } => Self::ClickhouseException {
-                name,
-                display_text,
-                stack_trace,
-            },
+            CAGError::ClickhouseException(ce) => Self::ClickhouseException(ce),
             CAGError::CastArrayLengthMismatch => Self::CastArrayLengthMismatch,
             CAGError::ArrowChunkMissingField(name) => Self::ArrowChunkMissingField(name),
             CAGError::JoinError(e) => Self::JoinError(e),

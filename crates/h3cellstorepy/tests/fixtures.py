@@ -12,3 +12,11 @@ def __clickhouse_grpc_endpoint():
 @pytest.fixture
 def clickhouse_grpc_endpoint():
     return __clickhouse_grpc_endpoint()
+
+
+@pytest.fixture
+def has_polars():
+    try:
+        import polars
+    except ImportError:
+        raise pytest.skip()

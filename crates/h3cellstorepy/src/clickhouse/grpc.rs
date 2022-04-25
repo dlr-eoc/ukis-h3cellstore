@@ -1,4 +1,5 @@
 use crate::error::IntoPyResult;
+use crate::PyDataFrame;
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
@@ -64,6 +65,37 @@ impl GRPCConnection {
             runtime,
             client,
         })
+    }
+
+    pub fn execute(&mut self, query: String) -> PyResult<()> {
+        self.runtime
+            .block_on(async {
+                self.client
+                    .execute_query_checked(QueryInfo {
+                        query: query,
+                        database: self.database_name.clone(),
+                        ..Default::default()
+                    })
+                    .await
+            })
+            .into_pyresult()
+            .map(|_| ())
+    }
+
+    pub fn execute_into_dataframe(&mut self, query: String) -> PyResult<PyDataFrame> {
+        let df = self
+            .runtime
+            .block_on(async {
+                self.client
+                    .execute_into_dataframe(QueryInfo {
+                        query: query,
+                        database: self.database_name.clone(),
+                        ..Default::default()
+                    })
+                    .await
+            })
+            .into_pyresult()?;
+        Ok(df.into())
     }
 }
 

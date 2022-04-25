@@ -49,11 +49,11 @@ impl ArrowInterface for ClickHouseClient<Channel> {
         let response = self.execute_query(q).instrument(span).await?.into_inner();
 
         match response.exception {
-            Some(ex) => Err(Error::ClickhouseException {
+            Some(ex) => Err(Error::ClickhouseException(ClickhouseException {
                 name: ex.name,
                 display_text: ex.display_text,
                 stack_trace: ex.stack_trace,
-            }),
+            })),
             None => Ok(response),
         }
     }
@@ -84,5 +84,18 @@ impl ArrowInterface for ClickHouseClient<Channel> {
         };
         self.execute_query_checked(q).await?;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ClickhouseException {
+    pub name: String,
+    pub display_text: String,
+    pub stack_trace: String,
+}
+
+impl ToString for ClickhouseException {
+    fn to_string(&self) -> String {
+        format!("{}: {}", self.name, self.display_text)
     }
 }

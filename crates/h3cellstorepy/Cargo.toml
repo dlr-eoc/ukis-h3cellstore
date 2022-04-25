@@ -65,5 +65,6 @@ requires-dist = [
     "loguru>=0.5",
     "h3>=3.7.4",
     "geojson",
-    "numpy"
+    "numpy",
+    "pyarrow>=7.0.0"
 ]

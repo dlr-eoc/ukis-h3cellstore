@@ -1,5 +1,5 @@
-
 from .h3cellstorepy import clickhouse
+from .frame import DataFrameWrapper
 
 CompactedTableSchema = clickhouse.CompactedTableSchema
 CompactedTableSchemaBuilder = clickhouse.CompactedTableSchemaBuilder
@@ -17,5 +17,16 @@ __all__ = [
 ]
 
 
-def connect_grpc(grpc_endpoint: str, database_name: str, create_db: bool = False) -> clickhouse.GRPCConnection:
-    return clickhouse.GRPCConnection.connect(grpc_endpoint, database_name, create_db, _RUNTIME)
+class GRPCConnection:
+    _connection: clickhouse.GRPCConnection
+
+    def __init__(self, grpc_endpoint: str, database_name: str, create_db: bool = False):
+        self._connection = clickhouse.GRPCConnection.connect(grpc_endpoint, database_name, create_db, _RUNTIME)
+
+    def execute(self, query):
+        """execute the given query in the database without returning any result"""
+        return self._connection.execute(query)
+
+    def execute_into_dataframe(self, query: str) -> DataFrameWrapper:
+        """execute the given query and return a non-H3 dataframe of it"""
+        return DataFrameWrapper(self._connection.execute_into_dataframe(query))
