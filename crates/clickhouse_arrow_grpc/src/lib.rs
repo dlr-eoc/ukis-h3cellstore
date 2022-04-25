@@ -40,7 +40,11 @@ pub trait ArrowInterface {
 #[async_trait]
 impl ArrowInterface for ClickHouseClient<Channel> {
     async fn execute_query_checked(&mut self, q: QueryInfo) -> Result<QueryResult, Error> {
-        let span = span!(Level::DEBUG, "Executing query", query = q.query.as_str());
+        let span = span!(
+            Level::DEBUG,
+            "Executing checked query",
+            query = q.query.as_str()
+        );
 
         let response = self.execute_query(q).instrument(span).await?.into_inner();
 

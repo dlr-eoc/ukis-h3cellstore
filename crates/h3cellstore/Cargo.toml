@@ -20,10 +20,11 @@ thiserror = "1"
 lazy_static = "1"
 regex = "1.5"
 itertools = "0.10"
-tracing = "0.1"
 chrono = "0.4"
 rand = "0.8"
 
+[dependencies.tracing]
+version = "0.1"
 
 [dependencies.clickhouse_arrow_grpc]
 path = "../clickhouse_arrow_grpc"

@@ -11,7 +11,6 @@ name = "h3cellstorepy"
 crate-type = ["cdylib"]
 
 [dependencies]
-tracing = "0.1"
 serde_json = "1"
 lazy_static = "1"
 regex = "1.5.5"
@@ -19,8 +18,18 @@ py_geo_interface = "0.1.1"
 geo-types = "0.7"
 numpy = "0.16"
 
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = [
+    #"json",
+    "env-filter",
+]
+
+[dependencies.tracing]
+version = "0.1"
+
 [dependencies.h3cellstore]
-path =  "../h3cellstore"
+path = "../h3cellstore"
 features = [
     "export",
     "tls",
@@ -37,12 +46,6 @@ features = [
     "abi3-py37"
 ]
 
-[dependencies.tracing-subscriber]
-version = "0.3"
-features = [
-    #"json",
-    "env-filter"
-]
 
 [dependencies.tokio]
 version = "^1"

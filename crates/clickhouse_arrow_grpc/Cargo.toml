@@ -19,7 +19,9 @@ export = []
 prost = "0.10"
 thiserror = "1"
 async-trait = "0.1"
-tracing = "0.1"
+
+[dependencies.tracing]
+version = "0.1"
 
 [dependencies.arrow2]
 version = "0.10"

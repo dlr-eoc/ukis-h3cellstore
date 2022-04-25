@@ -2,9 +2,9 @@ mod clickhouse;
 mod error;
 
 use pyo3::{prelude::*, wrap_pyfunction, Python};
+use tracing_subscriber::EnvFilter;
 
 use crate::clickhouse::init_clickhouse_submodule;
-use tracing_subscriber::EnvFilter;
 
 /// version of the module
 #[pyfunction]
