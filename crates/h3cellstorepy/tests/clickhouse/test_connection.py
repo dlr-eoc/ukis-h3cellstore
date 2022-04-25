@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-from ..fixtures import clickhouse_grpc_endpoint, has_polars
+from ..fixtures import clickhouse_grpc_endpoint, has_polars, has_pandas
 
 from h3cellstorepy.clickhouse import GRPCConnection
 
@@ -22,7 +22,17 @@ def test_connection_execute_error_propagation(clickhouse_grpc_endpoint):
     assert "'something_invalid'" in str(excinfo)
 
 
-def test_connection_execute_into_dataframe(clickhouse_grpc_endpoint, has_polars):
+def test_connection_execute_into_dataframe_polars(clickhouse_grpc_endpoint, has_polars):
     con = GRPCConnection(clickhouse_grpc_endpoint, "system")
     df = con.execute_into_dataframe("select name from databases").to_polars()
+    import polars as pl
+    assert isinstance(df, pl.DataFrame)
+    assert df.shape[1] == 1
+
+
+def test_connection_execute_into_dataframe_pandas(clickhouse_grpc_endpoint, has_pandas):
+    con = GRPCConnection(clickhouse_grpc_endpoint, "system")
+    df = con.execute_into_dataframe("select name from databases").to_pandas()
+    import pandas as pd
+    assert isinstance(df, pd.DataFrame)
     assert df.shape[1] == 1

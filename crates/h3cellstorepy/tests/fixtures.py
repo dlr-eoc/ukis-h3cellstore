@@ -20,3 +20,11 @@ def has_polars():
         import polars
     except ImportError:
         raise pytest.skip()
+
+
+@pytest.fixture
+def has_pandas():
+    try:
+        import pandas
+    except ImportError:
+        raise pytest.skip()
