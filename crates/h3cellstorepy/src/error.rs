@@ -5,13 +5,59 @@ use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::{PyErr, PyResult};
 use tracing::debug;
 
-trait ToCustomPyErr {
+// TODO: this file is a mess
+
+pub trait ToCustomPyErr {
     fn to_custom_pyerr(self) -> PyErr;
 }
 
 impl ToCustomPyErr for tonic::Status {
     fn to_custom_pyerr(self) -> PyErr {
         PyIOError::new_err(format!("GRPC status {}", self))
+    }
+}
+
+impl ToCustomPyErr for h3cellstore::export::arrow_h3::export::polars_core::error::PolarsError {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyRuntimeError::new_err(format!("polars is unhappy: {:?}", self))
+    }
+}
+
+impl ToCustomPyErr
+    for h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::error::ArrowError
+{
+    fn to_custom_pyerr(self) -> PyErr {
+        PyRuntimeError::new_err(format!("arrow error: {:?}", self))
+    }
+}
+
+impl ToCustomPyErr for std::io::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyIOError::new_err(format!("{}", self))
+    }
+}
+
+impl ToCustomPyErr for h3ron::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyRuntimeError::new_err(format!("h3ron error: {:?}", self))
+    }
+}
+
+impl ToCustomPyErr for tokio::task::JoinError {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyRuntimeError::new_err(format!("joining tokio task when wrong: {:?}", self))
+    }
+}
+
+impl ToCustomPyErr for serde_json::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyIOError::new_err(format!("JSON (de-)serializaiton failed: {}", self))
+    }
+}
+
+impl ToCustomPyErr for h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        PyIOError::new_err(format!("Tonic transport error: {}", self))
     }
 }
 
@@ -67,62 +113,14 @@ impl<T> IntoPyResult<T> for Result<T, h3cellstore::Error> {
     }
 }
 
-impl<T> IntoPyResult<T> for std::io::Result<T> {
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(PyIOError::new_err(format!("IO error: {}", err))),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T> for Result<T, h3ron::Error> {
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            // TODO: more fine-grained mapping to python exceptions
-            Err(err) => Err(PyValueError::new_err(err.to_string())),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T> for Result<T, tokio::task::JoinError> {
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(PyRuntimeError::new_err(format!(
-                "joining task failed: {}",
-                err
-            ))),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T> for serde_json::Result<T> {
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(PyIOError::new_err(format!(
-                "JSON (de-)serializaiton failed: {}",
-                err
-            ))),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T>
-    for std::result::Result<
-        T,
-        h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Error,
-    >
+impl<T, E> IntoPyResult<T> for Result<T, E>
+where
+    E: ToCustomPyErr,
 {
     fn into_pyresult(self) -> PyResult<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(err) => Err(PyIOError::new_err(format!(
-                "tonic transport error: {}",
-                err
-            ))),
+            Err(err) => Err(err.to_custom_pyerr()),
         }
     }
 }
@@ -140,8 +138,9 @@ impl<T> IntoPyResult<T>
                 Error::Arrow(_)
                 | Error::Polars(_)
                 | Error::CastArrayLengthMismatch
-                | Error::ArrowChunkMissingField(_)
-                | Error::JoinError(_) => PyRuntimeError::new_err(err.to_string()),
+                | Error::ArrowChunkMissingField(_) => PyRuntimeError::new_err(err.to_string()),
+
+                Error::JoinError(e) => e.to_custom_pyerr(),
             }),
         }
     }

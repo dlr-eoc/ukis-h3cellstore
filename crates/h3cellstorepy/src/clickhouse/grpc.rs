@@ -1,7 +1,7 @@
 use crate::clickhouse::schema::PyCompactedTableSchema;
 use crate::clickhouse::tableset::PyTableSet;
 use crate::error::IntoPyResult;
-use crate::frame::wrapped_frame;
+use crate::frame::{dataframe_from_pyany, wrapped_frame};
 use crate::{PyDataFrame, PyH3DataFrame};
 use h3cellstore::clickhouse::compacted_tables::CompactedTablesStore;
 use h3cellstore::clickhouse::H3CellStore;
@@ -104,6 +104,23 @@ impl GRPCConnection {
             .into_pyresult()?
             .into();
         wrapped_frame(py, df)
+    }
+
+    /// insert a dataframe into a table
+    pub fn insert_dataframe(
+        &mut self,
+        py: Python,
+        table_name: String,
+        dataframe: &PyAny,
+    ) -> PyResult<()> {
+        let df = dataframe_from_pyany(py, dataframe)?;
+        self.runtime
+            .block_on(async {
+                self.client
+                    .insert_dataframe(&self.database_name, table_name, df)
+                    .await
+            })
+            .into_pyresult()
     }
 
     /// execute the given query and return a H3 dataframe of it

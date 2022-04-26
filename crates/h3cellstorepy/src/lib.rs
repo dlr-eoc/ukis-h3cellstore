@@ -1,3 +1,4 @@
+mod arrow_interop;
 mod clickhouse;
 mod error;
 mod frame;

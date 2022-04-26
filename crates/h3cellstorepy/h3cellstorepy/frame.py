@@ -17,11 +17,13 @@ try:
 except ImportError:
     _HAS_PANDAS = False
 
+DataFrameLike = typing.Union[PyDataFrame, PyH3DataFrame, pa.Table, "pl.DataFrame", "pd.DataFrame"]
+
 
 class DataFrameWrapper:
     """implements most of the arrow/dataframe conversion fun"""
 
-    def __init__(self, df: typing.Union[PyDataFrame, PyH3DataFrame, pa.Table, "pl.DataFrame", "pd.DataFrame"]):
+    def __init__(self, df: DataFrameLike):
         self._df = df
 
     def h3index_column_name(self) -> str:
@@ -70,3 +72,9 @@ class DataFrameWrapper:
         if _HAS_POLARS and isinstance(self._df, pl.DataFrame):
             self._df.to_pandas()
         raise TypeError("unsupported type")
+
+
+def ensure_wrapped(framelike: typing.Union[DataFrameWrapper, DataFrameLike]) -> DataFrameWrapper:
+    if isinstance(framelike, DataFrameWrapper):
+        return framelike
+    return DataFrameWrapper(framelike)

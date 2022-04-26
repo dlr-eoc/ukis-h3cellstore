@@ -56,3 +56,19 @@ def test_connection_database_exists(clickhouse_grpc_endpoint):
     con = connect(clickhouse_grpc_endpoint, "system")
     assert con.database_exists("default")
     assert not con.database_exists("does_not_exist")
+
+
+def test_insert_dataframe(clickhouse_grpc_endpoint, has_polars):
+    con = connect(clickhouse_grpc_endpoint, "test", create_db=True)
+    table_name = "test_insert_dataframe"
+    con.execute(f"drop table if exists {table_name}")
+    con.execute(f"create table {table_name} (id UInt32, name String) ENGINE Memory")
+
+    import polars as pl
+    df = pl.DataFrame({"id": [1, 2, 3], "name": ["one", "two", "three"]})
+    con.insert_dataframe(table_name, df)
+
+    df2 = con.execute_into_dataframe(f"select * from {table_name}").to_polars()
+    assert df.shape == df2.shape
+
+    # assert df == df2 # TODO: type of id column is wrong (i64 vs u32), its received correctly from the DB, so it happens in DataFrameWrappera#ssert df == df2
