@@ -36,7 +36,7 @@ pub struct CompactedTableSchema {
     table_engine: TableEngine,
     compression_method: CompressionMethod,
     pub(crate) h3_base_resolutions: Vec<u8>,
-    pub(crate) max_h3_resolution: u8,
+    pub max_h3_resolution: u8,
     pub(crate) use_compaction: bool,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,

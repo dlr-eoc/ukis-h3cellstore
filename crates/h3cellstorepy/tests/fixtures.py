@@ -15,16 +15,23 @@ def clickhouse_grpc_endpoint():
 
 
 @pytest.fixture
-def has_polars():
+def pl():
     try:
         import polars
+        return polars
     except ImportError:
         raise pytest.skip()
 
 
 @pytest.fixture
-def has_pandas():
+def pd():
     try:
         import pandas
+        return pandas
     except ImportError:
         raise pytest.skip()
+
+
+@pytest.fixture
+def clickhouse_testdb_name():
+    return "test"

@@ -1,11 +1,11 @@
 use h3cellstore::export::arrow_h3::export::h3ron;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic;
-use h3cellstore::export::clickhouse_arrow_grpc::{ClickhouseException, Error};
+use h3cellstore::export::clickhouse_arrow_grpc::ClickhouseException;
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::{PyErr, PyResult};
 use tracing::debug;
 
-// TODO: this file is a mess
+// TODO: clean up
 
 pub trait ToCustomPyErr {
     fn to_custom_pyerr(self) -> PyErr;
@@ -74,43 +74,67 @@ impl ToCustomPyErr for ClickhouseException {
     }
 }
 
+impl ToCustomPyErr for h3cellstore::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        match self {
+            Self::Polars(e) => e.to_custom_pyerr(),
+            Self::H3ron(e) => e.to_custom_pyerr(),
+            Self::JoinError(e) => e.to_custom_pyerr(),
+            Self::Arrow(e) => e.to_custom_pyerr(),
+            Self::TonicStatus(status) => status.to_custom_pyerr(),
+
+            Self::MissingPrecondidtionsForPartialOptimization
+            | Self::TableSetNotFound(_)
+            | Self::NoQueryableTables => PyIOError::new_err(self.to_string()),
+
+            Self::ClickhouseException(ce) => ce.to_custom_pyerr(),
+
+            Self::CastArrayLengthMismatch
+            | Self::ArrowChunkMissingField(_)
+            | Self::DataframeInvalidH3IndexType(_, _)
+            | Self::DataframeMissingColumn(_)
+            | Self::UnsupportedH3Resolution(_)
+            | Self::MixedH3Resolutions
+            | Self::EmptyCells
+            | Self::MissingQueryPlaceholder(_)
+            | Self::SchemaValidationError(_, _)
+            | Self::NoH3ResolutionsDefined
+            | Self::MissingIndexValue => PyValueError::new_err(self.to_string()),
+        }
+    }
+}
+
+impl ToCustomPyErr for h3cellstore::export::clickhouse_arrow_grpc::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        match self {
+            Self::Polars(e) => e.to_custom_pyerr(),
+            Self::Arrow(e) => e.to_custom_pyerr(),
+            Self::TonicStatus(status) => status.to_custom_pyerr(),
+            Self::ClickhouseException(ce) => ce.to_custom_pyerr(),
+            Self::JoinError(e) => e.to_custom_pyerr(),
+            Self::CastArrayLengthMismatch | Self::ArrowChunkMissingField(_) => {
+                PyValueError::new_err(self.to_string())
+            }
+        }
+    }
+}
+
+impl ToCustomPyErr for h3cellstore::export::arrow_h3::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        match self {
+            Self::H3ron(e) => e.to_custom_pyerr(),
+            Self::Polars(e) => e.to_custom_pyerr(),
+            Self::DataframeInvalidH3IndexType(_, _)
+            | Self::DataframeMissingColumn(_)
+            | Self::UnsupportedH3Resolution(_)
+            | Self::MissingIndexValue => PyValueError::new_err(self.to_string()),
+        }
+    }
+}
+
 /// convert the result of some other crate into a PyResult
 pub trait IntoPyResult<T> {
     fn into_pyresult(self) -> PyResult<T>;
-}
-
-impl<T> IntoPyResult<T> for Result<T, h3cellstore::Error> {
-    fn into_pyresult(self) -> PyResult<T> {
-        use h3cellstore::Error;
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => match err {
-                Error::Polars(_) | Error::H3ron(_) | Error::JoinError(_) | Error::Arrow(_) => {
-                    Err(PyRuntimeError::new_err(err.to_string()))
-                }
-
-                Error::TonicStatus(status) => Err(status.to_custom_pyerr()),
-
-                Error::MissingPrecondidtionsForPartialOptimization
-                | Error::TableSetNotFound(_)
-                | Error::NoQueryableTables => Err(PyIOError::new_err(err.to_string())),
-
-                Error::ClickhouseException(ce) => Err(ce.to_custom_pyerr()),
-
-                Error::CastArrayLengthMismatch
-                | Error::ArrowChunkMissingField(_)
-                | Error::DataframeInvalidH3IndexType(_, _)
-                | Error::DataframeMissingColumn(_)
-                | Error::UnsupportedH3Resolution(_)
-                | Error::MixedH3Resolutions
-                | Error::EmptyCells
-                | Error::MissingQueryPlaceholder(_)
-                | Error::SchemaValidationError(_, _)
-                | Error::NoH3ResolutionsDefined
-                | Error::MissingIndexValue => Err(PyValueError::new_err(err.to_string())),
-            },
-        }
-    }
 }
 
 impl<T, E> IntoPyResult<T> for Result<T, E>
@@ -121,27 +145,6 @@ where
         match self {
             Ok(v) => Ok(v),
             Err(err) => Err(err.to_custom_pyerr()),
-        }
-    }
-}
-
-impl<T> IntoPyResult<T>
-    for std::result::Result<T, h3cellstore::export::clickhouse_arrow_grpc::Error>
-{
-    fn into_pyresult(self) -> PyResult<T> {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(match err {
-                Error::TonicStatus(status) => status.to_custom_pyerr(),
-                Error::ClickhouseException(ce) => ce.to_custom_pyerr(),
-
-                Error::Arrow(_)
-                | Error::Polars(_)
-                | Error::CastArrayLengthMismatch
-                | Error::ArrowChunkMissingField(_) => PyRuntimeError::new_err(err.to_string()),
-
-                Error::JoinError(e) => e.to_custom_pyerr(),
-            }),
         }
     }
 }

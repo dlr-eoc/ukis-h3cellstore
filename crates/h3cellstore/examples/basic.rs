@@ -85,7 +85,7 @@ async fn main() -> eyre::Result<()> {
     let schema = okavango_delta_schema()?;
     client.drop_tableset(&play_db, &schema.name).await?;
     //return Ok(());
-    client.create_tableset_schema(&play_db, &schema).await?;
+    client.create_tableset(&play_db, &schema).await?;
 
     let tablesets = client.list_tablesets(&play_db).await?;
     assert!(tablesets.contains_key(&schema.name));

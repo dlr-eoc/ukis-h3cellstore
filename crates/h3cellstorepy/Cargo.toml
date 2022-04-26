@@ -39,6 +39,7 @@ features = [
 [dependencies.pyo3]
 version = "^0.16"
 features = [
+    "macros",
     "extension-module",
     "multiple-pymethods",
     "abi3",

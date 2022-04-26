@@ -2,6 +2,7 @@ mod arrow_interop;
 mod clickhouse;
 mod error;
 mod frame;
+mod utils;
 
 use pyo3::{prelude::*, wrap_pyfunction, Python};
 use tracing_subscriber::EnvFilter;

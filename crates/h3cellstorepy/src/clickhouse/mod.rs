@@ -1,4 +1,4 @@
-use crate::clickhouse::grpc::{GRPCConnection, GRPCRuntime};
+use crate::clickhouse::grpc::{GRPCConnection, GRPCRuntime, PyInsertOptions, PyTableSetQuery};
 use crate::clickhouse::schema::{PyCompactedTableSchema, PyCompactedTableSchemaBuilder};
 use crate::clickhouse::tableset::PyTableSet;
 use crate::clickhouse::traversal::TraversalStrategy;
@@ -23,5 +23,7 @@ pub fn init_clickhouse_submodule(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("GRPCRuntime", py.get_type::<GRPCRuntime>())?;
     m.add("GRPCConnection", py.get_type::<GRPCConnection>())?;
     m.add("TableSet", py.get_type::<PyTableSet>())?;
+    m.add("InsertOptions", py.get_type::<PyInsertOptions>())?;
+    m.add("TableSetQuery", py.get_type::<PyTableSetQuery>())?;
     Ok(())
 }

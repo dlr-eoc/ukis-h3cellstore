@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-from ..fixtures import clickhouse_grpc_endpoint, has_polars, has_pandas
+from ..fixtures import clickhouse_grpc_endpoint, pl, pd , clickhouse_testdb_name
 
 from h3cellstorepy.clickhouse import connect
 
@@ -22,23 +22,21 @@ def test_connection_execute_error_propagation(clickhouse_grpc_endpoint):
     assert "'something_invalid'" in str(excinfo)
 
 
-def test_connection_execute_into_dataframe_polars(clickhouse_grpc_endpoint, has_polars):
+def test_connection_execute_into_dataframe_polars(clickhouse_grpc_endpoint, pl):
     con = connect(clickhouse_grpc_endpoint, "system")
     df = con.execute_into_dataframe("select name from databases").to_polars()
-    import polars as pl
     assert isinstance(df, pl.DataFrame)
     assert df.shape[1] == 1
 
 
-def test_connection_execute_into_dataframe_pandas(clickhouse_grpc_endpoint, has_pandas):
+def test_connection_execute_into_dataframe_pandas(clickhouse_grpc_endpoint, pd):
     con = connect(clickhouse_grpc_endpoint, "system")
     df = con.execute_into_dataframe("select name from databases").to_pandas()
-    import pandas as pd
     assert isinstance(df, pd.DataFrame)
     assert df.shape[1] == 1
 
 
-def test_connection_execute_into_h3dataframe_polars(clickhouse_grpc_endpoint, has_polars):
+def test_connection_execute_into_h3dataframe_polars(clickhouse_grpc_endpoint, pl):
     con = connect(clickhouse_grpc_endpoint, "system")
     df_w = con.execute_into_h3dataframe("""
         select 
@@ -47,7 +45,6 @@ def test_connection_execute_into_h3dataframe_polars(clickhouse_grpc_endpoint, ha
         """, "my_h3index")
     assert df_w.h3index_column_name() == "my_h3index"
     df = df_w.to_polars()
-    import polars as pl
     assert isinstance(df, pl.DataFrame)
     assert df.shape == (pow(7, 3), 2)
 
@@ -58,13 +55,12 @@ def test_connection_database_exists(clickhouse_grpc_endpoint):
     assert not con.database_exists("does_not_exist")
 
 
-def test_insert_dataframe(clickhouse_grpc_endpoint, has_polars):
-    con = connect(clickhouse_grpc_endpoint, "test", create_db=True)
+def test_insert_dataframe(clickhouse_grpc_endpoint, pl, clickhouse_testdb_name):
+    con = connect(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
     table_name = "test_insert_dataframe"
     con.execute(f"drop table if exists {table_name}")
     con.execute(f"create table {table_name} (id UInt32, name String) ENGINE Memory")
 
-    import polars as pl
     df = pl.DataFrame({"id": [1, 2, 3], "name": ["one", "two", "three"]})
     con.insert_dataframe(table_name, df)
 

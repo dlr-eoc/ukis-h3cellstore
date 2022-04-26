@@ -23,6 +23,7 @@ use crate::Error;
 const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";
 const ALIAS_SOURCE_TABLE: &str = "src_table";
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct InsertOptions {
     pub create_schema: bool,
     pub deduplicate_after_insert: bool,
@@ -104,7 +105,7 @@ where
 
         if self.options.create_schema {
             self.store
-                .create_tableset_schema(&self.database_name, &self.schema)
+                .create_tableset(&self.database_name, &self.schema)
                 .await?;
         }
 

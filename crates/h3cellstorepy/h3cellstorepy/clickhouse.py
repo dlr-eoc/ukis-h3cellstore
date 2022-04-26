@@ -5,6 +5,8 @@ CompactedTableSchema = clickhouse.CompactedTableSchema
 CompactedTableSchemaBuilder = clickhouse.CompactedTableSchemaBuilder
 TraversalStrategy = clickhouse.TraversalStrategy
 GRPCConnection = clickhouse.GRPCConnection
+TableSetQuery = clickhouse.TableSetQuery
+InsertOptions = clickhouse.InsertOptions
 
 # default grpc/tokio runtime with 3 threads
 _RUNTIME = clickhouse.GRPCRuntime(3)

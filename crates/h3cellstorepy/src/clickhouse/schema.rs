@@ -24,6 +24,16 @@ impl PyCompactedTableSchema {
         self.schema.validate().into_pyresult()
     }
 
+    #[getter]
+    fn name(&self) -> String {
+        self.schema.name.clone()
+    }
+
+    #[getter]
+    fn max_h3_resolution(&self) -> u8 {
+        self.schema.max_h3_resolution
+    }
+
     fn to_json_string(&self) -> PyResult<String> {
         serde_json::to_string(&self.schema).into_pyresult()
     }

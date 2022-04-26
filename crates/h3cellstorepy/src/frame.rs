@@ -95,7 +95,7 @@ pub fn dataframe_from_pyany(py: Python, obj: &PyAny) -> PyResult<DataFrame> {
         let output = wrapped
             .getattr("to_arrow")?
             .call0()?
-            .getattr("to_batches")?
+            .getattr("to_batches")? // provided by pyarrow.Table
             .call0()?;
         let mut arrow_chunks = vec![];
         if let Ok(tuple) = output.downcast::<PyTuple>() {
@@ -109,6 +109,5 @@ pub fn dataframe_from_pyany(py: Python, obj: &PyAny) -> PyResult<DataFrame> {
         }
         arrow_chunks
     };
-
     to_rust_df(&arrow_chunks)
 }

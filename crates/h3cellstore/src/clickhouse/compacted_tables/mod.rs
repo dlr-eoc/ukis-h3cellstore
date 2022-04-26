@@ -44,7 +44,7 @@ pub trait CompactedTablesStore {
         S: AsRef<str> + Send + Sync,
         TS: LoadTableSet + Send + Sync;
 
-    async fn create_tableset_schema<S>(
+    async fn create_tableset<S>(
         &mut self,
         database_name: S,
         schema: &CompactedTableSchema,
@@ -196,7 +196,7 @@ where
         };
     }
 
-    async fn create_tableset_schema<S>(
+    async fn create_tableset<S>(
         &mut self,
         database_name: S,
         schema: &CompactedTableSchema,
