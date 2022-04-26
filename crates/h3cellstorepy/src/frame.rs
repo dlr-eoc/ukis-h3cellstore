@@ -1,5 +1,7 @@
 use pyo3::ffi::Py_uintptr_t;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
+use pyo3::PyClass;
 
 use h3cellstore::export::arrow_h3::export::polars::frame::{ArrowChunk, DataFrame};
 use h3cellstore::export::arrow_h3::export::polars::prelude::ArrowField;
@@ -119,4 +121,19 @@ pub(crate) fn to_py_array(array: ArrayRef, py: Python, pyarrow: &PyModule) -> Py
     };
 
     Ok(array.to_object(py))
+}
+
+/// return wrapped in a python `DataFrameWrapper` instance
+pub fn wrapped_frame<T: PyClass>(
+    py: Python,
+    frame: impl Into<PyClassInitializer<T>>,
+) -> PyResult<PyObject> {
+    let obj = PyCell::new(py, frame)?.to_object(py);
+
+    let module = py.import("h3cellstorepy.frame")?;
+    let args = PyTuple::new(py, [obj]);
+    Ok(module
+        .getattr("DataFrameWrapper")?
+        .call1(args)?
+        .to_object(py))
 }

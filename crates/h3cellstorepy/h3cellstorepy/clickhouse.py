@@ -1,41 +1,14 @@
 # noinspection PyUnresolvedReferences
 from .h3cellstorepy import clickhouse
-from .frame import DataFrameWrapper
 
 CompactedTableSchema = clickhouse.CompactedTableSchema
 CompactedTableSchemaBuilder = clickhouse.CompactedTableSchemaBuilder
 TraversalStrategy = clickhouse.TraversalStrategy
+GRPCConnection = clickhouse.GRPCConnection
 
 # default grpc/tokio runtime with 3 threads
 _RUNTIME = clickhouse.GRPCRuntime(3)
 
-__all__ = [
-    # accessing the imported function and classes to let IDEs know these are not
-    # unused imports. They are only re-exported, but not used in this file.
-    CompactedTableSchema.__name__,
-    CompactedTableSchemaBuilder.__name__,
-    TraversalStrategy.__name__,
-]
 
-
-class GRPCConnection:
-    _connection: clickhouse.GRPCConnection
-
-    def __init__(self, grpc_endpoint: str, database_name: str, create_db: bool = False):
-        self._connection = clickhouse.GRPCConnection.connect(grpc_endpoint, database_name, create_db, _RUNTIME)
-
-    def execute(self, query: str):
-        """execute the given query in the database without returning any result"""
-        return self._connection.execute(query)
-
-    def execute_into_dataframe(self, query: str) -> DataFrameWrapper:
-        """execute the given query and return a non-H3 dataframe of it"""
-        return DataFrameWrapper(self._connection.execute_into_dataframe(query))
-
-    def execute_into_h3dataframe(self, query: str, h3index_column_name) -> DataFrameWrapper:
-        """execute the given query and return a H3 dataframe of it"""
-        return DataFrameWrapper(self._connection.execute_into_h3dataframe(query, h3index_column_name))
-
-    def database_exists(self, database_name: str) -> bool:
-        """Check if the given DB exists"""
-        return self._connection.database_exists(database_name)
+def connect(grpc_endpoint: str, database_name: str, create_db: bool = False) -> GRPCConnection:
+    return clickhouse.GRPCConnection.connect(grpc_endpoint, database_name, create_db, _RUNTIME)

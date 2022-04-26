@@ -1,4 +1,5 @@
 use crate::error::IntoPyResult;
+use crate::frame::wrapped_frame;
 use crate::{PyDataFrame, PyH3DataFrame};
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
@@ -67,6 +68,7 @@ impl GRPCConnection {
         })
     }
 
+    /// execute the given query in the database without returning any result
     pub fn execute(&mut self, query: String) -> PyResult<()> {
         self.runtime
             .block_on(async {
@@ -82,8 +84,9 @@ impl GRPCConnection {
             .map(|_| ())
     }
 
-    pub fn execute_into_dataframe(&mut self, query: String) -> PyResult<PyDataFrame> {
-        let df = self
+    /// execute the given query and return a non-H3 dataframe of it
+    pub fn execute_into_dataframe(&mut self, py: Python, query: String) -> PyResult<PyObject> {
+        let df: PyDataFrame = self
             .runtime
             .block_on(async {
                 self.client
@@ -94,16 +97,19 @@ impl GRPCConnection {
                     })
                     .await
             })
-            .into_pyresult()?;
-        Ok(df.into())
+            .into_pyresult()?
+            .into();
+        wrapped_frame(py, df)
     }
 
+    /// execute the given query and return a H3 dataframe of it
     pub fn execute_into_h3dataframe(
         &mut self,
+        py: Python,
         query: String,
         h3index_column_name: String,
-    ) -> PyResult<PyH3DataFrame> {
-        let df = self
+    ) -> PyResult<PyObject> {
+        let df: PyH3DataFrame = self
             .runtime
             .block_on(async {
                 self.client
@@ -117,10 +123,12 @@ impl GRPCConnection {
                     )
                     .await
             })
-            .into_pyresult()?;
-        Ok(df.into())
+            .into_pyresult()?
+            .into();
+        wrapped_frame(py, df)
     }
 
+    /// Check if the given DB exists
     pub fn database_exists(&mut self, database_name: String) -> PyResult<bool> {
         self.runtime
             .block_on(async { self.client.database_exists(database_name).await })
