@@ -78,7 +78,7 @@ impl GRPCConnection {
             .block_on(async {
                 self.client
                     .execute_query_checked(QueryInfo {
-                        query: query,
+                        query,
                         database: self.database_name.clone(),
                         ..Default::default()
                     })
@@ -95,7 +95,7 @@ impl GRPCConnection {
             .block_on(async {
                 self.client
                     .execute_into_dataframe(QueryInfo {
-                        query: query,
+                        query,
                         database: self.database_name.clone(),
                         ..Default::default()
                     })
@@ -119,7 +119,7 @@ impl GRPCConnection {
                 self.client
                     .execute_into_h3dataframe(
                         QueryInfo {
-                            query: query,
+                            query,
                             database: self.database_name.clone(),
                             ..Default::default()
                         },
@@ -161,7 +161,7 @@ impl GRPCConnection {
             .into_pyresult()
     }
 
-    /// create the schema based on the schema defintion in the database
+    /// create the schema based on the schema definition in the database
     pub fn create_tableset_schema(&mut self, schema: &PyCompactedTableSchema) -> PyResult<()> {
         self.runtime
             .block_on(async {

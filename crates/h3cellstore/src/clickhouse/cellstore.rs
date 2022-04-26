@@ -100,6 +100,6 @@ where
                 ..Default::default()
             })
             .await?;
-        Ok(!(df.shape().0 == 0))
+        Ok(df.shape().0 != 0)
     }
 }

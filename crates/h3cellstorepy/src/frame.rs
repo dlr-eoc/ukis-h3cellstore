@@ -24,6 +24,7 @@ impl PyH3DataFrame {
         self.h3df.h3index_column_name.clone()
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_arrow(&mut self, py: Python) -> PyResult<Vec<PyObject>> {
         dataframe_to_arrow(py, &mut self.h3df.dataframe)
     }
@@ -46,6 +47,7 @@ impl PyDataFrame {
         self.df.shape()
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_arrow(&mut self, py: Python) -> PyResult<Vec<PyObject>> {
         dataframe_to_arrow(py, &mut self.df)
     }
