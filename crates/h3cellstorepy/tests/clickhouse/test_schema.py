@@ -6,6 +6,7 @@ from h3cellstorepy.clickhouse import connect
 
 import h3.api.numpy_int as h3
 import numpy as np
+import contextlib
 
 # noinspection PyUnresolvedReferences
 from ..fixtures import clickhouse_grpc_endpoint, pl, clickhouse_testdb_name
@@ -47,7 +48,8 @@ def test_schema_save_and_load():
     assert sqls_before == sqls_after
 
 
-def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+@contextlib.contextmanager
+def setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
     tableset_name, schema = elephant_schema()
     con = connect(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
     con.drop_tableset(schema.name)
@@ -65,16 +67,37 @@ def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name
     # write to db - this performs auto-compaction
     con.insert_h3dataframe_into_tableset(schema, df)
 
-    # read from db again. un-compaction is performed automatically
-    queried_df = con.query_tableset_cells(schema.name, TableSetQuery(), disk, schema.max_h3_resolution).to_polars()
-    assert queried_df.shape == df.shape
-
-    # it is also possible to load the data on a lower resolution. the cells in `disk` get automatically transformed
-    # to the requested h3 resolution
-    queried_lower_df = con.query_tableset_cells(schema.name, TableSetQuery(), disk,
-                                                schema.max_h3_resolution - 2).to_polars()
-    assert df.shape[0] > queried_lower_df.shape[0]
-    assert df.shape[1] == queried_lower_df.shape[1]
+    yield con, schema, disk, df
 
     con.drop_tableset(schema.name)
     assert schema.name not in con.list_tablesets()
+
+
+def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+    with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as (
+            con, schema, disk, df):
+        # read from db again. un-compaction is performed automatically
+        queried_df = con.query_tableset_cells(schema.name, TableSetQuery(), disk, schema.max_h3_resolution).to_polars()
+        assert queried_df.shape == df.shape
+
+        # it is also possible to load the data on a lower resolution. the cells in `disk` get automatically transformed
+        # to the requested h3 resolution
+        queried_lower_df = con.query_tableset_cells(schema.name, TableSetQuery(), disk,
+                                                    schema.max_h3_resolution - 2).to_polars()
+        assert df.shape[0] > queried_lower_df.shape[0]
+        assert df.shape[1] == queried_lower_df.shape[1]
+
+
+def test_schema_create_and_fill_templatedquery(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+    with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as (
+            con, schema, disk, df):
+        queried_lower_df = con.query_tableset_cells(schema.name, TableSetQuery.from_template(
+            "select * from <[table]> where elephant_density < 2"), disk,
+                                                    schema.max_h3_resolution).to_polars()
+        assert queried_lower_df.shape[0] == 0
+
+        queried_lower_df = con.query_tableset_cells(schema.name, TableSetQuery.from_template(
+            "select * from <[table]> where (rand() % 2) = 0"), disk,
+                                                    schema.max_h3_resolution).to_polars()
+        assert df.shape[0] > queried_lower_df.shape[0]
+        assert df.shape[1] == queried_lower_df.shape[1]
