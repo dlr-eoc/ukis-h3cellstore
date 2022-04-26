@@ -6,36 +6,37 @@ use pyo3::prelude::*;
 use regex::Regex;
 
 use h3cellstore::clickhouse::compacted_tables::schema::{
-    AggregationMethod, ClickhouseDataType, ColumnDefinition, CompressionMethod, SimpleColumn,
-    TableEngine, TemporalPartitioning, TemporalResolution, ValidateSchema,
+    AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
+    CompactedTableSchemaBuilder, CompressionMethod, SimpleColumn, TableEngine,
+    TemporalPartitioning, TemporalResolution, ValidateSchema,
 };
 
 use crate::error::IntoPyResult;
 
 #[pyclass]
-pub struct CompactedTableSchema {
-    pub inner: h3cellstore::clickhouse::compacted_tables::schema::CompactedTableSchema,
+pub struct PyCompactedTableSchema {
+    pub schema: CompactedTableSchema,
 }
 
 #[pymethods]
-impl CompactedTableSchema {
+impl PyCompactedTableSchema {
     fn validate(&self) -> PyResult<()> {
-        self.inner.validate().into_pyresult()
+        self.schema.validate().into_pyresult()
     }
 
     fn to_json_string(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).into_pyresult()
+        serde_json::to_string(&self.schema).into_pyresult()
     }
 
     #[staticmethod]
     fn from_json_string(instr: String) -> PyResult<Self> {
         Ok(Self {
-            inner: serde_json::from_str(instr.as_str()).into_pyresult()?,
+            schema: serde_json::from_str(instr.as_str()).into_pyresult()?,
         })
     }
 
     fn sql_statements(&self) -> PyResult<Vec<String>> {
-        self.inner.build_create_statements(&None).into_pyresult()
+        self.schema.build_create_statements(&None).into_pyresult()
     }
 }
 
@@ -45,7 +46,7 @@ lazy_static! {
 }
 
 #[pyclass]
-pub struct CompactedTableSchemaBuilder {
+pub struct PyCompactedTableSchemaBuilder {
     table_name: String,
     table_engine: Option<TableEngine>,
     compression_method: Option<CompressionMethod>,
@@ -58,7 +59,7 @@ pub struct CompactedTableSchemaBuilder {
 }
 
 #[pymethods]
-impl CompactedTableSchemaBuilder {
+impl PyCompactedTableSchemaBuilder {
     #[new]
     fn new(table_name: String) -> Self {
         Self {
@@ -225,11 +226,8 @@ impl CompactedTableSchemaBuilder {
         self.partition_by = Some(column_names)
     }
 
-    fn build(&self) -> PyResult<CompactedTableSchema> {
-        let mut builder =
-            h3cellstore::clickhouse::compacted_tables::schema::CompactedTableSchemaBuilder::new(
-                &self.table_name,
-            );
+    fn build(&self) -> PyResult<PyCompactedTableSchema> {
+        let mut builder = CompactedTableSchemaBuilder::new(&self.table_name);
 
         if let Some(te) = &self.table_engine {
             builder = builder.table_engine(te.clone())
@@ -255,8 +253,8 @@ impl CompactedTableSchemaBuilder {
         }
 
         let inner_schema = builder.build().into_pyresult()?;
-        Ok(CompactedTableSchema {
-            inner: inner_schema,
+        Ok(PyCompactedTableSchema {
+            schema: inner_schema,
         })
     }
 }

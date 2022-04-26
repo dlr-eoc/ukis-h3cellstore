@@ -1,12 +1,16 @@
+use crate::clickhouse::schema::PyCompactedTableSchema;
+use crate::clickhouse::tableset::PyTableSet;
 use crate::error::IntoPyResult;
 use crate::frame::wrapped_frame;
 use crate::{PyDataFrame, PyH3DataFrame};
+use h3cellstore::clickhouse::compacted_tables::CompactedTablesStore;
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::PyResult;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::{Builder, Runtime};
 use tracing::debug_span;
@@ -132,6 +136,50 @@ impl GRPCConnection {
     pub fn database_exists(&mut self, database_name: String) -> PyResult<bool> {
         self.runtime
             .block_on(async { self.client.database_exists(database_name).await })
+            .into_pyresult()
+    }
+
+    /// list the tablesets found it the current database
+    pub fn list_tablesets(&mut self) -> PyResult<HashMap<String, PyTableSet>> {
+        Ok(self
+            .runtime
+            .block_on(async { self.client.list_tablesets(&self.database_name).await })
+            .into_pyresult()?
+            .drain()
+            .map(|(name, tableset)| (name, tableset.into()))
+            .collect())
+    }
+
+    /// drop the tableset with the given name
+    pub fn drop_tableset(&mut self, tableset_name: String) -> PyResult<()> {
+        self.runtime
+            .block_on(async {
+                self.client
+                    .drop_tableset(&self.database_name, tableset_name)
+                    .await
+            })
+            .into_pyresult()
+    }
+
+    /// create the schema based on the schema defintion in the database
+    pub fn create_tableset_schema(&mut self, schema: &PyCompactedTableSchema) -> PyResult<()> {
+        self.runtime
+            .block_on(async {
+                self.client
+                    .create_tableset_schema(&self.database_name, &schema.schema)
+                    .await
+            })
+            .into_pyresult()
+    }
+
+    /// deduplicate the contents of the given database schema
+    pub fn deduplicate_schema(&mut self, schema: &PyCompactedTableSchema) -> PyResult<()> {
+        self.runtime
+            .block_on(async {
+                self.client
+                    .deduplicate_schema(&self.database_name, &schema.schema)
+                    .await
+            })
             .into_pyresult()
     }
 }
