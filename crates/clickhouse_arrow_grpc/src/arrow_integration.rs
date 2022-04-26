@@ -10,12 +10,13 @@ use std::sync::Arc;
 use arrow2::array::{new_empty_array, Array};
 use arrow2::chunk::Chunk;
 use arrow2::compute::cast::cast;
-use arrow2::datatypes::{DataType, Schema};
+use arrow2::datatypes::{DataType, Field, Schema};
 use arrow2::io::ipc::read::{read_file_metadata, FileReader};
 use arrow2::io::ipc::write::FileWriter;
 use polars_core::prelude::DataFrame;
 use polars_core::series::Series;
 use polars_core::utils::accumulate_dataframes_vertical;
+use tracing::log::debug;
 
 use crate::Error;
 
@@ -68,24 +69,13 @@ impl TryInto<DataFrame> for super::api::Result {
         // cast based on the output_column type info provided by clickhouse. In case this
         // is not set, this implementation should not fail and just return the dataframe without the
         // additional casting.
-        //dbg!(&self.output_columns);
         for output_column in self.output_columns.iter() {
             let schema_field = schema_fields_by_name
                 .get(&output_column.name)
                 .ok_or_else(|| Error::ArrowChunkMissingField(output_column.name.clone()))?;
             let (new_field, cast_to_perform) = match output_column.r#type.as_str() {
-                "String" | "FixedString" => {
-                    let mut new_field = (*schema_field).clone();
-                    new_field.data_type = DataType::LargeUtf8;
-                    let cast_to_perform = ClickhouseArrowCast::Simple(new_field.data_type.clone());
-                    (new_field, cast_to_perform)
-                }
-                "Bool" => {
-                    let mut new_field = (*schema_field).clone();
-                    new_field.data_type = DataType::Boolean;
-                    let cast_to_perform = ClickhouseArrowCast::Simple(new_field.data_type.clone());
-                    (new_field, cast_to_perform)
-                }
+                "String" | "FixedString" => simple_cast(schema_field, DataType::LargeUtf8),
+                "Bool" => simple_cast(schema_field, DataType::Boolean),
                 _ => ((*schema_field).clone(), ClickhouseArrowCast::None),
             };
             fields.push(new_field);
@@ -120,6 +110,17 @@ impl TryInto<DataFrame> for super::api::Result {
             Ok(df)
         }
     }
+}
+
+fn simple_cast(schema_field: &Field, data_type: DataType) -> (Field, ClickhouseArrowCast) {
+    debug!(
+        "Casting field {} from {:?} to {:?}",
+        &schema_field.name, &schema_field.data_type, &data_type
+    );
+    let mut new_field = (*schema_field).clone();
+    new_field.data_type = data_type;
+    let cast_to_perform = ClickhouseArrowCast::Simple(new_field.data_type.clone());
+    (new_field, cast_to_perform)
 }
 
 pub fn serialize_for_clickhouse(df: &mut DataFrame) -> Result<Vec<u8>, Error> {
