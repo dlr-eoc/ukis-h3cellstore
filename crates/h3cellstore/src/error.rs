@@ -64,6 +64,12 @@ pub enum Error {
 
     #[error("missing index value")]
     MissingIndexValue,
+
+    #[error("abort has been triggered")]
+    Abort,
+
+    #[error("aquiring lock failed")]
+    AquiringLockFailed,
 }
 
 impl From<AH3Error> for Error {

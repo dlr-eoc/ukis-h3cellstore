@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use itertools::Itertools;
 use tokio::task::spawn_blocking;
@@ -23,11 +24,14 @@ use crate::Error;
 const COL_NAME_H3INDEX_PARENT_AGG: &str = "h3index_parent_agg";
 const ALIAS_SOURCE_TABLE: &str = "src_table";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct InsertOptions {
     pub create_schema: bool,
     pub deduplicate_after_insert: bool,
     pub max_num_rows_per_chunk: usize,
+
+    /// boalean to set to true to abort the insert process
+    pub abort: Arc<Mutex<bool>>,
 }
 
 impl Default for InsertOptions {
@@ -36,6 +40,7 @@ impl Default for InsertOptions {
             create_schema: true,
             deduplicate_after_insert: true,
             max_num_rows_per_chunk: 1_000_000,
+            abort: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -67,6 +72,19 @@ where
         }
     }
 
+    fn check_for_abort(&self) -> Result<(), Error> {
+        let guard = self
+            .options
+            .abort
+            .lock()
+            .map_err(|_| Error::AquiringLockFailed)?;
+        if *guard {
+            Err(Error::Abort)
+        } else {
+            Ok(())
+        }
+    }
+
     /// This method is a somewhat expensive operation
     pub async fn insert(&mut self, h3df: H3DataFrame) -> Result<(), Error> {
         let frames_by_resolution = if h3df.dataframe.is_empty() {
@@ -91,6 +109,7 @@ where
             }
             frames_by_resolution
         };
+        self.check_for_abort()?;
 
         if frames_by_resolution.is_empty()
             || frames_by_resolution
@@ -110,6 +129,7 @@ where
         }
 
         // ensure the temporary schema exists
+        self.check_for_abort()?;
         self.create_temporary_tables()
             .instrument(debug_span!(
                 "Creating temporary tables used for insert",
@@ -127,6 +147,7 @@ where
                 &tk_opt,
             );
 
+            self.check_for_abort()?;
             self.store
                 .insert_h3dataframe_chunked(
                     self.database_name.as_str(),
@@ -140,6 +161,7 @@ where
         let resolution_metadata = self.schema.get_resolution_metadata()?;
 
         // generate other resolutions and apply aggregations
+        self.check_for_abort()?;
         self.write_aggregated_resolutions()
             .instrument(debug_span!(
                 "Writing aggregated resolutions",
@@ -148,6 +170,7 @@ where
             .await?;
 
         // move rows to non-temporary tables
+        self.check_for_abort()?;
         self.copy_data_from_temporary(&resolution_metadata)
             .instrument(debug_span!(
                 "Copying data from temporary tables",
@@ -156,6 +179,7 @@ where
             .await?;
 
         // deduplicate
+        self.check_for_abort()?;
         if self.options.deduplicate_after_insert {
             if let Err(e) = deduplicate_partitions_based_on_temporary_tables(
                 &mut self.store,
@@ -309,6 +333,7 @@ where
 
         // TODO: switch to https://doc.rust-lang.org/std/primitive.slice.html#method.array_windows when that is stabilized.
         for agg_resolutions in resolutions_to_aggregate.windows(2) {
+            self.check_for_abort()?;
             let source_resolution = agg_resolutions[0];
             let target_resolution = agg_resolutions[1];
             debug!(
@@ -449,6 +474,7 @@ where
             }
 
             for batch in 0..num_batches {
+                self.check_for_abort()?;
                 // batching is to be used on the parent indexes to always aggregate everything belonging
                 // in the same row in the same batch. this ensures nothing get overwritten.
                 let batching_expr = if num_batches > 1 {
@@ -497,6 +523,7 @@ where
         let columns = self.schema.columns.keys().join(", ");
         let tk = Some(self.temporary_key.clone());
         for resolution_metadata in resolution_metadata_slice.iter() {
+            self.check_for_abort()?;
             let table_from = self
                 .schema
                 .build_table(resolution_metadata, &tk)

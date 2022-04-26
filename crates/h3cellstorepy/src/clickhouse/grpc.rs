@@ -17,8 +17,11 @@ use pyo3::prelude::*;
 use pyo3::PyResult;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::oneshot::error::TryRecvError;
 use tracing::debug_span;
+use tracing::log::warn;
 
 #[pyclass]
 pub struct GRPCRuntime {
@@ -208,7 +211,7 @@ impl GRPCConnection {
     /// insert a dataframe into a tableset
     ///#[args(options=None)]
     pub fn insert_h3dataframe_into_tableset(
-        &mut self,
+        &self,
         py: Python,
         schema: &PyCompactedTableSchema,
         dataframe: &PyAny,
@@ -221,18 +224,41 @@ impl GRPCConnection {
         )
             .try_into()
             .into_pyresult()?;
-        self.runtime
-            .block_on(async {
-                self.client
-                    .insert_h3dataframe_into_tableset(
-                        &self.database_name,
-                        &schema.schema,
-                        h3df,
-                        insert_options,
-                    )
-                    .await
-            })
-            .into_pyresult()
+
+        let abort_mutex = insert_options.abort.clone();
+        let (oneshot_send, mut oneshot_recv) = tokio::sync::oneshot::channel();
+
+        let database_name = self.database_name.clone();
+        let mut client = self.client.clone();
+        let schema = schema.schema.clone();
+        let joinhandle = self.runtime.spawn(async move {
+            let res = client
+                .insert_h3dataframe_into_tableset(database_name, &schema, h3df, insert_options)
+                .await
+                .into_pyresult();
+
+            oneshot_send.send(res).expect("sending over channel failed")
+        });
+
+        loop {
+            if py.check_signals().is_err() {
+                if let Ok(mut guard) = abort_mutex.lock() {
+                    warn!("Received Abort-request during insert");
+                    *guard = true;
+                }
+            }
+
+            match oneshot_recv.try_recv() {
+                Ok(res) => {
+                    self.runtime
+                        .block_on(async { joinhandle.await })
+                        .into_pyresult()?;
+                    return res;
+                }
+                Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(50)),
+                Err(TryRecvError::Closed) => unreachable!(),
+            }
+        }
     }
 
     pub fn query_tableset_cells(

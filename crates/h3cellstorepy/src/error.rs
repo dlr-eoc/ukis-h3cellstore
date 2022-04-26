@@ -1,7 +1,8 @@
 use h3cellstore::export::arrow_h3::export::h3ron;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic;
 use h3cellstore::export::clickhouse_arrow_grpc::ClickhouseException;
-use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
+use h3cellstore::Error;
+use pyo3::exceptions::{PyIOError, PyKeyboardInterrupt, PyRuntimeError, PyValueError};
 use pyo3::{PyErr, PyResult};
 use tracing::debug;
 
@@ -89,6 +90,8 @@ impl ToCustomPyErr for h3cellstore::Error {
 
             Self::ClickhouseException(ce) => ce.to_custom_pyerr(),
 
+            Error::AquiringLockFailed => PyRuntimeError::new_err(self.to_string()),
+
             Self::CastArrayLengthMismatch
             | Self::ArrowChunkMissingField(_)
             | Self::DataframeInvalidH3IndexType(_, _)
@@ -100,6 +103,8 @@ impl ToCustomPyErr for h3cellstore::Error {
             | Self::SchemaValidationError(_, _)
             | Self::NoH3ResolutionsDefined
             | Self::MissingIndexValue => PyValueError::new_err(self.to_string()),
+
+            Error::Abort => PyKeyboardInterrupt::new_err(self.to_string()),
         }
     }
 }
