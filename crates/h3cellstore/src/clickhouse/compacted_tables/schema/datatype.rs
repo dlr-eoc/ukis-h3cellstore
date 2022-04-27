@@ -77,11 +77,11 @@ impl Named for ClickhouseDataType {
 
 #[cfg(test)]
 mod tests {
-    use crate::clickhouse::compacted_tables::schema::ClickhouseDataType;
 
     #[cfg(feature = "serde")]
     #[test]
     fn datatype_from_str() {
+        use crate::clickhouse::compacted_tables::schema::ClickhouseDataType;
         assert_eq!(
             serde_json::from_str::<ClickhouseDataType>("\"UInt8\"").unwrap(),
             ClickhouseDataType::UInt8

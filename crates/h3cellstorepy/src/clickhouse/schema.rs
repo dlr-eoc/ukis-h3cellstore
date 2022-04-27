@@ -50,6 +50,35 @@ impl PyCompactedTableSchema {
     }
 }
 
+#[pyclass]
+pub struct PyCompressionMethod {
+    compression_method: CompressionMethod,
+}
+
+#[pymethods]
+impl PyCompressionMethod {
+    #[new]
+    #[args(method_param = "None")]
+    pub fn new(method_name: String, method_param: Option<u8>) -> PyResult<Self> {
+        let compression_method = match method_name.to_lowercase().as_str() {
+            "lz4hc" => CompressionMethod::LZ4HC(method_param.unwrap_or(9)),
+            "zstd" => CompressionMethod::ZSTD(method_param.unwrap_or(6)),
+            "delta" => CompressionMethod::Delta(method_param.unwrap_or(1)),
+            "doubledelta" => CompressionMethod::DoubleDelta,
+            "gorilla" => CompressionMethod::Gorilla,
+            "t64" => CompressionMethod::T64,
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Unsupported compression method: {}",
+                    method_name
+                )))
+            }
+        };
+
+        Ok(Self { compression_method })
+    }
+}
+
 lazy_static! {
     static ref RE_TEMPORAL_PARTITIONING: Regex =
         Regex::new(r"^(([0-9]+)\s*)?([a-zA-Z]+)$").unwrap();
@@ -112,26 +141,8 @@ impl PyCompactedTableSchemaBuilder {
     }
 
     #[args(level = "None")]
-    fn compression_method(
-        &mut self,
-        method_name: String,
-        method_param: Option<u8>,
-    ) -> PyResult<()> {
-        self.compression_method = Some(match method_name.to_lowercase().as_str() {
-            "lz4hc" => CompressionMethod::LZ4HC(method_param.unwrap_or(9)),
-            "zstd" => CompressionMethod::ZSTD(method_param.unwrap_or(6)),
-            "delta" => CompressionMethod::Delta(method_param.unwrap_or(1)),
-            "doubledelta" => CompressionMethod::DoubleDelta,
-            "gorilla" => CompressionMethod::Gorilla,
-            "t64" => CompressionMethod::T64,
-            _ => {
-                return Err(PyValueError::new_err(format!(
-                    "Unsupported compression method: {}",
-                    method_name
-                )))
-            }
-        });
-        Ok(())
+    fn compression_method(&mut self, compression_method: &PyCompressionMethod) {
+        self.compression_method = Some(compression_method.compression_method.clone());
     }
 
     fn use_compacted_resolutions(&mut self, use_compaction: bool) {
@@ -143,14 +154,19 @@ impl PyCompactedTableSchemaBuilder {
         self.h3_base_resolutions = Some(res)
     }
 
-    #[args(order_key_position = "None")]
+    #[args(order_key_position = "None", compression_method = "None")]
     fn add_column(
         &mut self,
         column_name: String,
         datatype_str: String,
         order_key_position: Option<u8>,
+        compression_method: Option<&PyCompressionMethod>,
     ) -> PyResult<()> {
-        let sc = SimpleColumn::new(datatype_from_string(datatype_str)?, order_key_position);
+        let sc = SimpleColumn::new(
+            datatype_from_string(datatype_str)?,
+            order_key_position,
+            compression_method.map(|pcm| pcm.compression_method.clone()),
+        );
         self.columns
             .push((column_name, ColumnDefinition::Simple(sc)));
         Ok(())
@@ -164,15 +180,20 @@ impl PyCompactedTableSchemaBuilder {
     ///
     /// The `min`, `max` and `avg` aggregations only work on the cells included in the data. Are
     ///  not all child-cells included, the missing ones are simply omitted and not assumed to be `0`.
-    #[args(order_key_position = "None")]
+    #[args(order_key_position = "None", compression_method = "None")]
     fn add_aggregated_column(
         &mut self,
         column_name: String,
         datatype_str: String,
         agg_method_str: String,
         order_key_position: Option<u8>,
+        compression_method: Option<&PyCompressionMethod>,
     ) -> PyResult<()> {
-        let sc = SimpleColumn::new(datatype_from_string(datatype_str)?, order_key_position);
+        let sc = SimpleColumn::new(
+            datatype_from_string(datatype_str)?,
+            order_key_position,
+            compression_method.map(|pcm| pcm.compression_method.clone()),
+        );
         let agg = match agg_method_str.to_lowercase().as_str() {
             "sum" => AggregationMethod::Sum,
             "min" => AggregationMethod::Min,

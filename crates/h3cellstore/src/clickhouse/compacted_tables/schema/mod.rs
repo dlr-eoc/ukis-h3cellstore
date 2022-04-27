@@ -311,24 +311,18 @@ impl CompactedTableSchema {
             }
             TableEngine::AggregatingMergeTree => "AggregatingMergeTree".to_string(),
         };
-        let codec = match &self.compression_method {
-            CompressionMethod::LZ4HC(level) => format!("LZ4HC({})", level),
-            CompressionMethod::ZSTD(level) => format!("ZSTD({})", level),
-            CompressionMethod::Delta(delta_bytes) => format!("Delta({})", delta_bytes),
-            CompressionMethod::DoubleDelta => "DoubleDelta".to_string(),
-            CompressionMethod::Gorilla => "Gorilla".to_string(),
-            CompressionMethod::T64 => "T64".to_string(),
-        };
+        let default_codec = codec_string(&self.compression_method);
         let columns = &self
             .columns
             .iter()
             .sorted_by(|a, b| Ord::cmp(a.0, b.0)) // order to make the SQL comparable
             .map(|(col_name, def)| {
+                let col_codec = def.compression_method().map(codec_string);
                 format!(
                     " {} {} CODEC({})",
                     col_name,
                     def.datatype().sql_type_name(),
-                    codec
+                    col_codec.unwrap_or_else(|| default_codec.clone())
                 )
             })
             .join(",\n");
@@ -368,6 +362,17 @@ impl CompactedTableSchema {
                 format!("drop table if exists {}", table.to_table_name())
             })
             .collect::<Vec<String>>())
+    }
+}
+
+fn codec_string(compression_method: &CompressionMethod) -> String {
+    match compression_method {
+        CompressionMethod::LZ4HC(level) => format!("LZ4HC({})", level),
+        CompressionMethod::ZSTD(level) => format!("ZSTD({})", level),
+        CompressionMethod::Delta(delta_bytes) => format!("Delta({})", delta_bytes),
+        CompressionMethod::DoubleDelta => "DoubleDelta".to_string(),
+        CompressionMethod::Gorilla => "Gorilla".to_string(),
+        CompressionMethod::T64 => "T64".to_string(),
     }
 }
 
@@ -501,8 +506,8 @@ impl CompactedTableSchemaBuilder {
 mod tests {
     use crate::clickhouse::compacted_tables::schema::{
         validate_table_name, AggregationMethod, ClickhouseDataType, ColumnDefinition,
-        CompactedTableSchema, CompactedTableSchemaBuilder, ResolutionMetadata, SimpleColumn,
-        TemporalPartitioning,
+        CompactedTableSchema, CompactedTableSchemaBuilder, CompressionMethod, ResolutionMetadata,
+        SimpleColumn, TemporalPartitioning,
     };
 
     #[test]
@@ -521,13 +526,21 @@ mod tests {
             .add_column(
                 "elephant_density",
                 ColumnDefinition::WithAggregation(
-                    SimpleColumn::new(ClickhouseDataType::Float32, None),
+                    SimpleColumn::new(
+                        ClickhouseDataType::Float32,
+                        None,
+                        Some(CompressionMethod::Delta(1)),
+                    ),
                     AggregationMethod::Average,
                 ),
             )
             .add_column(
                 "observed_on",
-                ColumnDefinition::Simple(SimpleColumn::new(ClickhouseDataType::DateTime, Some(0))),
+                ColumnDefinition::Simple(SimpleColumn::new(
+                    ClickhouseDataType::DateTime,
+                    Some(0),
+                    None,
+                )),
             )
             .build()
             .unwrap()

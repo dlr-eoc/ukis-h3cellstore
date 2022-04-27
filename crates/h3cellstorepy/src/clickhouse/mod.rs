@@ -1,5 +1,7 @@
 use crate::clickhouse::grpc::{GRPCConnection, GRPCRuntime, PyInsertOptions, PyTableSetQuery};
-use crate::clickhouse::schema::{PyCompactedTableSchema, PyCompactedTableSchemaBuilder};
+use crate::clickhouse::schema::{
+    PyCompactedTableSchema, PyCompactedTableSchemaBuilder, PyCompressionMethod,
+};
 use crate::clickhouse::tableset::PyTableSet;
 use crate::clickhouse::traversal::TraversalStrategy;
 use pyo3::prelude::PyModule;
@@ -25,5 +27,6 @@ pub fn init_clickhouse_submodule(py: Python, m: &PyModule) -> PyResult<()> {
     m.add("TableSet", py.get_type::<PyTableSet>())?;
     m.add("InsertOptions", py.get_type::<PyInsertOptions>())?;
     m.add("TableSetQuery", py.get_type::<PyTableSetQuery>())?;
+    m.add("CompressionMethod", py.get_type::<PyCompressionMethod>())?;
     Ok(())
 }

@@ -4,7 +4,7 @@ use std::any::type_name;
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::schema::{
-    AggregationMethod, ClickhouseDataType, ValidateSchema,
+    AggregationMethod, ClickhouseDataType, CompressionMethod, ValidateSchema,
 };
 use crate::{Error, Named};
 
@@ -48,6 +48,14 @@ impl ColumnDefinition {
             Self::WithAggregation(sc, _) => sc.order_key_position,
         }
     }
+
+    pub fn compression_method(&self) -> Option<&CompressionMethod> {
+        match self {
+            ColumnDefinition::Simple(sc) => sc.compression_method.as_ref(),
+            ColumnDefinition::H3Index => None,
+            ColumnDefinition::WithAggregation(sc, _) => sc.compression_method.as_ref(),
+        }
+    }
 }
 
 impl ValidateSchema for ColumnDefinition {
@@ -77,13 +85,20 @@ pub struct SimpleColumn {
     /// https://clickhouse.tech/docs/en/engines/table-engines/mergetree-family/mergetree/
     /// for more
     order_key_position: Option<u8>,
+
+    compression_method: Option<CompressionMethod>,
 }
 
 impl SimpleColumn {
-    pub fn new(datatype: ClickhouseDataType, order_key_position: Option<u8>) -> Self {
+    pub fn new(
+        datatype: ClickhouseDataType,
+        order_key_position: Option<u8>,
+        compression_method: Option<CompressionMethod>,
+    ) -> Self {
         Self {
             datatype,
             order_key_position,
+            compression_method,
         }
     }
 }

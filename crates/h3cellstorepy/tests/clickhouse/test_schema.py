@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from h3cellstorepy.clickhouse import CompactedTableSchemaBuilder, CompactedTableSchema, TableSetQuery
+from h3cellstorepy.clickhouse import CompactedTableSchemaBuilder, CompactedTableSchema, TableSetQuery, CompressionMethod
 from h3cellstorepy.clickhouse import connect
 
 import h3.api.numpy_int as h3
@@ -17,10 +17,12 @@ def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month
     csb.h3_base_resolutions(list(range(0, 8)))
     csb.temporal_resolution("second")
     csb.temporal_partitioning(temporal_partitioning)
-    csb.add_column("is_valid", "UInt8")
+    csb.add_column("is_valid", "UInt8", None, CompressionMethod("gorilla"))
     csb.add_aggregated_column("elephant_density", "Float32", "RelativeToCellArea")
     schema = csb.build()  # raises when the schema is invalid / missing something
     assert schema is not None
+    #print(schema.to_json_string())
+    #print(schema.sql_statements())
     return tableset_name, schema
 
 
