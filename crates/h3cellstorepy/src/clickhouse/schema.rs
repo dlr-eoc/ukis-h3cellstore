@@ -112,10 +112,18 @@ impl PyCompactedTableSchemaBuilder {
     }
 
     #[args(level = "None")]
-    fn compression_method(&mut self, method_name: String, level: Option<u8>) -> PyResult<()> {
+    fn compression_method(
+        &mut self,
+        method_name: String,
+        method_param: Option<u8>,
+    ) -> PyResult<()> {
         self.compression_method = Some(match method_name.to_lowercase().as_str() {
-            "lz4hc" => CompressionMethod::LZ4HC(level.unwrap_or(9)),
-            "zstd" => CompressionMethod::ZSTD(level.unwrap_or(6)),
+            "lz4hc" => CompressionMethod::LZ4HC(method_param.unwrap_or(9)),
+            "zstd" => CompressionMethod::ZSTD(method_param.unwrap_or(6)),
+            "delta" => CompressionMethod::Delta(method_param.unwrap_or(1)),
+            "doubledelta" => CompressionMethod::DoubleDelta,
+            "gorilla" => CompressionMethod::Gorilla,
+            "t64" => CompressionMethod::T64,
             _ => {
                 return Err(PyValueError::new_err(format!(
                     "Unsupported compression method: {}",
