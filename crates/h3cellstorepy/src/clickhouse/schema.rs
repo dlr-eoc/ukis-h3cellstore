@@ -3,6 +3,7 @@ use std::num::ParseIntError;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use regex::Regex;
 
 use h3cellstore::clickhouse::compacted_tables::schema::{
@@ -12,6 +13,7 @@ use h3cellstore::clickhouse::compacted_tables::schema::{
 };
 
 use crate::error::IntoPyResult;
+use crate::utils::extract_dict_item;
 
 #[pyclass]
 pub struct PyCompactedTableSchema {
@@ -154,18 +156,20 @@ impl PyCompactedTableSchemaBuilder {
         self.h3_base_resolutions = Some(res)
     }
 
-    #[args(order_key_position = "None", compression_method = "None")]
+    #[args(kwargs = "**")]
     fn add_column(
         &mut self,
         column_name: String,
         datatype_str: String,
-        order_key_position: Option<u8>,
-        compression_method: Option<&PyCompressionMethod>,
+        kwargs: Option<&PyDict>,
     ) -> PyResult<()> {
+        let column_kwargs = ColumnKwargs::extract(kwargs)?;
         let sc = SimpleColumn::new(
             datatype_from_string(datatype_str)?,
-            order_key_position,
-            compression_method.map(|pcm| pcm.compression_method.clone()),
+            column_kwargs.order_key_position,
+            column_kwargs
+                .compression_method
+                .map(|pcm| pcm.compression_method.clone()),
         );
         self.columns
             .push((column_name, ColumnDefinition::Simple(sc)));
@@ -180,19 +184,21 @@ impl PyCompactedTableSchemaBuilder {
     ///
     /// The `min`, `max` and `avg` aggregations only work on the cells included in the data. Are
     ///  not all child-cells included, the missing ones are simply omitted and not assumed to be `0`.
-    #[args(order_key_position = "None", compression_method = "None")]
+    #[args(kwargs = "**")]
     fn add_aggregated_column(
         &mut self,
         column_name: String,
         datatype_str: String,
         agg_method_str: String,
-        order_key_position: Option<u8>,
-        compression_method: Option<&PyCompressionMethod>,
+        kwargs: Option<&PyDict>,
     ) -> PyResult<()> {
+        let column_kwargs = ColumnKwargs::extract(kwargs)?;
         let sc = SimpleColumn::new(
             datatype_from_string(datatype_str)?,
-            order_key_position,
-            compression_method.map(|pcm| pcm.compression_method.clone()),
+            column_kwargs.order_key_position,
+            column_kwargs
+                .compression_method
+                .map(|pcm| pcm.compression_method.clone()),
         );
         let agg = match agg_method_str.to_lowercase().as_str() {
             "sum" => AggregationMethod::Sum,
@@ -302,4 +308,21 @@ fn datatype_from_string(datatype_string: String) -> PyResult<ClickhouseDataType>
     // todo: implement FromStr and use that instead of serde
     serde_json::from_str(&format!("\"{}\"", datatype_string))
         .map_err(|_e| PyValueError::new_err(format!("Unknown datatype: {}", datatype_string)))
+}
+
+#[derive(Default)]
+struct ColumnKwargs<'a> {
+    order_key_position: Option<u8>,
+    compression_method: Option<PyRef<'a, PyCompressionMethod>>,
+}
+
+impl<'a> ColumnKwargs<'a> {
+    fn extract(dict: Option<&PyDict>) -> PyResult<ColumnKwargs> {
+        let mut kwargs = ColumnKwargs::default();
+        if let Some(dict) = dict {
+            kwargs.order_key_position = extract_dict_item(dict, "order_key_position")?;
+            kwargs.compression_method = extract_dict_item(dict, "compression_method")?;
+        }
+        Ok(kwargs)
+    }
 }

@@ -17,12 +17,14 @@ def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month
     csb.h3_base_resolutions(list(range(0, 8)))
     csb.temporal_resolution("second")
     csb.temporal_partitioning(temporal_partitioning)
-    csb.add_column("is_valid", "UInt8", None, CompressionMethod("gorilla"))
+    csb.add_column("is_valid", "UInt8", compression_method=CompressionMethod("gorilla"))
     csb.add_aggregated_column("elephant_density", "Float32", "RelativeToCellArea")
     schema = csb.build()  # raises when the schema is invalid / missing something
     assert schema is not None
     #print(schema.to_json_string())
     #print(schema.sql_statements())
+    assert "Gorilla" in schema.sql_statements()[0]
+
     return tableset_name, schema
 
 
