@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 
 use h3cellstore::export::arrow_h3::export::h3ron::{H3Cell, HasH3Resolution};
 
-use crate::utils::cells_from_numpy;
+use crate::utils::indexes_from_numpy;
 
 enum Strategy {
     Geometry {
@@ -55,7 +55,7 @@ impl TraversalStrategy {
 
     #[staticmethod]
     pub fn from_cells(cell_h3indexes: PyReadonlyArray1<u64>, h3_resolution: u8) -> PyResult<Self> {
-        let cells = cells_from_numpy(cell_h3indexes)?;
+        let cells = indexes_from_numpy(cell_h3indexes)?;
         Ok(Self {
             strategy: Strategy::Cells {
                 cells,

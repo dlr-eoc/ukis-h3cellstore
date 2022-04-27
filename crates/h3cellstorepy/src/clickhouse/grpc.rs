@@ -1,9 +1,8 @@
 use crate::clickhouse::schema::PyCompactedTableSchema;
 use crate::clickhouse::tableset::PyTableSet;
 use crate::error::IntoPyResult;
-use crate::frame::{dataframe_from_pyany, wrapped_frame};
-use crate::utils::cells_from_numpy;
-use crate::{PyDataFrame, PyH3DataFrame};
+use crate::frame::{dataframe_from_pyany, ToDataframeWrapper};
+use crate::utils::indexes_from_numpy;
 use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, TableSetQuery,
 };
@@ -98,8 +97,7 @@ impl GRPCConnection {
 
     /// execute the given query and return a non-H3 dataframe of it
     pub fn execute_into_dataframe(&mut self, py: Python, query: String) -> PyResult<PyObject> {
-        let df: PyDataFrame = self
-            .runtime
+        self.runtime
             .block_on(async {
                 self.client
                     .execute_into_dataframe(QueryInfo {
@@ -110,8 +108,7 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .into();
-        wrapped_frame(py, df)
+            .to_dataframewrapper(py)
     }
 
     /// insert a dataframe into a table
@@ -138,8 +135,7 @@ impl GRPCConnection {
         query: String,
         h3index_column_name: String,
     ) -> PyResult<PyObject> {
-        let df: PyH3DataFrame = self
-            .runtime
+        self.runtime
             .block_on(async {
                 self.client
                     .execute_into_h3dataframe(
@@ -153,8 +149,7 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .into();
-        wrapped_frame(py, df)
+            .to_dataframewrapper(py)
     }
 
     /// Check if the given DB exists
@@ -220,7 +215,7 @@ impl GRPCConnection {
         let insert_options = options.map(|o| o.options.clone()).unwrap_or_default();
         let h3df: H3DataFrame = (
             dataframe_from_pyany(py, dataframe)?,
-            schema.schema.h3index_column().into_pyresult()?.0.clone(),
+            schema.schema.h3index_column().into_pyresult()?.0,
         )
             .try_into()
             .into_pyresult()?;
@@ -243,7 +238,7 @@ impl GRPCConnection {
         loop {
             if py.check_signals().is_err() {
                 if let Ok(mut guard) = abort_mutex.lock() {
-                    warn!("Received Abort-request during insert");
+                    warn!("Received Abort request during insert");
                     *guard = true;
                 }
             }
@@ -269,10 +264,9 @@ impl GRPCConnection {
         cells: PyReadonlyArray1<u64>,
         h3_resolution: u8,
     ) -> PyResult<PyObject> {
-        let cells = cells_from_numpy(cells)?;
+        let cells = indexes_from_numpy(cells)?;
         let query = query.query.clone();
-        let h3df: PyH3DataFrame = self
-            .runtime
+        self.runtime
             .block_on(async {
                 self.client
                     .query_tableset_cells(
@@ -285,9 +279,7 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .into();
-
-        wrapped_frame(py, h3df)
+            .to_dataframewrapper(py)
     }
 }
 

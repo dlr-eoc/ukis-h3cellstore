@@ -8,6 +8,11 @@ use crate::arrow_interop::to_rust::to_rust_df;
 use h3cellstore::export::arrow_h3::export::polars::frame::DataFrame;
 use h3cellstore::export::arrow_h3::H3DataFrame;
 
+/// A wrapper for internal dataframe with an associated name for the column containing H3 cells.
+///
+/// Allows exporting the data to arrow recordbatches using the `to_arrow` method.
+///
+/// This class should not be used directly in python, it is used within `DataFrameWrapper`.
 #[pyclass]
 pub struct PyH3DataFrame {
     h3df: H3DataFrame,
@@ -35,6 +40,11 @@ impl From<H3DataFrame> for PyH3DataFrame {
     }
 }
 
+/// A wrapper for internal dataframe.
+///
+/// Allows exporting the data to arrow recordbatches using the `to_arrow` method.
+///
+/// This class should not be used directly in python, it is used within `DataFrameWrapper`.
 #[pyclass]
 pub struct PyDataFrame {
     df: DataFrame,
@@ -71,8 +81,37 @@ fn dataframe_to_arrow(py: Python, df: &mut DataFrame) -> PyResult<Vec<PyObject>>
     Ok(rbs)
 }
 
+pub trait ToDataframeWrapper {
+    /// return wrapped in a python `DataFrameWrapper` instance
+    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject>;
+}
+
+impl ToDataframeWrapper for PyH3DataFrame {
+    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
+        wrapped_frame(py, self)
+    }
+}
+
+impl ToDataframeWrapper for PyDataFrame {
+    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
+        wrapped_frame(py, self)
+    }
+}
+
+impl ToDataframeWrapper for H3DataFrame {
+    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
+        PyH3DataFrame::from(self).to_dataframewrapper(py)
+    }
+}
+
+impl ToDataframeWrapper for DataFrame {
+    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
+        PyDataFrame::from(self).to_dataframewrapper(py)
+    }
+}
+
 /// return wrapped in a python `DataFrameWrapper` instance
-pub fn wrapped_frame<T: PyClass>(
+fn wrapped_frame<T: PyClass>(
     py: Python,
     frame: impl Into<PyClassInitializer<T>>,
 ) -> PyResult<PyObject> {

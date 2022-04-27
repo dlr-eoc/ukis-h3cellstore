@@ -82,5 +82,5 @@ pub fn to_rust_df(rb: &[&PyAny]) -> PyResult<DataFrame> {
         })
         .collect::<PyResult<Vec<_>>>()?;
 
-    Ok(accumulate_dataframes_vertical(dfs).map_err(|e| e.to_custom_pyerr())?)
+    accumulate_dataframes_vertical(dfs).map_err(|e| e.to_custom_pyerr())
 }
