@@ -15,15 +15,21 @@ async fn main() -> eyre::Result<()> {
         .accept_gzip();
 
     // query
-    let df = client.execute_into_dataframe(
-        QueryInfo {
-            query: "select 'string-äöü-utf8?' s1, cast(name as Text), cast(1 as UInt64) as jkj, cast(now() as DateTime) as ts_datetime, cast(now() as Date) as ts_date, cast(now() as DateTime64) as ts64 from tables"
+    let df = client
+        .execute_into_dataframe(QueryInfo {
+            query: r#"
+            select 'string-äöü-utf8?' s1, 
+                cast(name as Text),
+                cast(1 as UInt64) as jkj,
+                cast(now() as DateTime) as ts_datetime,
+                cast(now() as Date) as ts_date,
+                cast(now() as DateTime64) as ts64 
+            from tables"#
                 .to_string(),
             database: "system".to_string(),
             ..Default::default()
-        },
-    )
-    .await?;
+        })
+        .await?;
     dbg!(df);
 
     let play_db = "play";

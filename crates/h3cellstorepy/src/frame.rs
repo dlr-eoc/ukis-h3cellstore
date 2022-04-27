@@ -110,24 +110,25 @@ impl ToDataframeWrapper for DataFrame {
     }
 }
 
+fn frame_module(py: Python) -> PyResult<&PyModule> {
+    py.import(concat!(env!("CARGO_PKG_NAME"), ".frame"))
+}
+
 /// return wrapped in a python `DataFrameWrapper` instance
 fn wrapped_frame<T: PyClass>(
     py: Python,
     frame: impl Into<PyClassInitializer<T>>,
 ) -> PyResult<PyObject> {
     let obj = PyCell::new(py, frame)?.to_object(py);
-
-    let module = py.import("h3cellstorepy.frame")?;
     let args = PyTuple::new(py, [obj]);
-    Ok(module
+    Ok(frame_module(py)?
         .getattr("DataFrameWrapper")?
         .call1(args)?
         .to_object(py))
 }
 
 pub fn dataframe_from_pyany(py: Python, obj: &PyAny) -> PyResult<DataFrame> {
-    let module = py.import("h3cellstorepy.frame")?;
-    let wrapped = module
+    let wrapped = frame_module(py)?
         .getattr("ensure_wrapped")?
         .call1(PyTuple::new(py, [obj]))?;
     let arrow_chunks = {
