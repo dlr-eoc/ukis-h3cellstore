@@ -1,12 +1,9 @@
 use h3cellstore::export::arrow_h3::export::h3ron;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic;
 use h3cellstore::export::clickhouse_arrow_grpc::ClickhouseException;
-use h3cellstore::Error;
 use pyo3::exceptions::{PyIOError, PyKeyboardInterrupt, PyRuntimeError, PyValueError};
 use pyo3::{PyErr, PyResult};
 use tracing::debug;
-
-// TODO: clean up
 
 pub trait ToCustomPyErr {
     fn to_custom_pyerr(self) -> PyErr;
@@ -90,7 +87,7 @@ impl ToCustomPyErr for h3cellstore::Error {
 
             Self::ClickhouseException(ce) => ce.to_custom_pyerr(),
 
-            Error::AquiringLockFailed => PyRuntimeError::new_err(self.to_string()),
+            Self::AquiringLockFailed => PyRuntimeError::new_err(self.to_string()),
 
             Self::CastArrayLengthMismatch
             | Self::ArrowChunkMissingField(_)
@@ -104,7 +101,7 @@ impl ToCustomPyErr for h3cellstore::Error {
             | Self::NoH3ResolutionsDefined
             | Self::MissingIndexValue => PyValueError::new_err(self.to_string()),
 
-            Error::Abort => PyKeyboardInterrupt::new_err(self.to_string()),
+            Self::Abort => PyKeyboardInterrupt::new_err(self.to_string()),
         }
     }
 }

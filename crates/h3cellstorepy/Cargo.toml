@@ -6,6 +6,10 @@ authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
 ]
 
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
+
 [lib]
 name = "h3cellstorepy"
 crate-type = ["cdylib"]
@@ -40,7 +44,6 @@ features = [
 version = "^0.16"
 features = [
     "macros",
-    "extension-module",
     "multiple-pymethods",
     "abi3",
     # minimum python version this library supports

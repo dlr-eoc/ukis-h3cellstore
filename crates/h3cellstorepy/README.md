@@ -11,3 +11,10 @@ export RUST_LOG=debug
 export PYTHONUNBUFFERED=1
 pytest -s
 ```
+
+
+## Run the rust unittests
+
+```shell
+cargo test --no-default-features
+```
