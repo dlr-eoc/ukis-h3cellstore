@@ -24,7 +24,7 @@ where
 {
     if let Some(okp) = dict.get_item(key.as_ref()) {
         Ok(Some(okp.extract::<D>().map_err(|_e| {
-            PyValueError::new_err(format!("Unsupported value for key {}", key.as_ref()))
+            PyValueError::new_err(format!("Invalid type of value for key {}", key.as_ref()))
         })?))
     } else {
         Ok(None)
