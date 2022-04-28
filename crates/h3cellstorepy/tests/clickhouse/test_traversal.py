@@ -4,7 +4,7 @@ from .test_schema import setup_elephant_schema_with_data
 from ..fixtures import clickhouse_grpc_endpoint, pl, clickhouse_testdb_name, geojson
 
 
-def test_traverse_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl, geojson):
+def test_traverse_by_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl, geojson):
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
         coord_diff = 1.0
         geom = geojson.loads(f"""{{
@@ -39,7 +39,7 @@ def test_traverse_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl,
         assert dfs_found <= len(traverser)
 
 
-def test_traverse_cells(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+def test_traverse_by_cells(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
         traverser = ctx.con.traverse_tableset_area_of_interest(
             ctx.schema.name,

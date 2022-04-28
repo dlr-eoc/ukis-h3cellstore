@@ -59,14 +59,20 @@ fn select_traversal_resolution(
 }
 
 pub struct TraversalOptions {
+    /// The maximum number of cells to fetch in one DB query.
     max_fetch_count: usize,
+
+    /// Number of parallel DB connections to use in the background.
+    /// Depending with the number of connections used the amount of memory used increases as well as
+    /// the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the
+    /// background.
     num_connections: usize,
 }
 
 impl Default for TraversalOptions {
     fn default() -> Self {
         Self {
-            max_fetch_count: 8_000,
+            max_fetch_count: 10_000,
             num_connections: 3,
         }
     }
