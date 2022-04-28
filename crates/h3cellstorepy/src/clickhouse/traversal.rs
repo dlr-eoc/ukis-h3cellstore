@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use tokio::task::spawn_blocking;
 use tracing::log::{debug, info, warn};
+use tracing::{debug_span, Instrument};
 
 use crate::clickhouse::grpc::{GRPCConnection, PyTableSetQuery};
 use crate::error::IntoPyResult;
@@ -98,7 +99,7 @@ impl TraversalOptions {
                 kwargs.num_connections = nc;
             }
             if let Some(fq) =
-                extract_dict_item_option::<PyRef<'_, PyTableSetQuery>, _>(dict, "num_connections")?
+                extract_dict_item_option::<PyRef<'_, PyTableSetQuery>, _>(dict, "filter_query")?
             {
                 kwargs.filter_query = Some(fq.query.clone());
             }
@@ -179,6 +180,7 @@ impl PyTraverser {
 
         let _background_fetch = runtime.spawn(async move {
             let (mut trav_cells_send, _trav_cells_recv) = postage::dispatch::channel(1);
+
             // spawn the workers performing the db-work
             for _ in 0..(options.num_connections) {
                 let mut worker_client = client.clone();
@@ -201,6 +203,10 @@ impl PyTraverser {
                             worker_filter_query.clone(),
                             traversal_h3_resolution,
                         )
+                        .instrument(debug_span!(
+                            "Loading traversal cell",
+                            cell = cell.to_string().as_str()
+                        ))
                         .await
                         {
                             Ok(Some(h3df)) => Ok(h3df),
@@ -315,6 +321,12 @@ async fn load_traversed_cell(
         // without filter_query we fetch the contents of the complete traversal cell
         vec![cell]
     };
+
+    if cells.is_empty() {
+        // filter_query may have found no matching cells
+        return Ok(None);
+    }
+
     let h3df = client
         .query_tableset_cells(
             &database_name,
