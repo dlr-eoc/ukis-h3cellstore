@@ -1,15 +1,20 @@
 use h3cellstore::clickhouse::compacted_tables::{CompactedTablesStore, TableSet, TableSetQuery};
 use numpy::{PyArray1, PyReadonlyArray1};
+use postage::prelude::{Sink, Stream};
 use py_geo_interface::GeoInterface;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use tracing::log::{info, warn};
+use tracing::log::{debug, info, warn};
 
 use crate::clickhouse::grpc::GRPCConnection;
 use crate::error::IntoPyResult;
+use crate::frame::ToDataframeWrapper;
 use h3cellstore::export::arrow_h3::export::h3ron::iter::change_resolution;
 use h3cellstore::export::arrow_h3::export::h3ron::{H3Cell, ToH3Cells};
+use h3cellstore::export::arrow_h3::H3DataFrame;
+use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
+use h3cellstore::export::clickhouse_arrow_grpc::ClickHouseClient;
 
 use crate::utils::{extract_dict_item_option, indexes_from_numpy};
 
@@ -55,49 +60,71 @@ fn select_traversal_resolution(
 
 pub struct TraversalOptions {
     max_fetch_count: usize,
+    num_connections: usize,
 }
 
 impl Default for TraversalOptions {
     fn default() -> Self {
         Self {
             max_fetch_count: 8_000,
+            num_connections: 3,
         }
     }
 }
 
 impl TraversalOptions {
-    pub(crate) fn extract<'a>(dict: Option<&'a PyDict>) -> PyResult<Self> {
+    pub(crate) fn extract(dict: Option<&PyDict>) -> PyResult<Self> {
         let mut kwargs = Self::default();
         if let Some(dict) = dict {
             if let Some(mfc) = extract_dict_item_option(dict, "max_fetch_count")? {
                 kwargs.max_fetch_count = mfc;
+            }
+            if let Some(nc) = extract_dict_item_option(dict, "num_connections")? {
+                kwargs.num_connections = nc;
             }
         }
         Ok(kwargs)
     }
 }
 
+///
+/// This class is an iterator over the dataframes encountered during traversal of the `area_of_interest`.
 #[pyclass]
 pub struct PyTraverser {
-    query: TableSetQuery,
-    traversal_cells: Vec<H3Cell>,
+    num_traversal_cells: usize,
     traversal_h3_resolution: u8,
+    dataframe_recv: tokio::sync::mpsc::Receiver<PyResult<H3DataFrame>>,
 }
 
 #[pymethods]
 impl PyTraverser {
     #[getter]
     fn num_traversal_cells(&self) -> usize {
-        self.traversal_cells.len()
+        self.num_traversal_cells
     }
 
     fn __len__(&self) -> usize {
-        self.traversal_cells.len()
+        self.num_traversal_cells
     }
 
     #[getter]
     fn traversal_h3_resolution(&self) -> u8 {
         self.traversal_h3_resolution
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
+        match slf.dataframe_recv.blocking_recv() {
+            Some(Ok(h3df)) => {
+                let gilguard = Python::acquire_gil();
+                Ok(Some(h3df.to_dataframewrapper(gilguard.python())?))
+            }
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        }
     }
 }
 
@@ -121,11 +148,69 @@ impl PyTraverser {
         let traversal_h3_resolution =
             select_traversal_resolution(&tableset, h3_resolution, options.max_fetch_count);
         let traversal_cells = area_of_interest_cells(area_of_interest, traversal_h3_resolution)?;
+        let num_traversal_cells = traversal_cells.len();
+        let runtime = conn.runtime.clone();
+        let client = conn.client.clone();
+        let database_name = conn.database_name.clone();
+        let (dataframe_send, dataframe_recv) = tokio::sync::mpsc::channel(options.num_connections);
+
+        let _background_fetch = runtime.spawn(async move {
+            let (mut trav_cells_send, _trav_cells_recv) = postage::dispatch::channel(1);
+            // spawn the workers performing the db-work
+            for _ in 0..(options.num_connections) {
+                let mut worker_client = client.clone();
+                let mut worker_trav_cells_recv = trav_cells_send.subscribe();
+                let worker_dataframe_send = dataframe_send.clone();
+                let worker_tableset = tableset.clone();
+                let worker_database_name = database_name.clone();
+                let worker_query = query.clone();
+
+                tokio::task::spawn(async move {
+                    while let Some(cell) = worker_trav_cells_recv.recv().await {
+                        let message = match load_traversed_cell(
+                            &mut worker_client,
+                            &worker_database_name,
+                            &worker_tableset,
+                            worker_query.clone(),
+                            cell,
+                            h3_resolution,
+                        )
+                        .await
+                        {
+                            Ok(Some(h3df)) => Ok(h3df),
+                            Ok(None) => {
+                                // no data found, continue to the next cell
+                                continue;
+                            }
+                            Err(e) => Err(e),
+                        };
+
+                        if worker_dataframe_send.send(message).await.is_err() {
+                            debug!("worker channel has been closed upstream. shutting down worker");
+                            break;
+                        }
+                    }
+                });
+            }
+
+            // distribute the cells to the workers
+            let _ = tokio::task::spawn(async move {
+                for cell in traversal_cells {
+                    if trav_cells_send.send(cell).await.is_err() {
+                        debug!("sink rejected message");
+                        break;
+                    }
+                }
+            });
+        });
+
+        // end of this scope closes the local copy of the dataframe_send channel to allow the
+        // pipeline to collapse when ta traversal is finished
 
         Ok(Self {
-            query,
-            traversal_cells,
+            num_traversal_cells,
             traversal_h3_resolution,
+            dataframe_recv,
         })
     }
 }
@@ -162,4 +247,31 @@ fn area_of_interest_cells(
             "unsupported type for area_of_interest",
         ))
     }
+}
+
+async fn load_traversed_cell(
+    client: &mut ClickHouseClient<Channel>,
+    database_name: &str,
+    tableset: &TableSet,
+    query: TableSetQuery,
+    cell: H3Cell,
+    h3_resolution: u8,
+) -> PyResult<Option<H3DataFrame>> {
+    let h3df = client
+        .query_tableset_cells(
+            &database_name,
+            tableset.clone(),
+            query,
+            vec![cell],
+            h3_resolution,
+        )
+        .await
+        .into_pyresult()?;
+
+    if h3df.dataframe.shape().0 == 0 {
+        // no data found, continue to the next cell
+        info!("Discarding received empty dataframe");
+        return Ok(None);
+    }
+    Ok(Some(h3df))
 }

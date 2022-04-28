@@ -21,6 +21,7 @@ regex = "1.5.5"
 py_geo_interface = "0.2"
 geo-types = "0.7"
 numpy = "0.16"
+postage = "0.5"
 
 [dependencies.tracing-subscriber]
 version = "0.3"

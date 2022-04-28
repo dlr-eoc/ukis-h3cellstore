@@ -6,7 +6,7 @@ from ..fixtures import clickhouse_grpc_endpoint, pl, clickhouse_testdb_name, geo
 
 def test_traverse_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl, geojson):
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
-        coord_diff = 0.8
+        coord_diff = 1.0
         geom = geojson.loads(f"""{{
             "type": "Polygon",
             "coordinates": [
@@ -28,7 +28,15 @@ def test_traverse_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl,
         assert traverser.traversal_h3_resolution < ctx.schema.max_h3_resolution
         assert len(traverser) > 0
         assert len(traverser) < len(ctx.df)
-        print(len(traverser))
+
+        dfs_found = 0
+        for dataframe_wrapper in traverser:
+            df = dataframe_wrapper.to_polars()
+            assert len(df) > 0
+            dfs_found += 1
+            #print(df)
+        assert dfs_found > 0
+        assert dfs_found <= len(traverser)
 
 
 def test_traverse_cells(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
@@ -42,4 +50,12 @@ def test_traverse_cells(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
         assert traverser.traversal_h3_resolution < ctx.schema.max_h3_resolution
         assert len(traverser) > 0
         assert len(traverser) < len(ctx.df)
-        print(len(traverser))
+
+        dfs_found = 0
+        for dataframe_wrapper in traverser:
+            df = dataframe_wrapper.to_polars()
+            assert len(df) > 0
+            dfs_found += 1
+            #print(df)
+        assert dfs_found > 0
+        assert dfs_found <= len(traverser)

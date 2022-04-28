@@ -40,7 +40,7 @@ def setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_
 
     center_point = (20.0, 10.0)
     # uncompacted disk
-    disk = h3.k_ring(h3.geo_to_h3(center_point[0], center_point[1], schema.max_h3_resolution), 10).astype(np.uint64)
+    disk = h3.k_ring(h3.geo_to_h3(center_point[1], center_point[0], schema.max_h3_resolution), 10).astype(np.uint64)
     df = pl.DataFrame({
         "h3index": disk,
         "is_valid": np.ones(len(disk)),
