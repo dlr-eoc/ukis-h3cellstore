@@ -318,6 +318,7 @@ impl GRPCConnection {
     ///
     /// - `max_fetch_count`: The maximum number of cells to fetch in one DB query.
     /// - `num_connections`: Number of parallel DB connections to use in the background. Default is 3. Depending with the number of connections used the amount of memory used increases as well as the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the background.
+    /// - `filter_query`: This query will be applied to the tables in the reduced `traversal_h3_resolution` and only cells found by this query will be loaded from the tables in the requested full resolution
     #[args(kwargs = "**")]
     pub fn traverse_tableset_area_of_interest(
         &mut self,
@@ -422,7 +423,7 @@ impl PyInsertOptions {
 
 #[pyclass]
 pub struct PyTableSetQuery {
-    query: TableSetQuery,
+    pub(crate) query: TableSetQuery,
 }
 
 #[pymethods]

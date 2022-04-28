@@ -1,13 +1,15 @@
 use h3cellstore::clickhouse::compacted_tables::{CompactedTablesStore, TableSet, TableSetQuery};
+use h3cellstore::export::arrow_h3::algo::ToIndexCollection;
 use numpy::{PyArray1, PyReadonlyArray1};
 use postage::prelude::{Sink, Stream};
 use py_geo_interface::GeoInterface;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use tokio::task::spawn_blocking;
 use tracing::log::{debug, info, warn};
 
-use crate::clickhouse::grpc::GRPCConnection;
+use crate::clickhouse::grpc::{GRPCConnection, PyTableSetQuery};
 use crate::error::IntoPyResult;
 use crate::frame::ToDataframeWrapper;
 use h3cellstore::export::arrow_h3::export::h3ron::iter::change_resolution;
@@ -67,6 +69,12 @@ pub struct TraversalOptions {
     /// the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the
     /// background.
     num_connections: usize,
+
+    /// optional prefilter query.
+    ///
+    /// This query will be applied to the tables in the reduced `traversal_h3_resolution` and only cells
+    /// found by this query will be loaded from the tables in the requested full resolution
+    filter_query: Option<TableSetQuery>,
 }
 
 impl Default for TraversalOptions {
@@ -74,6 +82,7 @@ impl Default for TraversalOptions {
         Self {
             max_fetch_count: 10_000,
             num_connections: 3,
+            filter_query: None,
         }
     }
 }
@@ -87,6 +96,11 @@ impl TraversalOptions {
             }
             if let Some(nc) = extract_dict_item_option(dict, "num_connections")? {
                 kwargs.num_connections = nc;
+            }
+            if let Some(fq) =
+                extract_dict_item_option::<PyRef<'_, PyTableSetQuery>, _>(dict, "num_connections")?
+            {
+                kwargs.filter_query = Some(fq.query.clone());
             }
         }
         Ok(kwargs)
@@ -173,6 +187,7 @@ impl PyTraverser {
                 let worker_tableset = tableset.clone();
                 let worker_database_name = database_name.clone();
                 let worker_query = query.clone();
+                let worker_filter_query = options.filter_query.clone();
 
                 tokio::task::spawn(async move {
                     while let Some(cell) = worker_trav_cells_recv.recv().await {
@@ -183,6 +198,8 @@ impl PyTraverser {
                             worker_query.clone(),
                             cell,
                             h3_resolution,
+                            worker_filter_query.clone(),
+                            traversal_h3_resolution,
                         )
                         .await
                         {
@@ -265,13 +282,45 @@ async fn load_traversed_cell(
     query: TableSetQuery,
     cell: H3Cell,
     h3_resolution: u8,
+    filter_query: Option<TableSetQuery>,
+    traversal_h3_resolution: u8,
 ) -> PyResult<Option<H3DataFrame>> {
+    let cells = if let Some(filter_query) = filter_query {
+        let filter_h3df = client
+            .query_tableset_cells(
+                &database_name,
+                tableset.clone(),
+                filter_query,
+                vec![cell],
+                traversal_h3_resolution,
+            )
+            .await
+            .into_pyresult()?;
+
+        // use only the indexes from the filter query to be able to fetch a smaller subset
+        spawn_blocking(move || {
+            filter_h3df
+                .to_index_collection()
+                .into_pyresult()
+                .map(|mut cells: Vec<H3Cell>| {
+                    // remove duplicates
+                    cells.sort_unstable();
+                    cells.dedup();
+                    cells
+                })
+        })
+        .await
+        .into_pyresult()??
+    } else {
+        // without filter_query we fetch the contents of the complete traversal cell
+        vec![cell]
+    };
     let h3df = client
         .query_tableset_cells(
             &database_name,
             tableset.clone(),
             query,
-            vec![cell],
+            cells,
             h3_resolution,
         )
         .await
