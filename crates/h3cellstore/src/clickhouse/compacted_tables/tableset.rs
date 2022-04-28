@@ -195,11 +195,7 @@ where
         C: CompactedTablesStore + Send + Sync,
         S: AsRef<str> + Send + Sync,
     {
-        store
-            .list_tablesets(database_name)
-            .await?
-            .remove(self.as_ref())
-            .ok_or_else(|| Error::TableSetNotFound(self.as_ref().to_string()))
+        store.get_tableset(database_name, self.as_ref()).await
     }
 }
 

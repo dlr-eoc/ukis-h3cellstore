@@ -17,7 +17,7 @@ where
         .into_pyresult()
 }
 
-pub(crate) fn extract_dict_item<'a, D, K>(dict: &'a PyDict, key: K) -> PyResult<Option<D>>
+pub(crate) fn extract_dict_item_option<'a, D, K>(dict: &'a PyDict, key: K) -> PyResult<Option<D>>
 where
     D: FromPyObject<'a>,
     K: AsRef<str>,

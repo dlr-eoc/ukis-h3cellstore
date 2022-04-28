@@ -13,7 +13,7 @@ use h3cellstore::clickhouse::compacted_tables::schema::{
 };
 
 use crate::error::IntoPyResult;
-use crate::utils::extract_dict_item;
+use crate::utils::extract_dict_item_option;
 
 #[pyclass]
 pub struct PyCompactedTableSchema {
@@ -317,11 +317,11 @@ struct ColumnKwargs<'a> {
 }
 
 impl<'a> ColumnKwargs<'a> {
-    fn extract(dict: Option<&PyDict>) -> PyResult<ColumnKwargs> {
-        let mut kwargs = ColumnKwargs::default();
+    fn extract(dict: Option<&'a PyDict>) -> PyResult<Self> {
+        let mut kwargs = Self::default();
         if let Some(dict) = dict {
-            kwargs.order_key_position = extract_dict_item(dict, "order_key_position")?;
-            kwargs.compression_method = extract_dict_item(dict, "compression_method")?;
+            kwargs.order_key_position = extract_dict_item_option(dict, "order_key_position")?;
+            kwargs.compression_method = extract_dict_item_option(dict, "compression_method")?;
         }
         Ok(kwargs)
     }

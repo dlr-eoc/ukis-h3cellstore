@@ -1,5 +1,6 @@
 use crate::clickhouse::schema::PyCompactedTableSchema;
 use crate::clickhouse::tableset::PyTableSet;
+use crate::clickhouse::traversal::{PyTraverser, TraversalOptions};
 use crate::error::IntoPyResult;
 use crate::frame::{dataframe_from_pyany, ToDataframeWrapper};
 use crate::utils::indexes_from_numpy;
@@ -13,6 +14,7 @@ use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClien
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3::PyResult;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,9 +54,9 @@ impl GRPCRuntime {
 
 #[pyclass]
 pub struct GRPCConnection {
-    database_name: String,
-    runtime: Arc<Runtime>,
-    client: ClickHouseClient<Channel>,
+    pub(crate) database_name: String,
+    pub(crate) runtime: Arc<Runtime>,
+    pub(crate) client: ClickHouseClient<Channel>,
 }
 
 #[pymethods]
@@ -280,6 +282,26 @@ impl GRPCConnection {
             })
             .into_pyresult()?
             .to_dataframewrapper(py)
+    }
+
+    #[args(kwargs = "**")]
+    pub fn traverse_tableset_area_of_interest(
+        &mut self,
+        tableset_name: String,
+        query: &PyTableSetQuery,
+        area_of_interest: &PyAny,
+        h3_resolution: u8,
+        kwargs: Option<&PyDict>,
+    ) -> PyResult<PyTraverser> {
+        let options = TraversalOptions::extract(kwargs)?;
+        PyTraverser::create(
+            self,
+            tableset_name,
+            query.query.clone(),
+            area_of_interest,
+            h3_resolution,
+            options,
+        )
     }
 }
 

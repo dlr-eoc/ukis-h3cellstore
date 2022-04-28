@@ -39,6 +39,21 @@ pub trait CompactedTablesStore {
     where
         S: AsRef<str> + Sync + Send;
 
+    async fn get_tableset<S1, S2>(
+        &mut self,
+        database_name: S1,
+        tableset_name: S2,
+    ) -> Result<TableSet, Error>
+    where
+        S1: AsRef<str> + Sync + Send,
+        S2: AsRef<str> + Send + Sync,
+    {
+        self.list_tablesets(database_name)
+            .await?
+            .remove(tableset_name.as_ref())
+            .ok_or_else(|| Error::TableSetNotFound(tableset_name.as_ref().to_string()))
+    }
+
     async fn drop_tableset<S, TS>(&mut self, database_name: S, tableset: TS) -> Result<(), Error>
     where
         S: AsRef<str> + Send + Sync,

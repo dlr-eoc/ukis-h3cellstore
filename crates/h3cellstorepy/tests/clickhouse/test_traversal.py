@@ -1,49 +1,45 @@
-import geojson
-from h3cellstorepy.clickhouse import TraversalStrategy
-import h3.api.numpy_int as h3
+from h3cellstorepy.clickhouse import TableSetQuery
+from .test_schema import setup_elephant_schema_with_data
+# noinspection PyUnresolvedReferences
+from ..fixtures import clickhouse_grpc_endpoint, pl, clickhouse_testdb_name, geojson
 
 
-def test_create_geometry_traversal_instance():
-    geom = geojson.loads("""
-  {
-        "type": "Polygon",
-        "coordinates": [
-          [
-            [
-              6.6796875,
-              45.336701909968134
-            ],
-            [
-              2.109375,
-              46.558860303117164
-            ],
-            [
-              -0.703125,
-              44.84029065139799
-            ],
-            [
-              1.40625,
-              42.5530802889558
-            ],
-            [
-              6.6796875,
-              43.068887774169625
-            ],
-            [
-              6.6796875,
-              45.336701909968134
+def test_traverse_geometry(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl, geojson):
+    with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
+        coord_diff = 0.8
+        geom = geojson.loads(f"""{{
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [{ctx.center_point[0] - coord_diff}, {ctx.center_point[1] - coord_diff}],
+                [{ctx.center_point[0] + coord_diff}, {ctx.center_point[1] - coord_diff}],
+                [{ctx.center_point[0] + coord_diff}, {ctx.center_point[1] + coord_diff}],
+                [{ctx.center_point[0] - coord_diff}, {ctx.center_point[1] + coord_diff}],
+                [{ctx.center_point[0] - coord_diff}, {ctx.center_point[1] - coord_diff}]
+              ]
             ]
-          ]
-        ]
-      }  
-    """)
-    strategy = TraversalStrategy.from_geometry(geom, 5)
-    assert strategy.name() == "Geometry"
-    assert strategy.h3_resolution() == 5
+          }}""")
+        traverser = ctx.con.traverse_tableset_area_of_interest(
+            ctx.schema.name,
+            TableSetQuery(),
+            geom,
+            ctx.schema.max_h3_resolution
+        )
+        assert traverser.traversal_h3_resolution < ctx.schema.max_h3_resolution
+        assert len(traverser) > 0
+        assert len(traverser) < len(ctx.df)
+        print(len(traverser))
 
 
-def test_create_cells_traversal_instance():
-    cells = h3.k_ring(h3.geo_to_h3(20.0, 10.0, 5), 10)
-    strategy = TraversalStrategy.from_cells(cells, 5)
-    assert strategy.name() == "Cells"
-    assert strategy.h3_resolution() == 5
+def test_traverse_cells(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+    with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
+        traverser = ctx.con.traverse_tableset_area_of_interest(
+            ctx.schema.name,
+            TableSetQuery(),
+            ctx.df["h3index"].to_numpy(),
+            ctx.schema.max_h3_resolution
+        )
+        assert traverser.traversal_h3_resolution < ctx.schema.max_h3_resolution
+        assert len(traverser) > 0
+        assert len(traverser) < len(ctx.df)
+        print(len(traverser))

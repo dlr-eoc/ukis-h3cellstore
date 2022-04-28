@@ -33,5 +33,13 @@ def pd():
 
 
 @pytest.fixture
+def geojson():
+    try:
+        import geojson
+        return geojson
+    except ImportError:
+        raise pytest.skip()
+
+@pytest.fixture
 def clickhouse_testdb_name():
     return "test"

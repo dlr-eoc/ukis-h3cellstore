@@ -3,7 +3,8 @@ requires = [
     "maturin==0.12",
     "pytest==7.1",
     "polars", # unittests
-    "pandas"  # unittests
+    "pandas",  # unittests
+    "geojson"  # unittests
 ]
 build-backend = "maturin"
 
