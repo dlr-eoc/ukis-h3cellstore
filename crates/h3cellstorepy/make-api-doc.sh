@@ -3,11 +3,12 @@
 # requires all dev-dependencies to be installed. see pyproject.toml
 
 BUILD_DIR=/tmp/h3ch-doc-build
+export SPHINX_APIDOC_OPTIONS="members,undoc-members,show-inheritance"
 
 maturin develop
 
 # https://stackoverflow.com/questions/36237477/python-docstrings-to-github-readme-md
-sphinx-apidoc -o $BUILD_DIR h3cellstorepy sphinx-apidoc --full
+sphinx-apidoc -o $BUILD_DIR h3cellstorepy sphinx-apidoc --ext-autodoc --full
 pushd $BUILD_DIR
 make markdown
 popd

@@ -310,17 +310,14 @@ impl GRPCConnection {
     /// the python interpreter.
     ///
     /// The `area_of_interest` can be provided in multiple forms:
-    /// * As a geometry or other object implementing pythons __geo_interface__. For example created by the
-    ///   shapely or geojson libraries.
-    /// * As a numpy array of H3 cells. These will be transformed to a resolution suitable for traversal. See
-    ///   the max_fetch_count argument
+    ///
+    /// - As a geometry or other object implementing pythons `__geo_interface__`. For example created by the `shapely` or `geojson` libraries.
+    /// - As a `numpy` array of H3 cells. These will be transformed to a resolution suitable for traversal. See the `max_fetch_count` argument
     ///
     /// Options (provided as keyword arguments):
-    /// * max_fetch_count: The maximum number of cells to fetch in one DB query.
-    /// * num_connections: Number of parallel DB connections to use in the background. Default is 3.
-    ///   Depending with the number of connections used the amount of memory used increases as well as
-    ///   the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the
-    ///   background.
+    ///
+    /// - `max_fetch_count`: The maximum number of cells to fetch in one DB query.
+    /// - `num_connections`: Number of parallel DB connections to use in the background. Default is 3. Depending with the number of connections used the amount of memory used increases as well as the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the background.
     #[args(kwargs = "**")]
     pub fn traverse_tableset_area_of_interest(
         &mut self,
