@@ -16,12 +16,14 @@ fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Check if this module has been compiled in release mode.
 #[cfg(debug_assertions)]
 #[pyfunction]
 fn is_release_build() -> bool {
     false
 }
 
+/// Check if this module has been compiled in release mode.
 #[cfg(not(debug_assertions))]
 #[pyfunction]
 fn is_release_build() -> bool {

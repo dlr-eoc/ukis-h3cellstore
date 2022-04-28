@@ -52,6 +52,9 @@ impl GRPCRuntime {
     }
 }
 
+/// GPRC connection to the Clickhouse DB server.
+///
+/// Uses async communication using a internal tokio runtime.
 #[pyclass]
 pub struct GRPCConnection {
     pub(crate) database_name: String,
@@ -61,14 +64,34 @@ pub struct GRPCConnection {
 
 #[pymethods]
 impl GRPCConnection {
-    #[staticmethod]
-    pub fn connect(
+    /// Name of the DB the connection connects to
+    #[getter]
+    fn database_name(&self) -> &str {
+        self.database_name.as_str()
+    }
+
+    /// Establish a new connection
+    #[args(create_db = "false", runtime = "None")]
+    #[new]
+    pub fn new(
+        py: Python,
         grpc_endpoint: &str,
         database_name: &str,
         create_db: bool,
-        grpc_runtime: &GRPCRuntime,
+        runtime: Option<&GRPCRuntime>,
     ) -> PyResult<Self> {
-        let runtime = grpc_runtime.runtime.clone();
+        let runtime = match runtime {
+            None => {
+                // load the default runtime created by the python module.
+                let module = py.import("h3cellstorepy.clickhouse")?;
+                module
+                    .getattr("_RUNTIME")?
+                    .extract::<PyRef<'_, GRPCRuntime>>()?
+                    .runtime
+                    .clone()
+            }
+            Some(gprc_runtime) => gprc_runtime.runtime.clone(),
+        };
         let grpc_endpoint_str = grpc_endpoint.to_string();
         let db_name_str = database_name.to_string();
         let client =
@@ -206,7 +229,6 @@ impl GRPCConnection {
     }
 
     /// insert a dataframe into a tableset
-    ///#[args(options=None)]
     pub fn insert_h3dataframe_into_tableset(
         &self,
         py: Python,
@@ -284,18 +306,18 @@ impl GRPCConnection {
             .to_dataframewrapper(py)
     }
 
-    /// Traversal using multiple gprc connections with pre-loading in the background without blocking
+    /// Traversal using multiple GRPC connections with pre-loading in the background without blocking
     /// the python interpreter.
     ///
     /// The `area_of_interest` can be provided in multiple forms:
     /// * As a geometry or other object implementing pythons __geo_interface__. For example created by the
-    ///   `shapely` or `geojson` libraries.
+    ///   shapely or geojson libraries.
     /// * As a numpy array of H3 cells. These will be transformed to a resolution suitable for traversal. See
-    ///   the `max_fetch_count` argument
+    ///   the max_fetch_count argument
     ///
     /// Options (provided as keyword arguments):
-    /// * `max_fetch_count`: The maximum number of cells to fetch in one DB query.
-    /// * `num_connections`: Number of parallel DB connections to use in the background. Default is 3.
+    /// * max_fetch_count: The maximum number of cells to fetch in one DB query.
+    /// * num_connections: Number of parallel DB connections to use in the background. Default is 3.
     ///   Depending with the number of connections used the amount of memory used increases as well as
     ///   the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the
     ///   background.

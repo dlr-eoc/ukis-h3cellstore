@@ -1,4 +1,3 @@
-from h3cellstorepy.clickhouse import connect
 from h3cellstorepy.clickhouse import CompactedTableSchemaBuilder, CompactedTableSchema, CompressionMethod, GRPCConnection
 
 import h3.api.numpy_int as h3
@@ -33,7 +32,7 @@ class SchemaContext:
 @contextlib.contextmanager
 def setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
     tableset_name, schema = elephant_schema()
-    con = connect(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
+    con = GRPCConnection(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
     con.drop_tableset(schema.name)
     con.create_tableset(schema)
     assert schema.name in con.list_tablesets()

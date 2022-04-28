@@ -48,6 +48,11 @@ class DataFrameWrapper:
         raise TypeError("unsupported type")
 
     def to_polars(self) -> "pl.DataFrame":
+        """Convert to a polars dataframe.
+
+        In most cases this should be a zero-copy operation
+
+        Requires having polars installed."""
         if not _HAS_POLARS:
             raise RuntimeError("polars is required")
         if isinstance(self._df, pl.DataFrame):
@@ -61,6 +66,9 @@ class DataFrameWrapper:
         raise TypeError("unsupported type")
 
     def to_pandas(self) -> "pd.DataFrame":
+        """Convert to a pandas dataframe.
+
+        Requires having pandas installed."""
         if not _HAS_PANDAS:
             raise RuntimeError("pandas is required")
         if isinstance(self._df, pd.DataFrame):
@@ -75,6 +83,7 @@ class DataFrameWrapper:
 
 
 def ensure_wrapped(framelike: typing.Union[DataFrameWrapper, DataFrameLike]) -> DataFrameWrapper:
+    """Create a `DataFrameWrapper` instance from the given input object"""
     if isinstance(framelike, DataFrameWrapper):
         return framelike
     return DataFrameWrapper(framelike)

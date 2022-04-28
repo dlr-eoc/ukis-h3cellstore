@@ -4,7 +4,8 @@ requires = [
     "pytest==7.1",
     "polars", # unittests
     "pandas",  # unittests
-    "geojson"  # unittests
+    "geojson",  # unittests
+    "sphinx-markdown-builder"  # for building docs
 ]
 build-backend = "maturin"
 

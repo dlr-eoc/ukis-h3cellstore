@@ -104,6 +104,8 @@ pub struct PyTraverser {
 
 #[pymethods]
 impl PyTraverser {
+    /// Number of celles used for the traversal process. Each one of these cells
+    /// will be queried using a separate DB query.
     #[getter]
     fn num_traversal_cells(&self) -> usize {
         self.num_traversal_cells
@@ -113,6 +115,7 @@ impl PyTraverser {
         self.num_traversal_cells
     }
 
+    /// The H3 resolution used for the traversal process
     #[getter]
     fn traversal_h3_resolution(&self) -> u8 {
         self.traversal_h3_resolution
