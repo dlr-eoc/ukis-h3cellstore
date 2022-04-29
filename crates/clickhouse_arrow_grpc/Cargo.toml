@@ -2,6 +2,7 @@
 name = "clickhouse_arrow_grpc"
 version = "0.1.0"
 edition = "2021"
+description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
 authors = [
     "Nico Mandery <nico.mandery@dlr.de>"
 ]

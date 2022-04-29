@@ -119,7 +119,7 @@ pub struct PyTraverser {
 
 #[pymethods]
 impl PyTraverser {
-    /// Number of celles used for the traversal process. Each one of these cells
+    /// Number of cells used for the traversal process. Each one of these cells
     /// will be queried using a separate DB query.
     #[getter]
     fn num_traversal_cells(&self) -> usize {
