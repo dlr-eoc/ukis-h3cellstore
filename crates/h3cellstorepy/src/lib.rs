@@ -17,17 +17,13 @@ fn version() -> String {
 }
 
 /// Check if this module has been compiled in release mode.
-#[cfg(debug_assertions)]
 #[pyfunction]
 fn is_release_build() -> bool {
-    false
-}
+    #[cfg(debug_assertions)]
+    return false;
 
-/// Check if this module has been compiled in release mode.
-#[cfg(not(debug_assertions))]
-#[pyfunction]
-fn is_release_build() -> bool {
-    true
+    #[cfg(not(debug_assertions))]
+    return true;
 }
 
 #[pymodule]
