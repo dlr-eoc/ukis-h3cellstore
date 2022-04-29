@@ -14,8 +14,15 @@ metadata:
   namespace: gzs-default
 spec:
   entrypoint: do
-  imagePullSecrets:
-    - name: "reg-processing"
+  volumeClaimTemplates:
+    - metadata:
+        name: work
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-storage
+        resources:
+          requests:
+            storage: 30Gi
   templates:
     - name: do
       steps:
@@ -58,7 +65,9 @@ spec:
           runAsNonRoot: true
         resources:
           requests:
-            ephemeral-storage: "20Gi"
+        volumeMounts:
+          - name: work
+            mountPath: /tmp
         source: |
           set -eu
           cd /tmp/
