@@ -55,6 +55,21 @@ impl GRPCRuntime {
     }
 }
 
+/// obtain the runtime defined in the python module
+fn obtain_runtime() -> PyResult<Arc<Runtime>> {
+    let guard = Python::acquire_gil();
+    let py = guard.python();
+
+    // load the default runtime created by the python module.
+    let module = py.import(concat!(env!("CARGO_PKG_NAME"), ".clickhouse"))?;
+    let runtime = module
+        .getattr("_RUNTIME")?
+        .extract::<PyRef<'_, GRPCRuntime>>()?
+        .runtime
+        .clone();
+    Ok(runtime)
+}
+
 /// GPRC connection to the Clickhouse DB server.
 ///
 /// Uses async communication using a internal tokio runtime.
@@ -77,22 +92,13 @@ impl GRPCConnection {
     #[args(create_db = "false", runtime = "None")]
     #[new]
     pub fn new(
-        py: Python,
         grpc_endpoint: &str,
         database_name: &str,
         create_db: bool,
         runtime: Option<&GRPCRuntime>,
     ) -> PyResult<Self> {
         let runtime = match runtime {
-            None => {
-                // load the default runtime created by the python module.
-                let module = py.import("h3cellstorepy.clickhouse")?;
-                module
-                    .getattr("_RUNTIME")?
-                    .extract::<PyRef<'_, GRPCRuntime>>()?
-                    .runtime
-                    .clone()
-            }
+            None => obtain_runtime()?,
             Some(gprc_runtime) => gprc_runtime.runtime.clone(),
         };
         let grpc_endpoint_str = grpc_endpoint.to_string();
@@ -124,7 +130,7 @@ impl GRPCConnection {
     }
 
     /// execute the given query and return a non-H3 dataframe of it
-    pub fn execute_into_dataframe(&mut self, py: Python, query: String) -> PyResult<PyObject> {
+    pub fn execute_into_dataframe(&mut self, query: String) -> PyResult<PyObject> {
         self.runtime
             .block_on(async {
                 self.client
@@ -136,17 +142,12 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .to_dataframewrapper(py)
+            .to_dataframewrapper()
     }
 
     /// insert a dataframe into a table
-    pub fn insert_dataframe(
-        &mut self,
-        py: Python,
-        table_name: String,
-        dataframe: &PyAny,
-    ) -> PyResult<()> {
-        let df = dataframe_from_pyany(py, dataframe)?;
+    pub fn insert_dataframe(&mut self, table_name: String, dataframe: &PyAny) -> PyResult<()> {
+        let df = dataframe_from_pyany(dataframe)?;
         self.runtime
             .block_on(async {
                 self.client
@@ -159,7 +160,6 @@ impl GRPCConnection {
     /// execute the given query and return a H3 dataframe of it
     pub fn execute_into_h3dataframe(
         &mut self,
-        py: Python,
         query: String,
         h3index_column_name: String,
     ) -> PyResult<PyObject> {
@@ -177,7 +177,7 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .to_dataframewrapper(py)
+            .to_dataframewrapper()
     }
 
     /// Check if the given DB exists
@@ -234,14 +234,13 @@ impl GRPCConnection {
     /// insert a dataframe into a tableset
     pub fn insert_h3dataframe_into_tableset(
         &self,
-        py: Python,
         schema: &PyCompactedTableSchema,
         dataframe: &PyAny,
         options: Option<&PyInsertOptions>,
     ) -> PyResult<()> {
         let insert_options = options.map(|o| o.options.clone()).unwrap_or_default();
         let h3df: H3DataFrame = (
-            dataframe_from_pyany(py, dataframe)?,
+            dataframe_from_pyany(dataframe)?,
             schema.schema.h3index_column().into_pyresult()?.0,
         )
             .try_into()
@@ -263,10 +262,14 @@ impl GRPCConnection {
         });
 
         loop {
-            if py.check_signals().is_err() {
-                if let Ok(mut guard) = abort_mutex.lock() {
-                    warn!("Received Abort request during insert");
-                    *guard = true;
+            {
+                let gilguard = Python::acquire_gil();
+                let py = gilguard.python();
+                if py.check_signals().is_err() {
+                    if let Ok(mut guard) = abort_mutex.lock() {
+                        warn!("Received Abort request during insert");
+                        *guard = true;
+                    }
                 }
             }
 
@@ -277,7 +280,7 @@ impl GRPCConnection {
                         .into_pyresult()?;
                     return res;
                 }
-                Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(50)),
+                Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(100)),
                 Err(TryRecvError::Closed) => unreachable!(),
             }
         }
@@ -285,7 +288,6 @@ impl GRPCConnection {
 
     pub fn query_tableset_cells(
         &mut self,
-        py: Python,
         tableset_name: String,
         query: &PyTableSetQuery,
         cells: PyReadonlyArray1<u64>,
@@ -306,7 +308,7 @@ impl GRPCConnection {
                     .await
             })
             .into_pyresult()?
-            .to_dataframewrapper(py)
+            .to_dataframewrapper()
     }
 
     /// Traversal using multiple GRPC connections with pre-loading in the background without blocking

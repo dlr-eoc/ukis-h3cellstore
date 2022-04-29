@@ -142,10 +142,7 @@ impl PyTraverser {
 
     fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
         match slf.dataframe_recv.blocking_recv() {
-            Some(Ok(h3df)) => {
-                let gilguard = Python::acquire_gil();
-                Ok(Some(h3df.to_dataframewrapper(gilguard.python())?))
-            }
+            Some(Ok(h3df)) => Ok(Some(h3df.to_dataframewrapper()?)),
             Some(Err(e)) => Err(e),
             None => Ok(None),
         }
