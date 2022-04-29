@@ -10,7 +10,7 @@ authors = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-serde = ["dep:serde", "polars/serde", "h3ron/use-serde"]
+serde = ["dep:serde", "polars/serde", "polars/serde-lazy", "h3ron/use-serde"]
 simd = ["polars-core/simd", "polars/simd"]
 
 # activate to re-export depdendencies
@@ -29,11 +29,11 @@ rev = "90db233174997d8483982f5255dfff597642c2f1"
 features = ["use-rayon"]
 
 [dependencies.polars]
-version = "0.20"
+version = "0.21"
 features = ["dtype-full", "lazy", "list"]
 
 [dependencies.polars-core]
-version = "0.20"
+version = "0.21"
 
 [dependencies.serde]
 version = "1"

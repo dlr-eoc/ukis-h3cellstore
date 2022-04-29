@@ -39,7 +39,7 @@ path = "../h3cellstore"
 features = [
     "export",
     "tls",
-    "serde"
+    "use_serde"
 ]
 
 [dependencies.pyo3]

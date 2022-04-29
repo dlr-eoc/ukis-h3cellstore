@@ -1,4 +1,4 @@
-#[cfg(feature = "serde")]
+#[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::Named;
@@ -6,7 +6,7 @@ use crate::Named;
 /// supported subset of the clickhouse datatypes.
 ///
 /// https://clickhouse.com/docs/en/interfaces/formats/#data_types-matching-arrow
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum ClickhouseDataType {
     UInt8,
@@ -78,7 +78,7 @@ impl Named for ClickhouseDataType {
 #[cfg(test)]
 mod tests {
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "use_serde")]
     #[test]
     fn datatype_from_str() {
         use crate::clickhouse::compacted_tables::schema::ClickhouseDataType;

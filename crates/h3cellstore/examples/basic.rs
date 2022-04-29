@@ -24,13 +24,17 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
         .add_column(
             "elephant_count",
             ColumnDefinition::WithAggregation(
-                SimpleColumn::new(ClickhouseDataType::UInt32, None),
+                SimpleColumn::new(ClickhouseDataType::UInt32, None, None),
                 AggregationMethod::Sum,
             ),
         )
         .add_column(
             "observed_on",
-            ColumnDefinition::Simple(SimpleColumn::new(ClickhouseDataType::DateTime64, Some(0))),
+            ColumnDefinition::Simple(SimpleColumn::new(
+                ClickhouseDataType::DateTime64,
+                Some(0),
+                None,
+            )),
         )
         .build()?;
     Ok(schema)
