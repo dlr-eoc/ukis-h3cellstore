@@ -4,15 +4,15 @@ use std::cmp::Ordering;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 pub use regex::Regex;
-#[cfg(feature = "serde")]
+#[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
 
 pub use agg::AggregationMethod;
-use arrow_h3::export::h3ron::collections::HashMap;
 use arrow_h3::export::h3ron::H3_MAX_RESOLUTION;
 pub use column::{ColumnDefinition, SimpleColumn};
 pub use datatype::ClickhouseDataType;
 pub use other::{CompressionMethod, TableEngine};
+use std::collections::HashMap;
 pub use temporal::{TemporalPartitioning, TemporalResolution};
 
 use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
@@ -29,7 +29,7 @@ pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct CompactedTableSchema {
     pub name: String,

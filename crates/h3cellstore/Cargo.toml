@@ -10,7 +10,8 @@ authors = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-serde = ["dep:serde", "arrow_h3/serde"]
+use_serde = ["dep:serde"]  # rust 1.60: calling this feature just 'serde' does not lead to inclusion of the serde crate when activated
+serde_arrow = ["use_serde", "arrow_h3/serde"]
 simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
 tls = ["clickhouse_arrow_grpc/tls"]
 export = ["arrow_h3/export", "clickhouse_arrow_grpc/export"]

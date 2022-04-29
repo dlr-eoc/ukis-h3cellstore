@@ -50,7 +50,7 @@ impl SplitByH3Resolution for H3DataFrame {
                             &self
                                 .dataframe
                                 .column(RESSPLIT_HELPER_COL_NAME)?
-                                .equal(h3_resolution),
+                                .equal(h3_resolution)?,
                         )?
                         .drop(RESSPLIT_HELPER_COL_NAME)?;
 

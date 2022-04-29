@@ -25,17 +25,17 @@ async-trait = "0.1"
 version = "0.1"
 
 [dependencies.arrow2]
-version = "0.10"
+version = "0.11"
 features = [
     "io_ipc"
 ]
 
 [dependencies.polars]
-version = "0.20"
+version = "0.21"
 features = ["dtype-full"]
 
 [dependencies.polars-core]
-version = "0.20"
+version = "0.21"
 
 [dependencies.tonic]
 version = "0.7"

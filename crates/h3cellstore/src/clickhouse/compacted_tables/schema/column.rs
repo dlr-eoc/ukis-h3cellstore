@@ -1,6 +1,6 @@
 use std::any::type_name;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::schema::{
@@ -9,7 +9,7 @@ use crate::clickhouse::compacted_tables::schema::{
 use crate::{Error, Named};
 
 #[derive(Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum ColumnDefinition {
     /// a simple column which just stores data.
     /// The data will not get modified when the values get aggregated to coarser resolutions.
@@ -77,7 +77,7 @@ impl ValidateSchema for ColumnDefinition {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub struct SimpleColumn {
     datatype: ClickhouseDataType,
     /// position in the sorting key (`ORDER BY`) in MergeTree tables

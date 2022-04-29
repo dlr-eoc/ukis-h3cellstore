@@ -1,13 +1,13 @@
 use std::any::type_name;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::clickhouse::compacted_tables::schema::ValidateSchema;
 use crate::Error;
 
 #[derive(Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum TemporalResolution {
     Second,
     Day,
@@ -20,7 +20,7 @@ impl Default for TemporalResolution {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum TemporalPartitioning {
     Month,
     Years(u8),
