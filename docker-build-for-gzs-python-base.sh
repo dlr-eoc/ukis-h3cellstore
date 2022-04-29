@@ -7,7 +7,7 @@ set -eux
 
 SCRIPT_DIR=$(realpath "$(dirname $0)")
 
-cat <<EOF | sudo docker run -i --rm -v $SCRIPT_DIR:/build eoc-gzs-db01-vm.eoc.dlr.de:4001/gzs-python-base bash
+cat <<EOF | sudo docker run -i --rm -v $SCRIPT_DIR:/build eoc-gzs-db01-vm.eoc.dlr.de:4002/gzs-python-base bash
 set -eux
 
 # dependencies
@@ -18,9 +18,9 @@ chmod +x rustup.sh
 ./rustup.sh -y --profile minimal
 source ~/.cargo/env
 
-cd /build/h3cpy
+cd /build/crates/hecellstorepy
 
-python3 -m pip install -r requirements.dev.txt
+python3 install-dev-dependencies.py
 maturin build --release
 EOF
 
