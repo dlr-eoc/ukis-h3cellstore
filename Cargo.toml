@@ -1,8 +1,10 @@
 [workspace]
 
 members = [
-    "bamboo_h3",
-    "bamboo_h3_core"
+    "crates/clickhouse_arrow_grpc",
+    "crates/arrow_h3",
+    "crates/h3cellstore",
+    "crates/h3cellstorepy"
 ]
 
 [profile.release]

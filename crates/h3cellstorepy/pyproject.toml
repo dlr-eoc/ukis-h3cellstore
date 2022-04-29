@@ -1,0 +1,19 @@
+[build-system]
+requires = [
+    "maturin==0.12",
+    "pytest==7.1",
+    "polars", # unittests
+    "pandas",  # unittests
+    "geojson",  # unittests
+    "sphinx-markdown-builder"  # for building docs
+]
+build-backend = "maturin"
+
+
+[tool.pytest.ini_options]
+minversion = "7.1"
+addopts = "--doctest-modules"
+testpaths = [
+    "h3cellstorepy",
+    "tests"
+]

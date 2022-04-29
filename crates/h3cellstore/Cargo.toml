@@ -1,0 +1,63 @@
+[package]
+name = "h3cellstore"
+version = "0.9.0"
+edition = "2021"
+description = "High-level rust crate to store H3 cells in ClickHouse databases"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+serde = ["dep:serde", "arrow_h3/serde"]
+simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
+tls = ["clickhouse_arrow_grpc/tls"]
+export = ["arrow_h3/export", "clickhouse_arrow_grpc/export"]
+
+[dependencies]
+async-trait = "0.1"
+thiserror = "1"
+lazy_static = "1"
+regex = "1.5"
+itertools = "0.10"
+chrono = "0.4"
+rand = "0.8"
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.clickhouse_arrow_grpc]
+path = "../clickhouse_arrow_grpc"
+features = ["export"]
+
+[dependencies.arrow_h3]
+path = "../arrow_h3"
+features = ["export"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+optional = true
+
+[dependencies.tokio]
+version = "1.12"
+
+
+[dev-dependencies]
+serde_json = "1"
+eyre = "0.6"
+tracing-subscriber = "0.3"
+geo-types = "0.7"
+
+[dev-dependencies.tokio]
+version = "1.12"
+features = [
+    "rt-multi-thread",
+    "macros",
+    "sync"
+]
+
+[[example]]
+name = "basic"
+required-features = ["export"]

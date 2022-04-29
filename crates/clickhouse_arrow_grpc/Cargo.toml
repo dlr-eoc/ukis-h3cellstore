@@ -1,0 +1,70 @@
+[package]
+name = "clickhouse_arrow_grpc"
+version = "0.1.0"
+edition = "2021"
+description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
+
+
+[features]
+simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
+tls = ["tonic/tls"]
+
+# activate to re-export depdendencies
+export = []
+
+
+[dependencies]
+prost = "0.10"
+thiserror = "1"
+async-trait = "0.1"
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.arrow2]
+version = "0.10"
+features = [
+    "io_ipc"
+]
+
+[dependencies.polars]
+version = "0.20"
+features = ["dtype-full"]
+
+[dependencies.polars-core]
+version = "0.20"
+
+[dependencies.tonic]
+version = "0.7"
+features = ["compression"]
+
+[dependencies.tokio]
+version = "1.12"
+#features = [
+#    "rt-multi-thread",
+#    "macros",
+#    "sync"
+#]
+
+[build-dependencies]
+tonic-build = { version = "0.7", features = ["compression"] }
+
+[[example]]
+name = "helloworld"
+
+
+[dev-dependencies]
+chrono = "0.4"
+eyre = "0.6"
+tracing-subscriber = "0.3"
+
+[dev-dependencies.tokio]
+version = "1.12"
+features = [
+    "rt-multi-thread",
+    "macros",
+    "sync"
+]

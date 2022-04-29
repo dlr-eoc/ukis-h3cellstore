@@ -1,0 +1,75 @@
+[package]
+name = "h3cellstorepy"
+version = "0.9.0"
+edition = "2021"
+description = "High-level Python library to store H3 cells in ClickHouse databases"
+authors = [
+    "Nico Mandery <nico.mandery@dlr.de>"
+]
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
+
+[lib]
+name = "h3cellstorepy"
+crate-type = ["cdylib"]
+
+[dependencies]
+serde_json = "1"
+lazy_static = "1"
+regex = "1.5.5"
+py_geo_interface = "0.2"
+geo-types = "0.7"
+numpy = "0.16"
+postage = "0.5"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = [
+    #"json",
+    "env-filter",
+]
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.h3cellstore]
+path = "../h3cellstore"
+features = [
+    "export",
+    "tls",
+    "serde"
+]
+
+[dependencies.pyo3]
+version = "^0.16"
+features = [
+    "macros",
+    "multiple-pymethods",
+    "abi3",
+    # minimum python version this library supports
+    "abi3-py37"
+]
+
+
+[dependencies.tokio]
+version = "^1"
+default-features = false
+features = [
+    "io-util",
+    "time",
+    "net",
+    "sync",
+    "rt-multi-thread",
+    "macros",
+]
+
+
+[package.metadata.maturin]
+requires-dist = [
+    "h3>=3.7.4",
+    "geojson",
+    "numpy",
+    "pyarrow>=7.0.0"
+]
