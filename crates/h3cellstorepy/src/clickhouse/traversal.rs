@@ -174,7 +174,7 @@ impl PyTraverser {
         let traversal_cells = area_of_interest_cells(area_of_interest, traversal_h3_resolution)?;
         let num_traversal_cells = traversal_cells.len();
         let runtime = conn.runtime.clone();
-        let client = conn.client.clone();
+        let mut client = conn.client.clone();
         let database_name = conn.database_name.clone();
         let (dataframe_send, dataframe_recv) = tokio::sync::mpsc::channel(options.num_connections);
 
@@ -189,7 +189,6 @@ impl PyTraverser {
                 let worker_tableset = tableset.clone();
                 let worker_database_name = database_name.clone();
                 let worker_query = query.clone();
-                let worker_filter_query = options.filter_query.clone();
 
                 tokio::task::spawn(async move {
                     while let Some(cell) = worker_trav_cells_recv.recv().await {
@@ -200,13 +199,7 @@ impl PyTraverser {
                             worker_query.clone(),
                             cell,
                             h3_resolution,
-                            worker_filter_query.clone(),
-                            traversal_h3_resolution,
                         )
-                        .instrument(debug_span!(
-                            "Loading traversal cell",
-                            cell = cell.to_string().as_str()
-                        ))
                         .await
                         {
                             Ok(Some(h3df)) => Ok(h3df),
@@ -227,11 +220,24 @@ impl PyTraverser {
 
             // distribute the cells to the workers
             let _ = tokio::task::spawn(async move {
-                for cell in traversal_cells {
-                    if trav_cells_send.send(cell).await.is_err() {
-                        debug!("sink rejected message");
-                        break;
+                if let Some(filter_query) = &options.filter_query {
+                    for cell_chunk in traversal_cells.chunks(50) {
+                        dispatch_traversal_cells(
+                            &mut trav_cells_send,
+                            prefilter_traversal_cells(
+                                &mut client,
+                                &database_name,
+                                &tableset,
+                                filter_query.clone(),
+                                cell_chunk,
+                                traversal_h3_resolution,
+                            )
+                            .await,
+                        )
+                        .await;
                     }
+                } else {
+                    dispatch_traversal_cells(&mut trav_cells_send, Ok(traversal_cells)).await;
                 }
             });
         });
@@ -281,67 +287,98 @@ fn area_of_interest_cells(
     }
 }
 
+async fn dispatch_traversal_cells(
+    sender: &mut postage::dispatch::Sender<PyResult<H3Cell>>,
+    traversal_cells: PyResult<Vec<H3Cell>>,
+) {
+    match traversal_cells {
+        Ok(cells) => {
+            for cell in cells {
+                if sender.send(Ok(cell)).await.is_err() {
+                    debug!("sink rejected message");
+                    break;
+                }
+            }
+        }
+        Err(e) => {
+            if sender.send(Err(e)).await.is_err() {
+                debug!("sink rejected message");
+            }
+        }
+    }
+}
+
+async fn prefilter_traversal_cells(
+    client: &mut ClickHouseClient<Channel>,
+    database_name: &str,
+    tableset: &TableSet,
+    filter_query: TableSetQuery,
+    cells: &[H3Cell],
+    traversal_h3_resolution: u8,
+) -> PyResult<Vec<H3Cell>> {
+    if cells.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let filter_h3df = client
+        .query_tableset_cells(
+            &database_name,
+            tableset.clone(),
+            filter_query,
+            cells.to_vec(),
+            traversal_h3_resolution,
+        )
+        .await
+        .into_pyresult()?;
+
+    // use only the indexes from the filter query to be able to fetch a smaller subset
+    spawn_blocking(move || {
+        filter_h3df
+            .to_index_collection()
+            .into_pyresult()
+            .map(|mut cells: Vec<H3Cell>| {
+                // remove duplicates
+                cells.sort_unstable();
+                cells.dedup();
+                cells
+            })
+    })
+    .await
+    .into_pyresult()?
+}
+
 async fn load_traversed_cell(
     client: &mut ClickHouseClient<Channel>,
     database_name: &str,
     tableset: &TableSet,
     query: TableSetQuery,
-    cell: H3Cell,
+    cell: PyResult<H3Cell>,
     h3_resolution: u8,
-    filter_query: Option<TableSetQuery>,
-    traversal_h3_resolution: u8,
 ) -> PyResult<Option<H3DataFrame>> {
-    let cells = if let Some(filter_query) = filter_query {
-        let filter_h3df = client
-            .query_tableset_cells(
-                &database_name,
-                tableset.clone(),
-                filter_query,
-                vec![cell],
-                traversal_h3_resolution,
-            )
-            .await
-            .into_pyresult()?;
+    match cell {
+        Ok(cell) => {
+            let h3df = client
+                .query_tableset_cells(
+                    &database_name,
+                    tableset.clone(),
+                    query,
+                    vec![cell],
+                    h3_resolution,
+                )
+                .instrument(debug_span!(
+                    "Loading traversal cell",
+                    cell = cell.to_string().as_str()
+                ))
+                .await
+                .into_pyresult()?;
 
-        // use only the indexes from the filter query to be able to fetch a smaller subset
-        spawn_blocking(move || {
-            filter_h3df
-                .to_index_collection()
-                .into_pyresult()
-                .map(|mut cells: Vec<H3Cell>| {
-                    // remove duplicates
-                    cells.sort_unstable();
-                    cells.dedup();
-                    cells
-                })
-        })
-        .await
-        .into_pyresult()??
-    } else {
-        // without filter_query we fetch the contents of the complete traversal cell
-        vec![cell]
-    };
-
-    if cells.is_empty() {
-        // filter_query may have found no matching cells
-        return Ok(None);
+            if h3df.dataframe.shape().0 == 0 {
+                // no data found, continue to the next cell
+                info!("Discarding received empty dataframe");
+                return Ok(None);
+            }
+            Ok(Some(h3df))
+        }
+        Err(e) => Err(e),
     }
-
-    let h3df = client
-        .query_tableset_cells(
-            &database_name,
-            tableset.clone(),
-            query,
-            cells,
-            h3_resolution,
-        )
-        .await
-        .into_pyresult()?;
-
-    if h3df.dataframe.shape().0 == 0 {
-        // no data found, continue to the next cell
-        info!("Discarding received empty dataframe");
-        return Ok(None);
-    }
-    Ok(Some(h3df))
 }
