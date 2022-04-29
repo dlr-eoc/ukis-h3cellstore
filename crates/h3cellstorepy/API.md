@@ -92,6 +92,9 @@ Options (provided as keyword arguments):
 * num_connections: Number of parallel DB connections to use in the background. Default is 3. Depending with the number of connections used the amount of memory used increases as well as the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the background.
 
 
+* filter_query: This query will be applied to the tables in the reduced traversal_h3_resolution and only cells found by this query will be loaded from the tables in the requested full resolution
+
+
 ### _class_ h3cellstorepy.clickhouse.GRPCRuntime()
 Bases: `object`
 
