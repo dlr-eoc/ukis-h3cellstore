@@ -29,8 +29,8 @@ impl PyH3DataFrame {
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_arrow(&mut self, py: Python) -> PyResult<Vec<PyObject>> {
-        dataframe_to_arrow(py, &mut self.h3df.dataframe)
+    pub fn to_arrow(&mut self) -> PyResult<Vec<PyObject>> {
+        dataframe_to_arrow(&mut self.h3df.dataframe)
     }
 }
 
@@ -57,8 +57,8 @@ impl PyDataFrame {
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_arrow(&mut self, py: Python) -> PyResult<Vec<PyObject>> {
-        dataframe_to_arrow(py, &mut self.df)
+    pub fn to_arrow(&mut self) -> PyResult<Vec<PyObject>> {
+        dataframe_to_arrow(&mut self.df)
     }
 }
 
@@ -68,7 +68,10 @@ impl From<DataFrame> for PyDataFrame {
     }
 }
 
-fn dataframe_to_arrow(py: Python, df: &mut DataFrame) -> PyResult<Vec<PyObject>> {
+fn dataframe_to_arrow(df: &mut DataFrame) -> PyResult<Vec<PyObject>> {
+    let guard = Python::acquire_gil();
+    let py = guard.python();
+
     // mostly from https://github.com/pola-rs/polars/blob/8b2db30ac18d219f4c3d02e2d501d2966cf58930/py-polars/src/dataframe.rs#L557
     df.rechunk();
     let pyarrow = py.import("pyarrow")?;
@@ -83,30 +86,30 @@ fn dataframe_to_arrow(py: Python, df: &mut DataFrame) -> PyResult<Vec<PyObject>>
 
 pub trait ToDataframeWrapper {
     /// return wrapped in a python `DataFrameWrapper` instance
-    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject>;
+    fn to_dataframewrapper(self) -> PyResult<PyObject>;
 }
 
 impl ToDataframeWrapper for PyH3DataFrame {
-    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
-        wrapped_frame(py, self)
+    fn to_dataframewrapper(self) -> PyResult<PyObject> {
+        wrapped_frame(self)
     }
 }
 
 impl ToDataframeWrapper for PyDataFrame {
-    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
-        wrapped_frame(py, self)
+    fn to_dataframewrapper(self) -> PyResult<PyObject> {
+        wrapped_frame(self)
     }
 }
 
 impl ToDataframeWrapper for H3DataFrame {
-    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
-        PyH3DataFrame::from(self).to_dataframewrapper(py)
+    fn to_dataframewrapper(self) -> PyResult<PyObject> {
+        PyH3DataFrame::from(self).to_dataframewrapper()
     }
 }
 
 impl ToDataframeWrapper for DataFrame {
-    fn to_dataframewrapper(self, py: Python) -> PyResult<PyObject> {
-        PyDataFrame::from(self).to_dataframewrapper(py)
+    fn to_dataframewrapper(self) -> PyResult<PyObject> {
+        PyDataFrame::from(self).to_dataframewrapper()
     }
 }
 
@@ -115,10 +118,10 @@ fn frame_module(py: Python) -> PyResult<&PyModule> {
 }
 
 /// return wrapped in a python `DataFrameWrapper` instance
-fn wrapped_frame<T: PyClass>(
-    py: Python,
-    frame: impl Into<PyClassInitializer<T>>,
-) -> PyResult<PyObject> {
+fn wrapped_frame<T: PyClass>(frame: impl Into<PyClassInitializer<T>>) -> PyResult<PyObject> {
+    let guard = Python::acquire_gil();
+    let py = guard.python();
+
     let obj = PyCell::new(py, frame)?.to_object(py);
     let args = PyTuple::new(py, [obj]);
     Ok(frame_module(py)?
@@ -127,7 +130,10 @@ fn wrapped_frame<T: PyClass>(
         .to_object(py))
 }
 
-pub fn dataframe_from_pyany(py: Python, obj: &PyAny) -> PyResult<DataFrame> {
+pub fn dataframe_from_pyany(obj: &PyAny) -> PyResult<DataFrame> {
+    let guard = Python::acquire_gil();
+    let py = guard.python();
+
     let wrapped = frame_module(py)?
         .getattr("ensure_wrapped")?
         .call1(PyTuple::new(py, [obj]))?;
