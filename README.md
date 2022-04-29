@@ -16,3 +16,12 @@ See `crates` subdirectory.
 ### `Compacted tables` storage schema
 
 ![](doc/img/storing-dataframes.svg)
+
+
+## Development
+
+### Launching a Clickhouse instance for the examples to work
+
+```shell
+podman run --rm -it -u 101 -v $PWD/dev/clickhouse-server/config.xml:/etc/clickhouse-server/config.xml -p 9100:9100 -p 8123:8123 clickhouse/clickhouse-server:22.3
+```
