@@ -32,20 +32,23 @@ pub struct GRPCRuntime {
 #[pymethods]
 impl GRPCRuntime {
     #[new]
-    pub fn new(num_worker_threads: usize) -> PyResult<Self> {
+    #[args(num_worker_threads = "None")]
+    pub fn new(num_worker_threads: Option<usize>) -> PyResult<Self> {
         let span = debug_span!(
             "Creating tokio runtime",
             num_worker_threads = num_worker_threads
         );
         let _ = span.enter();
 
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(num_worker_threads)
-            .enable_all()
-            .build()
-            .map_err(|e| {
-                PyRuntimeError::new_err(format!("Unable to create tokio runtime: {:?}", e))
-            })?;
+        let mut builder = Builder::new_multi_thread();
+
+        if let Some(nwt) = num_worker_threads {
+            builder.worker_threads(nwt);
+        }
+
+        let runtime = builder.enable_all().build().map_err(|e| {
+            PyRuntimeError::new_err(format!("Unable to create tokio runtime: {:?}", e))
+        })?;
         Ok(Self {
             runtime: Arc::new(runtime),
         })
