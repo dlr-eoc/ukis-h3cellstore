@@ -242,7 +242,20 @@ impl PyCompactedTableSchemaBuilder {
             .map(|s| s.as_str().to_string().to_lowercase())
             .unwrap_or_else(|| "".to_string());
         self.temporal_partitioning = Some(match unit_string.as_str() {
-            "month" | "months" => TemporalPartitioning::Month,
+            "month" | "months" => {
+                let num_months: u8 = cap
+                    .get(2)
+                    .map(|s| {
+                        s.as_str().parse().map_err(|e: ParseIntError| {
+                            PyValueError::new_err(format!(
+                                "Invalid number of months in temporal partitioning: {}",
+                                e
+                            ))
+                        })
+                    })
+                    .unwrap_or(Ok(1_u8))?;
+                TemporalPartitioning::Months(num_months)
+            }
             "year" | "years" => {
                 let num_years: u8 = cap
                     .get(2)
