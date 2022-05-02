@@ -40,6 +40,10 @@ spec:
             - /entrypoint.sh
           # TODO: securitycontext. reducing the required permissions probably requires a patched image :(
           args: [ ]
+          resources:
+            requests:
+              cpu: 1
+              ephemeral-storage: "2Gi"
       script:
         image: eoc-gzs-db01-vm.eoc.dlr.de:4002/h3cellstore-builder:latest
         env:
@@ -55,6 +59,7 @@ spec:
             value: ""
           - name: TWINE_REPOSITORY
             value: ""
+            #value: "https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-internal/"
           - name: TWINE_PASSWORD
             value: ""
         command:
@@ -65,6 +70,8 @@ spec:
           runAsNonRoot: true
         resources:
           requests:
+            cpu: 4
+            ephemeral-storage: "4Gi"
         volumeMounts:
           - name: work
             mountPath: /tmp
@@ -74,6 +81,10 @@ spec:
 
           python3 --version
           cargo --version
+          
+          # for pip/venv. otherwise the pip install triggered by maturin will attempt to write the pip cache
+          # in /nonexistent directory :(
+          export HOME=$PWD  
 
           git clone https://token:`echo "$GIT_TOKEN" | tr -d '\n'`@gitlab.dlr.de/gzs-processing/h3cellstore.git
           pushd h3cellstore
@@ -88,7 +99,7 @@ spec:
           echo "---- clickhouse_arrow_grpc ---------------------------------------"
           pushd crates/clickhouse_arrow_grpc
           cargo clippy --all-targets --no-deps
-          cargo test # TODO: run test example -> fix clickhouse host
+          cargo test --all-targets # runs test example
           popd
           
           echo "---- h3cellstore ----------------------------------------------"
@@ -109,6 +120,7 @@ spec:
           pytest -s -vv --tb=native
           
           # prod wheels
+          cargo clean --profile dev
           maturin build --release --strip
           popd
           mv target/wheels /tmp/python-packages
