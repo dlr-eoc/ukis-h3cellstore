@@ -19,7 +19,7 @@ export = ["arrow_h3/export", "clickhouse_arrow_grpc/export"]
 [dependencies]
 async-trait = "0.1"
 thiserror = "1"
-lazy_static = "1"
+once_cell = "1"
 regex = "1.5"
 itertools = "0.10"
 chrono = "0.4"

@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use std::num::ParseIntError;
 
 use pyo3::exceptions::PyValueError;
@@ -81,10 +81,8 @@ impl PyCompressionMethod {
     }
 }
 
-lazy_static! {
-    static ref RE_TEMPORAL_PARTITIONING: Regex =
-        Regex::new(r"^(([0-9]+)\s*)?([a-zA-Z]+)$").unwrap();
-}
+static RE_TEMPORAL_PARTITIONING: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(([0-9]+)\s*)?([a-zA-Z]+)$").unwrap());
 
 #[pyclass]
 pub struct PyCompactedTableSchemaBuilder {

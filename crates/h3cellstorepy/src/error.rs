@@ -49,7 +49,7 @@ impl ToCustomPyErr for tokio::task::JoinError {
 
 impl ToCustomPyErr for serde_json::Error {
     fn to_custom_pyerr(self) -> PyErr {
-        PyIOError::new_err(format!("JSON (de-)serializaiton failed: {}", self))
+        PyIOError::new_err(format!("JSON (de-)serialization failed: {}", self))
     }
 }
 

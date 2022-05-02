@@ -2,7 +2,6 @@ use std::any::type_name;
 use std::cmp::Ordering;
 
 use itertools::Itertools;
-use lazy_static::lazy_static;
 pub use regex::Regex;
 #[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
@@ -11,6 +10,7 @@ pub use agg::AggregationMethod;
 use arrow_h3::export::h3ron::H3_MAX_RESOLUTION;
 pub use column::{ColumnDefinition, SimpleColumn};
 pub use datatype::ClickhouseDataType;
+use once_cell::sync::Lazy;
 pub use other::{CompressionMethod, TableEngine};
 use std::collections::HashMap;
 pub use temporal::{TemporalPartitioning, TemporalResolution};
@@ -132,11 +132,9 @@ impl ValidateSchema for CompactedTableSchema {
     }
 }
 
-lazy_static! {
-    // validation does not include reserved SQL keywords, but Clickhouse will fail happily when
-    // encountering them as a table name anyways.
-    static ref RE_VALID_NAME: Regex = Regex::new(r"^[a-zA-Z].[_a-zA-Z_0-9]+$").unwrap();
-}
+// validation does not include reserved SQL keywords, but Clickhouse will fail happily when
+// encountering them as a table name anyways.
+static RE_VALID_NAME: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z].[_a-zA-Z_0-9]+$").unwrap());
 
 fn validate_table_name(location: &'static str, name: &str) -> Result<(), Error> {
     if RE_VALID_NAME.is_match(name) {

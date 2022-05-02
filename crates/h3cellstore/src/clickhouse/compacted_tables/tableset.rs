@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use arrow_h3::export::h3ron::collections::HashMap;
@@ -33,12 +33,10 @@ pub struct Table {
     pub spec: TableSpec,
 }
 
-lazy_static! {
-    static ref RE_TABLE: Regex = Regex::new(
-        r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9_]+))?$"
-    )
-    .unwrap();
-}
+static RE_TABLE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^([a-zA-Z].[a-zA-Z_0-9]+)_([0-9]{2})(_(base|compacted))?(_tmp([a-zA-Z0-9_]+))?$")
+        .unwrap()
+});
 
 impl Table {
     /// TODO: this should return an error? at least no unwrapping would be nice
