@@ -9,13 +9,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: bamboo-h3-ci
-  generateName: bamboo-h3-ci-
+  name: h3cellstore-ci
+  generateName: h3cellstore-ci-
   namespace: gzs-default
 spec:
   entrypoint: do
-  imagePullSecrets:
-    - name: "reg-processing"
+  volumeClaimTemplates:
+    - metadata:
+        name: work
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-storage
+        resources:
+          requests:
+            storage: 30Gi
   templates:
     - name: do
       steps:
@@ -28,18 +35,22 @@ spec:
             path: /tmp/python-packages
       sidecars:
         - name: clickhouse
-          image: eoc-gzs-db01-vm.eoc.dlr.de:4002/gzs-clickhouse-server:20.12
+          image: eoc-gzs-db01-vm.eoc.dlr.de:4002/gzs-clickhouse-server:22.3
           command:
             - /entrypoint.sh
           # TODO: securitycontext. reducing the required permissions probably requires a patched image :(
           args: [ ]
+          resources:
+            requests:
+              cpu: 1
+              ephemeral-storage: "2Gi"
       script:
-        image: eoc-gzs-db01-vm.eoc.dlr.de:4001/bamboo-ci-builder:latest
+        image: eoc-gzs-db01-vm.eoc.dlr.de:4002/h3cellstore-builder:latest
         env:
           - name: GIT_TOKEN
             valueFrom:
               secretKeyRef:
-                name: git-token-bamboo
+                name: git-token-h3cellstore
                 key: token
 
           # publishing settings
@@ -48,6 +59,7 @@ spec:
             value: ""
           - name: TWINE_REPOSITORY
             value: ""
+            #value: "https://eoc-gzs-db01-vm.eoc.dlr.de:8080/repository/py-internal/"
           - name: TWINE_PASSWORD
             value: ""
         command:
@@ -56,66 +68,65 @@ spec:
           runAsUser: 65534 # nobody user
           runAsGroup: 65534
           runAsNonRoot: true
+        resources:
+          requests:
+            cpu: 4
+            ephemeral-storage: "4Gi"
+        volumeMounts:
+          - name: work
+            mountPath: /tmp
         source: |
           set -eu
           cd /tmp/
 
           python3 --version
           cargo --version
+          
+          # for pip/venv. otherwise the pip install triggered by maturin will attempt to write the pip cache
+          # in /nonexistent directory :(
+          export HOME=$PWD  
 
-          git clone https://token:`echo "$GIT_TOKEN" | tr -d '\n'`@gitlab.dlr.de/gzs-processing/bamboo_h3.git
+          git clone https://token:`echo "$GIT_TOKEN" | tr -d '\n'`@gitlab.dlr.de/gzs-processing/h3cellstore.git
+          pushd h3cellstore
+          set -x
 
-          echo "="
-          echo "=== bamboo_h3_core ==================================================================="
-          echo "="
-          pushd bamboo_h3/bamboo_h3_core
+          echo "---- arrowh3 -----------------------------------------------------"
+          pushd crates/arrow_h3
+          cargo clippy --all-targets --no-deps
           cargo test
           popd
-
-
-          echo "="
-          echo "=== bamboo_h3 ==================================================================="
-          echo "="
-
-          pushd bamboo_h3/bamboo_h3
-          # `maturin develop` requires the module to be build within a virtual environment
+          
+          echo "---- clickhouse_arrow_grpc ---------------------------------------"
+          pushd crates/clickhouse_arrow_grpc
+          cargo clippy --all-targets --no-deps
+          cargo test --all-targets # runs test example
+          popd
+          
+          echo "---- h3cellstore ----------------------------------------------"
+          pushd crates/h3cellstore
+          cargo clippy --all-targets --no-deps
+          cargo test --all-targets --features="export"
+          popd
+          
+          echo "---- h3cellstorepy ----------------------------------------------"
+          pushd crates/h3cellstorepy
+          cargo clippy --all-targets --no-deps
+          cargo test --no-default-features
           python3 -m venv venv
           . venv/bin/activate
-          pip install --upgrade pip
           python install-dev-dependencies.py
           maturin develop
-
-          echo "="
-          echo "="
-
-          # clickhouse
-          # wait until clickhouse is up
-          set +eu
-          until `curl -G 'http://127.0.0.1:8123/' >& /tmp/out`; do
-            echo "waiting for clickhouse"
-            sleep 2;
-          done
-          set -eu
-
-          # Create the DB
-          curl -d "" "http://127.0.0.1:8123/?query=create+database+bamboo_test"
-
-          export BAMBOO_CLICKHOUSE_DSN_TEST="tcp://127.0.0.1:9000/bamboo_test?compression=lz4&connection_timeout=2000ms"
-          pytest -v -s --tb=native
-
-
-          echo "="
-          echo "=== build PROD wheels ==================================================================="
-          echo "="
+          export CLICKHOUSE_GRPC_TESTING_ENDPOINT="http://127.0.0.1:9100"
+          pytest -s -vv --tb=native
+          
+          # prod wheels
+          cargo clean --profile dev
           maturin build --release --strip
           popd
-          pushd bamboo_h3/target/
-          mv wheels /tmp/python-packages
-
-
-          echo "="
+          mv target/wheels /tmp/python-packages
+          
+          
           echo "=== publish to PI ==================================================================="
-          echo "="
           if [ -z "$TWINE_REPOSITORY" ]; then
              echo "no repository set - skipping"
           else
