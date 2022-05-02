@@ -12,8 +12,8 @@ pub use column::{ColumnDefinition, SimpleColumn};
 pub use datatype::ClickhouseDataType;
 use once_cell::sync::Lazy;
 pub use other::{CompressionMethod, TableEngine};
+pub use partitioning::{H3Partitioning, TemporalPartitioning, TemporalResolution};
 use std::collections::HashMap;
-pub use temporal::{TemporalPartitioning, TemporalResolution};
 
 use crate::clickhouse::compacted_tables::temporary_key::TemporaryKey;
 use crate::clickhouse::compacted_tables::{Table, TableSpec, COL_NAME_H3INDEX};
@@ -23,7 +23,7 @@ pub mod agg;
 pub mod column;
 pub mod datatype;
 pub mod other;
-pub mod temporal;
+pub mod partitioning;
 
 pub trait ValidateSchema {
     fn validate(&self) -> Result<(), Error>;
@@ -40,6 +40,7 @@ pub struct CompactedTableSchema {
     pub(crate) use_compaction: bool,
     temporal_resolution: TemporalResolution,
     temporal_partitioning: TemporalPartitioning,
+    h3_partitioning: H3Partitioning,
     pub(crate) columns: HashMap<String, ColumnDefinition>,
     partition_by_columns: Vec<String>,
     pub(crate) has_base_suffix: bool,
@@ -225,17 +226,27 @@ impl CompactedTableSchema {
         }
     }
 
+    /// generate a single partition expression for a single column
+    fn partition_by_expression(&self, column_name: &str, def: &ColumnDefinition) -> String {
+        match def {
+            ColumnDefinition::H3Index => self.h3_partitioning.sql_expression(column_name),
+            ColumnDefinition::Simple(_) | ColumnDefinition::WithAggregation(_, _) => {
+                if def.datatype().is_temporal() {
+                    self.temporal_partitioning.sql_expression(column_name)
+                } else {
+                    column_name.to_string()
+                }
+            }
+        }
+    }
+
     /// columns expressions to use the partitioning of the tables
     pub fn partition_by_expressions(&self) -> Result<Vec<String>, Error> {
         let (h3index_col_name, h3index_col_def) = self.h3index_column()?;
 
         let mut partition_by = vec![
             // h3index base cell is always the first
-            partition_by_expression(
-                &h3index_col_name,
-                &h3index_col_def,
-                &self.temporal_partitioning,
-            ),
+            self.partition_by_expression(&h3index_col_name, &h3index_col_def),
         ];
 
         if self.partition_by_columns.is_empty() {
@@ -243,8 +254,7 @@ impl CompactedTableSchema {
             let mut new_partition_by_entries = vec![];
             for (column_name, def) in self.columns.iter() {
                 if def.datatype().is_temporal() {
-                    let partition_expr =
-                        partition_by_expression(column_name, def, &self.temporal_partitioning);
+                    let partition_expr = self.partition_by_expression(column_name, def);
                     if !new_partition_by_entries.contains(&partition_expr)
                         && !partition_by.contains(&partition_expr)
                     {
@@ -262,8 +272,7 @@ impl CompactedTableSchema {
         } else {
             for column_name in self.partition_by_columns.iter() {
                 let def = self.get_column_definition(column_name)?;
-                let partition_expr =
-                    partition_by_expression(column_name, &def, &self.temporal_partitioning);
+                let partition_expr = self.partition_by_expression(column_name, &def);
                 if !partition_by.contains(&partition_expr) {
                     partition_by.push(partition_expr);
                 }
@@ -387,39 +396,6 @@ fn ordered_h3_resolutions(h3res_slice: &[u8]) -> Result<Vec<u8>, Error> {
     Ok(cleaned)
 }
 
-/// generate a single partition expression for a single column
-fn partition_by_expression(
-    column_name: &str,
-    def: &ColumnDefinition,
-    temporal_partitioning: &TemporalPartitioning,
-) -> String {
-    match def {
-        ColumnDefinition::H3Index => format!("h3GetBaseCell({})", column_name),
-        ColumnDefinition::Simple(_) | ColumnDefinition::WithAggregation(_, _) => {
-            if def.datatype().is_temporal() {
-                match temporal_partitioning {
-                    TemporalPartitioning::Month => format!("toString(toMonth({}))", column_name),
-                    TemporalPartitioning::Years(num_years) => {
-                        if *num_years == 1 {
-                            format!("toString(toYear({}))", column_name)
-                        } else {
-                            // reshaping the year according to num_years
-                            //
-                            // With num_years == 3, value '2019' will contain the years 2019, 2020 and 2021.
-                            format!(
-                                "toString(floor(toYear({})/{})*{})",
-                                column_name, num_years, num_years
-                            )
-                        }
-                    }
-                }
-            } else {
-                column_name.to_string()
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct CompactedTableSchemaBuilder {
     schema: CompactedTableSchema,
@@ -443,6 +419,7 @@ impl CompactedTableSchemaBuilder {
                 partition_by_columns: Default::default(),
                 columns,
                 has_base_suffix: true,
+                h3_partitioning: Default::default(),
             },
             use_compaction: true,
         }
@@ -481,6 +458,11 @@ impl CompactedTableSchemaBuilder {
 
     pub fn temporal_partitioning(mut self, temporal_partitioning: TemporalPartitioning) -> Self {
         self.schema.temporal_partitioning = temporal_partitioning;
+        self
+    }
+
+    pub fn h3_partitioning(mut self, h3_partitioning: H3Partitioning) -> Self {
+        self.schema.h3_partitioning = h3_partitioning;
         self
     }
 

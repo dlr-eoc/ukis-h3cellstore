@@ -5,11 +5,12 @@ import numpy as np
 import contextlib
 
 
-def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month"):
+def elephant_schema(tableset_name="okavango_delta", temporal_partitioning="month", h3_partitioning="basecell", **kw):
     csb = CompactedTableSchemaBuilder(tableset_name)
     csb.h3_base_resolutions(list(range(0, 8)))
     csb.temporal_resolution("second")
     csb.temporal_partitioning(temporal_partitioning)
+    csb.h3_partitioning(h3_partitioning, **kw)
     csb.add_column("is_valid", "UInt8", compression_method=CompressionMethod("gorilla"))
     csb.add_aggregated_column("elephant_density", "Float32", "RelativeToCellArea")
     schema = csb.build()  # raises when the schema is invalid / missing something
@@ -30,8 +31,8 @@ class SchemaContext:
 
 
 @contextlib.contextmanager
-def setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
-    tableset_name, schema = elephant_schema()
+def setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl, **kw):
+    tableset_name, schema = elephant_schema(**kw)
     con = GRPCConnection(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
     con.drop_tableset(schema.name)
     con.create_tableset(schema)
