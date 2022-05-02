@@ -8,7 +8,7 @@ use regex::Regex;
 
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
-    CompactedTableSchemaBuilder, CompressionMethod, SimpleColumn, TableEngine,
+    CompactedTableSchemaBuilder, CompressionMethod, H3Partitioning, SimpleColumn, TableEngine,
     TemporalPartitioning, TemporalResolution, ValidateSchema,
 };
 
@@ -93,6 +93,7 @@ pub struct PyCompactedTableSchemaBuilder {
     use_compaction: bool,
     temporal_resolution: Option<TemporalResolution>,
     temporal_partitioning: Option<TemporalPartitioning>,
+    h3_partitioning: Option<H3Partitioning>,
     partition_by: Option<Vec<String>>,
     columns: Vec<(String, ColumnDefinition)>,
 }
@@ -109,6 +110,7 @@ impl PyCompactedTableSchemaBuilder {
             use_compaction: true,
             temporal_resolution: None,
             temporal_partitioning: None,
+            h3_partitioning: None,
             partition_by: None,
             columns: vec![],
         }
@@ -265,6 +267,29 @@ impl PyCompactedTableSchemaBuilder {
         Ok(())
     }
 
+    #[args(kwargs = "**")]
+    fn h3_partitioning(&mut self, name: String, kwargs: Option<&PyDict>) -> PyResult<()> {
+        self.h3_partitioning = match name.to_lowercase().as_str() {
+            "basecell" => Some(H3Partitioning::BaseCell),
+            "lower_resolution" | "lr" => {
+                let mut resolution_difference = 8u8;
+                if let Some(dict) = kwargs {
+                    resolution_difference =
+                        extract_dict_item_option(dict, "resolution_difference")?
+                            .unwrap_or(resolution_difference);
+                }
+                Some(H3Partitioning::LowerResolution(resolution_difference))
+            }
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Invalid h3 partitioning given: '{}'",
+                    name
+                )))
+            }
+        };
+        Ok(())
+    }
+
     fn partition_by(&mut self, column_names: Vec<String>) {
         self.partition_by = Some(column_names)
     }
@@ -287,6 +312,9 @@ impl PyCompactedTableSchemaBuilder {
         }
         if let Some(tp) = &self.temporal_partitioning {
             builder = builder.temporal_partitioning(tp.clone());
+        }
+        if let Some(hp) = &self.h3_partitioning {
+            builder = builder.h3_partitioning(hp.clone());
         }
         if let Some(pb) = &self.partition_by {
             builder = builder.partition_by(pb.clone())

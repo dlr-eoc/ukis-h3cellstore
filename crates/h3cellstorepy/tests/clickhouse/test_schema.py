@@ -32,6 +32,12 @@ def test_schema_save_and_load():
     assert sqls_before == sqls_after
 
 
+def test_schema_h3_partitioning_lower_resolution(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
+    with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl,
+                                         h3_partitioning='lower_resolution', resolution_difference=7) as ctx:
+        pass
+
+
 def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
         # read from db again. un-compaction is performed automatically
@@ -51,11 +57,11 @@ def test_schema_create_and_fill_templatedquery(clickhouse_grpc_endpoint, clickho
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
         queried_lower_df = ctx.con.query_tableset_cells(ctx.schema.name, TableSetQuery.from_template(
             "select * from <[table]> where elephant_density < 2"), ctx.disk,
-                                                    ctx.schema.max_h3_resolution).to_polars()
+                                                        ctx.schema.max_h3_resolution).to_polars()
         assert queried_lower_df.shape[0] == 0
 
         queried_lower_df = ctx.con.query_tableset_cells(ctx.schema.name, TableSetQuery.from_template(
             "select * from <[table]> where (rand() % 2) = 0"), ctx.disk,
-                                                    ctx.schema.max_h3_resolution).to_polars()
+                                                        ctx.schema.max_h3_resolution).to_polars()
         assert ctx.df.shape[0] > queried_lower_df.shape[0]
         assert ctx.df.shape[1] == queried_lower_df.shape[1]
