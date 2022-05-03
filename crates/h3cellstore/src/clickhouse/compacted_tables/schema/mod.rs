@@ -502,7 +502,7 @@ mod tests {
     fn data_okavango_delta() -> CompactedTableSchema {
         CompactedTableSchemaBuilder::new("okavango_delta")
             .h3_base_resolutions(vec![1, 2, 3, 4, 5])
-            .temporal_partitioning(TemporalPartitioning::Month)
+            .temporal_partitioning(TemporalPartitioning::Months(1))
             .add_column(
                 "elephant_density",
                 ColumnDefinition::WithAggregation(
@@ -537,14 +537,8 @@ mod tests {
     }
 
     #[test]
-    fn partitioning_columns_implicit() {
-        assert_eq!(
-            data_okavango_delta().partition_by_expressions().unwrap(),
-            vec![
-                "h3GetBaseCell(h3index)".to_string(),
-                "toString(toMonth(observed_on))".to_string()
-            ]
-        );
+    fn create_schema() {
+        data_okavango_delta();
     }
 
     #[test]

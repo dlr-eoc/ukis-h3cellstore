@@ -67,7 +67,7 @@ impl TemporalPartitioning {
         match self {
             Self::Months(num_months) => {
                 format!(
-                    "toString(ceil(((toYear({}) * 100) + (100 * 12 / (toMonth({}) - 1))) / {}))",
+                    "toString(ceil(((toYear({}) * 100) + (100 * (toMonth({}) - 1) / 12)) / {}))",
                     column_name.as_ref(),
                     column_name.as_ref(),
                     *num_months
