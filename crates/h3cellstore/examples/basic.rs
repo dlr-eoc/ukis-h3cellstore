@@ -20,7 +20,7 @@ const MAX_H3_RES: u8 = 5;
 fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
     let schema = CompactedTableSchemaBuilder::new("okavango_delta")
         .h3_base_resolutions((0..=MAX_H3_RES).collect())
-        .temporal_partitioning(TemporalPartitioning::Month)
+        .temporal_partitioning(TemporalPartitioning::Months(1))
         .add_column(
             "elephant_count",
             ColumnDefinition::WithAggregation(
