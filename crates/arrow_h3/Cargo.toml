@@ -29,11 +29,11 @@ rev = "90db233174997d8483982f5255dfff597642c2f1"
 features = ["use-rayon"]
 
 [dependencies.polars]
-version = "0.21"
+version = "0.21.1"
 features = ["dtype-full", "lazy", "list"]
 
 [dependencies.polars-core]
-version = "0.21"
+version = "0.21.1"
 
 [dependencies.serde]
 version = "1"
