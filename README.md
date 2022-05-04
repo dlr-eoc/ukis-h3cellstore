@@ -28,5 +28,5 @@ podman run --rm -it \
    -v $PWD/dev/clickhouse-server/config.xml:/etc/clickhouse-server/config.xml \
    -p 9100:9100 \
    -p 8123:8123 \
-   clickhouse/clickhouse-server:22.3
+   clickhouse/clickhouse-server:22.4
 ```

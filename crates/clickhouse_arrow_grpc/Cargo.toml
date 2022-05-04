@@ -1,6 +1,6 @@
 [package]
 name = "clickhouse_arrow_grpc"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
 authors = [
@@ -31,11 +31,11 @@ features = [
 ]
 
 [dependencies.polars]
-version = "0.21"
+version = "0.21.1"
 features = ["dtype-full"]
 
 [dependencies.polars-core]
-version = "0.21"
+version = "0.21.1"
 
 [dependencies.tonic]
 version = "0.7"
