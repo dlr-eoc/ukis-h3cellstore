@@ -120,6 +120,8 @@ spec:
           pytest -s -vv --tb=native
           
           # prod wheels
+          # see https://github.com/pola-rs/polars/blob/9a3066943eda6a0b96807b4d6f6271645a4c55cc/.github/deploy_manylinux.sh#L12
+          export RUSTFLAGS='-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma'
           cargo clean --profile dev
           maturin build --release --strip
           popd
