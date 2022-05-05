@@ -193,8 +193,11 @@ impl PyTraverser {
         let traversal_cells = area_of_interest_cells(area_of_interest, traversal_h3_resolution)?;
         let num_traversal_cells = traversal_cells.len();
         let runtime = conn.runtime.clone();
-        let mut client = conn.client.clone();
-        let database_name = conn.database_name.clone();
+        let mut context = WorkerContext {
+            client: conn.client.clone(),
+            database_name: conn.database_name.clone(),
+            tableset,
+        };
         let (dataframe_send, dataframe_recv) = tokio::sync::mpsc::channel(options.num_connections);
 
         let _background_fetch = runtime.spawn(async move {
@@ -202,19 +205,15 @@ impl PyTraverser {
 
             // spawn the workers performing the db-work
             for _ in 0..(options.num_connections) {
-                let mut worker_client = client.clone();
+                let mut worker_context = context.clone();
                 let mut worker_trav_cells_recv = trav_cells_send.subscribe();
                 let worker_dataframe_send = dataframe_send.clone();
-                let worker_tableset = tableset.clone();
-                let worker_database_name = database_name.clone();
                 let worker_query = query.clone();
 
                 tokio::task::spawn(async move {
                     while let Some(cell) = worker_trav_cells_recv.recv().await {
                         let message = match load_traversed_cell(
-                            &mut worker_client,
-                            &worker_database_name,
-                            &worker_tableset,
+                            &mut worker_context,
                             worker_query.clone(),
                             cell,
                             h3_resolution,
@@ -224,6 +223,7 @@ impl PyTraverser {
                             Ok(Some(h3df)) => Ok(h3df),
                             Ok(None) => {
                                 // no data found, continue to the next cell
+                                info!("traversal cell yielded no data - skipping");
                                 continue;
                             }
                             Err(e) => Err(e),
@@ -246,9 +246,7 @@ impl PyTraverser {
                         dispatch_traversal_cells(
                             &mut trav_cells_send,
                             prefilter_traversal_cells(
-                                &mut client,
-                                &database_name,
-                                &tableset,
+                                &mut context,
                                 filter_query.clone(),
                                 cell_chunk,
                                 traversal_h3_resolution,
@@ -273,6 +271,13 @@ impl PyTraverser {
             runtime,
         })
     }
+}
+
+#[derive(Clone)]
+struct WorkerContext {
+    client: ClickHouseClient<Channel>,
+    database_name: String,
+    tableset: TableSet,
 }
 
 ///
@@ -331,9 +336,7 @@ async fn dispatch_traversal_cells(
 }
 
 async fn prefilter_traversal_cells(
-    client: &mut ClickHouseClient<Channel>,
-    database_name: &str,
-    tableset: &TableSet,
+    worker_context: &mut WorkerContext,
     filter_query: TableSetQuery,
     cells: &[H3Cell],
     traversal_h3_resolution: u8,
@@ -342,10 +345,11 @@ async fn prefilter_traversal_cells(
         return Ok(vec![]);
     }
 
-    let filter_h3df = client
+    let filter_h3df = worker_context
+        .client
         .query_tableset_cells(
-            &database_name,
-            tableset.clone(),
+            &worker_context.database_name,
+            worker_context.tableset.clone(),
             filter_query,
             cells.to_vec(),
             traversal_h3_resolution,
@@ -370,19 +374,18 @@ async fn prefilter_traversal_cells(
 }
 
 async fn load_traversed_cell(
-    client: &mut ClickHouseClient<Channel>,
-    database_name: &str,
-    tableset: &TableSet,
+    worker_context: &mut WorkerContext,
     query: TableSetQuery,
     cell: PyResult<H3Cell>,
     h3_resolution: u8,
 ) -> PyResult<Option<H3DataFrame>> {
     match cell {
         Ok(cell) => {
-            let h3df = client
+            let h3df = worker_context
+                .client
                 .query_tableset_cells(
-                    &database_name,
-                    tableset.clone(),
+                    &worker_context.database_name,
+                    worker_context.tableset.clone(),
                     query,
                     vec![cell],
                     h3_resolution,
