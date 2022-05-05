@@ -6,7 +6,12 @@ use py_geo_interface::GeoInterface;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 use tokio::task::spawn_blocking;
+use tokio::time::timeout;
 use tracing::log::{debug, info, warn};
 use tracing::{debug_span, Instrument};
 
@@ -114,7 +119,8 @@ impl TraversalOptions {
 pub struct PyTraverser {
     num_traversal_cells: usize,
     traversal_h3_resolution: u8,
-    dataframe_recv: tokio::sync::mpsc::Receiver<PyResult<H3DataFrame>>,
+    dataframe_recv: Arc<Mutex<tokio::sync::mpsc::Receiver<PyResult<H3DataFrame>>>>,
+    runtime: Arc<Runtime>,
 }
 
 #[pymethods]
@@ -140,11 +146,27 @@ impl PyTraverser {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
-        match slf.dataframe_recv.blocking_recv() {
-            Some(Ok(h3df)) => Ok(Some(h3df.to_dataframewrapper()?)),
-            Some(Err(e)) => Err(e),
-            None => Ok(None),
+    fn __next__(slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
+        debug!("waiting to receive dataframe of traversed cell");
+        loop {
+            let recv = slf.dataframe_recv.clone();
+            match slf.runtime.block_on(async {
+                let mut guard = recv.lock().await;
+                timeout(Duration::from_millis(500), guard.recv()).await
+            }) {
+                Ok(Some(h3df_result)) => {
+                    // channel had a waiting message
+                    return Ok(Some(h3df_result?.to_dataframewrapper()?));
+                }
+                Ok(None) => {
+                    // channel has been closed - no messages left
+                    return Ok(None);
+                }
+                Err(_) => {
+                    // timeout has elapsed - so lets check for user interrupts
+                    Python::acquire_gil().python().check_signals()?;
+                }
+            }
         }
     }
 }
@@ -210,6 +232,8 @@ impl PyTraverser {
                         if worker_dataframe_send.send(message).await.is_err() {
                             debug!("worker channel has been closed upstream. shutting down worker");
                             break;
+                        } else {
+                            info!("traversal cell loaded and send");
                         }
                     }
                 });
@@ -245,7 +269,8 @@ impl PyTraverser {
         Ok(Self {
             num_traversal_cells,
             traversal_h3_resolution,
-            dataframe_recv,
+            dataframe_recv: Arc::new(Mutex::new(dataframe_recv)),
+            runtime,
         })
     }
 }
