@@ -201,7 +201,8 @@ impl PyTraverser {
         let (dataframe_send, dataframe_recv) = tokio::sync::mpsc::channel(options.num_connections);
 
         let _background_fetch = runtime.spawn(async move {
-            let (mut trav_cells_send, _trav_cells_recv) = postage::dispatch::channel(1);
+            let (mut trav_cells_send, _trav_cells_recv) =
+                postage::dispatch::channel(2 * options.num_connections);
 
             // spawn the workers performing the db-work
             for _ in 0..(options.num_connections) {
