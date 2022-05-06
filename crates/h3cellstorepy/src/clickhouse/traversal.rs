@@ -301,14 +301,16 @@ fn area_of_interest_cells(
         // even when the polygon is too small to have any cells inside
         match geointerface.0 {
             Geometry::Polygon(poly) => cells.extend(
-                poly.to_h3_cells(traversal_resolution)
+                poly.exterior()
+                    .to_h3_cells(traversal_resolution)
                     .into_pyresult()?
                     .iter(),
             ),
             Geometry::MultiPolygon(mpoly) => {
                 for poly in mpoly.0.iter() {
                     cells.extend(
-                        poly.to_h3_cells(traversal_resolution)
+                        poly.exterior()
+                            .to_h3_cells(traversal_resolution)
                             .into_pyresult()?
                             .iter(),
                     );
