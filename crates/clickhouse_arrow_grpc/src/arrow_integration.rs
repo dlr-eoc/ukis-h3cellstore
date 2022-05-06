@@ -5,12 +5,14 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::ops::Add;
 use std::sync::Arc;
 
-use arrow2::array::{new_empty_array, Array};
+use arrow2::array::{new_empty_array, Array, PrimitiveArray};
 use arrow2::chunk::Chunk;
+use arrow2::compute::arity::unary;
 use arrow2::compute::cast::cast;
-use arrow2::datatypes::{DataType, Field, Schema};
+use arrow2::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow2::io::ipc::read::{read_file_metadata, FileReader};
 use arrow2::io::ipc::write::FileWriter;
 use polars_core::prelude::DataFrame;
@@ -21,22 +23,80 @@ use tracing::log::debug;
 use crate::Error;
 
 enum ClickhouseArrowCast {
-    None,
     Simple(DataType),
+    DateTimeFromChDate,
+    DateTimeFromChDateTime,
 }
 
 impl ClickhouseArrowCast {
     fn apply(&self, array: &Arc<dyn Array>) -> Result<Arc<dyn Array>, Error> {
         match self {
-            Self::None => Ok(array.clone()),
             Self::Simple(dtype) => Ok(cast(array.as_ref(), dtype, Default::default())?.into()),
+            Self::DateTimeFromChDate => {
+                // A date. Stored in two bytes as the number of days since 1970-01-01 (unsigned).
+                // Allows storing values from just after the beginning of the Unix Epoch to the upper
+                // threshold defined by a constant at the compilation stage (currently, this is until
+                // the year 2149, but the final fully-supported year is 2148).
+                // Supported range of values: [1970-01-01, 2149-06-06].
+                // Source: https://clickhouse.com/docs/en/sql-reference/data-types/date/
+                Ok(unary(
+                    array
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<u16>>()
+                        .expect("Ch date expected to be u16"),
+                    |v| {
+                        chrono::NaiveDate::from_ymd(1970, 1, 1)
+                            .add(chrono::Duration::days(v as i64))
+                            .and_hms(0, 0, 0)
+                            .timestamp()
+                    },
+                    DataType::Timestamp(TimeUnit::Second, None),
+                )
+                .to_boxed()
+                .into())
+            }
+            Self::DateTimeFromChDateTime => {
+                // Allows to store an instant in time, that can be expressed as a calendar date and a time of a day.
+                //
+                // Syntax: DateTime([timezone])
+                //
+                // Supported range of values: [1970-01-01 00:00:00, 2106-02-07 06:28:15].
+                // Resolution: 1 second.
+                // Source: https://clickhouse.com/docs/en/sql-reference/data-types/datetime/
+                // TODO: support timezones
+                Ok(unary(
+                    array
+                        .as_any()
+                        .downcast_ref::<PrimitiveArray<u32>>()
+                        .expect("Ch datetime expected to be u32"),
+                    |v| {
+                        chrono::NaiveDate::from_ymd(1970, 1, 1)
+                            .and_hms(0, 0, 0)
+                            .add(chrono::Duration::seconds(v as i64))
+                            .timestamp()
+                    },
+                    DataType::Timestamp(TimeUnit::Second, None),
+                )
+                .to_boxed()
+                .into())
+            }
+        }
+    }
+
+    fn ouptut_datatype(&self) -> &DataType {
+        match self {
+            ClickhouseArrowCast::Simple(dt) => dt,
+            ClickhouseArrowCast::DateTimeFromChDate => &DataType::Timestamp(TimeUnit::Second, None),
+            ClickhouseArrowCast::DateTimeFromChDateTime => {
+                &DataType::Timestamp(TimeUnit::Second, None)
+            }
         }
     }
 }
 
 fn apply_casts_to_chunk(
     chunk: &Chunk<Arc<dyn Array>>,
-    casts_to_perform: &[ClickhouseArrowCast],
+    casts_to_perform: &[Option<ClickhouseArrowCast>],
 ) -> Result<Chunk<Arc<dyn Array>>, Error> {
     if chunk.arrays().len() != casts_to_perform.len() {
         return Err(Error::CastArrayLengthMismatch);
@@ -44,7 +104,10 @@ fn apply_casts_to_chunk(
 
     let mut casted = Vec::with_capacity(chunk.arrays().len());
     for (array, cast_to_perform) in chunk.arrays().iter().zip(casts_to_perform.iter()) {
-        casted.push(cast_to_perform.apply(array)?);
+        match cast_to_perform {
+            Some(cast_to_perform) => casted.push(cast_to_perform.apply(array)?),
+            None => casted.push(array.clone()),
+        }
     }
 
     Ok(Chunk::new(casted))
@@ -73,11 +136,31 @@ impl TryInto<DataFrame> for super::api::Result {
             let schema_field = schema_fields_by_name
                 .get(&output_column.name)
                 .ok_or_else(|| Error::ArrowChunkMissingField(output_column.name.clone()))?;
-            let (new_field, cast_to_perform) = match output_column.r#type.as_str() {
-                "String" | "FixedString" => simple_cast(schema_field, DataType::LargeUtf8),
-                "Bool" => simple_cast(schema_field, DataType::Boolean),
-                _ => ((*schema_field).clone(), ClickhouseArrowCast::None),
-            };
+            //dbg!(
+            //    &schema_field.name,
+            //    &schema_field.data_type,
+            //    output_column.r#type.as_str()
+            //);
+            let (new_field, cast_to_perform) =
+                match (output_column.r#type.as_str(), &schema_field.data_type) {
+                    ("String", DataType::Binary) | ("FixedString", DataType::Binary) => {
+                        simple_cast(schema_field, DataType::LargeUtf8)
+                    }
+                    ("Bool", DataType::UInt8) => simple_cast(schema_field, DataType::Boolean),
+                    ("Date", DataType::UInt16) => {
+                        let mut new_field = (*schema_field).clone();
+                        let cast_to_perform = ClickhouseArrowCast::DateTimeFromChDate;
+                        new_field.data_type = cast_to_perform.ouptut_datatype().clone();
+                        (new_field, Some(cast_to_perform))
+                    }
+                    ("DateTime", DataType::UInt32) => {
+                        let mut new_field = (*schema_field).clone();
+                        let cast_to_perform = ClickhouseArrowCast::DateTimeFromChDateTime;
+                        new_field.data_type = cast_to_perform.ouptut_datatype().clone();
+                        (new_field, Some(cast_to_perform))
+                    }
+                    _ => ((*schema_field).clone(), None),
+                };
             fields.push(new_field);
             casts_to_perform.push(cast_to_perform);
         }
@@ -112,14 +195,14 @@ impl TryInto<DataFrame> for super::api::Result {
     }
 }
 
-fn simple_cast(schema_field: &Field, data_type: DataType) -> (Field, ClickhouseArrowCast) {
+fn simple_cast(schema_field: &Field, data_type: DataType) -> (Field, Option<ClickhouseArrowCast>) {
     debug!(
         "Casting field {} from {:?} to {:?}",
         &schema_field.name, &schema_field.data_type, &data_type
     );
     let mut new_field = (*schema_field).clone();
     new_field.data_type = data_type;
-    let cast_to_perform = ClickhouseArrowCast::Simple(new_field.data_type.clone());
+    let cast_to_perform = Some(ClickhouseArrowCast::Simple(new_field.data_type.clone()));
     (new_field, cast_to_perform)
 }
 
@@ -133,9 +216,9 @@ pub fn serialize_for_clickhouse(df: &mut DataFrame) -> Result<Vec<u8>, Error> {
                 let mut new_field = field.clone();
                 new_field.data_type = DataType::Utf8;
                 let cast_to_perform = ClickhouseArrowCast::Simple(new_field.data_type.clone());
-                (new_field, cast_to_perform)
+                (new_field, Some(cast_to_perform))
             }
-            _ => (field.clone(), ClickhouseArrowCast::None),
+            _ => (field.clone(), None),
         };
         new_fields.push(new_field);
         casts_to_perform.push(cast_to_perform);
