@@ -289,7 +289,7 @@ fn area_of_interest_cells(
     area_of_interest: &PyAny,
     traversal_resolution: u8,
 ) -> PyResult<Vec<H3Cell>> {
-    if let Ok(geointerface) = GeoInterface::extract(area_of_interest) {
+    let mut cells = if let Ok(geointerface) = GeoInterface::extract(area_of_interest) {
         let mut cells: Vec<_> = geointerface
             .0
             .to_h3_cells(traversal_resolution)
@@ -318,26 +318,23 @@ fn area_of_interest_cells(
             }
             _ => (),
         };
-
-        cells.sort_unstable();
-        cells.dedup();
-        Ok(cells)
+        cells
     } else if area_of_interest.is_instance_of::<PyArray1<u64>>()? {
         let validated_cells: Vec<H3Cell> =
             indexes_from_numpy(area_of_interest.extract::<PyReadonlyArray1<u64>>()?)?;
 
-        let mut traversal_cells = change_resolution(validated_cells, traversal_resolution)
+        change_resolution(validated_cells, traversal_resolution)
             .collect::<Result<Vec<_>, _>>()
-            .into_pyresult()?;
-
-        traversal_cells.sort_unstable();
-        traversal_cells.dedup();
-        Ok(traversal_cells)
+            .into_pyresult()?
     } else {
-        Err(PyValueError::new_err(
+        return Err(PyValueError::new_err(
             "unsupported type for area_of_interest",
-        ))
-    }
+        ));
+    };
+
+    cells.sort_unstable();
+    cells.dedup();
+    Ok(cells)
 }
 
 async fn dispatch_traversal_cells(
