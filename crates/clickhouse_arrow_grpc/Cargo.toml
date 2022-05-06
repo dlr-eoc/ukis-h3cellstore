@@ -1,6 +1,6 @@
 [package]
 name = "clickhouse_arrow_grpc"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
 authors = [
