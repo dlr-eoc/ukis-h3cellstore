@@ -44,13 +44,8 @@ impl ClickhouseArrowCast {
                         .as_any()
                         .downcast_ref::<PrimitiveArray<u16>>()
                         .expect("Ch date expected to be u16"),
-                    |v| {
-                        chrono::NaiveDate::from_ymd(1970, 1, 1)
-                            .add(chrono::Duration::days(v as i64))
-                            .and_hms(0, 0, 0)
-                            .timestamp()
-                    },
-                    DataType::Timestamp(TimeUnit::Second, None),
+                    i32::from,
+                    DataType::Date32,
                 )
                 .to_boxed()
                 .into())
@@ -86,7 +81,7 @@ impl ClickhouseArrowCast {
     fn ouptut_datatype(&self) -> &DataType {
         match self {
             ClickhouseArrowCast::Simple(dt) => dt,
-            ClickhouseArrowCast::DateTimeFromChDate => &DataType::Timestamp(TimeUnit::Second, None),
+            ClickhouseArrowCast::DateTimeFromChDate => &DataType::Date32,
             ClickhouseArrowCast::DateTimeFromChDateTime => {
                 &DataType::Timestamp(TimeUnit::Second, None)
             }
