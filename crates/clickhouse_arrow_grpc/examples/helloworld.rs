@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use polars::prelude::{DataFrame, NamedFrom};
 use polars::series::Series;
 
@@ -50,15 +50,22 @@ async fn main() -> eyre::Result<()> {
         })
         .await?;
 
-    client.execute_query_checked(
-        QueryInfo {
-            query: "create table if not exists test_insert (v1 UInt64, v2 Float32 , t1 text, timestamp DateTime64, b bool) ENGINE Memory"
+    client
+        .execute_query_checked(QueryInfo {
+            query: r#"create table if not exists test_insert (
+            v1 UInt64, 
+            v2 Float32, 
+            t1 text, 
+            c_datetime64 DateTime64,
+            c_datetime DateTime,
+            c_date Date,
+            b bool
+            ) ENGINE Memory"#
                 .to_string(),
             database: play_db.to_string(),
             ..Default::default()
-        },
-    )
-    .await?;
+        })
+        .await?;
 
     let test_df = make_dataframe(40)?;
     client
@@ -90,9 +97,21 @@ fn make_dataframe(df_len: usize) -> eyre::Result<DataFrame> {
                 .collect::<Vec<_>>(),
         ),
         Series::new(
-            "timestamp",
+            "c_datetime64",
             (0..df_len)
                 .map(|v| NaiveDateTime::from_timestamp((v as i64).pow(2), 0))
+                .collect::<Vec<_>>(),
+        ),
+        Series::new(
+            "c_date",
+            (0..df_len)
+                .map(|_| NaiveDate::from_ymd(2000, 5, 23))
+                .collect::<Vec<_>>(),
+        ),
+        Series::new(
+            "c_datetime",
+            (0..df_len)
+                .map(|_| NaiveDate::from_ymd(2000, 5, 23).and_hms(12, 13, 14))
                 .collect::<Vec<_>>(),
         ),
         Series::new("b", (0..df_len).map(|v| v % 2 == 0).collect::<Vec<_>>()),
