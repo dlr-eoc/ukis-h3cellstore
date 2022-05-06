@@ -1,3 +1,4 @@
+use geo_types::Geometry;
 use h3cellstore::clickhouse::compacted_tables::{CompactedTablesStore, TableSet, TableSetQuery};
 use h3cellstore::export::arrow_h3::algo::ToIndexCollection;
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -295,7 +296,29 @@ fn area_of_interest_cells(
             .into_pyresult()?
             .iter()
             .collect();
+
+        // always add the outer vertices of polygons to ensure having always cells
+        // even when the polygon is too small to have any cells inside
+        match geointerface.0 {
+            Geometry::Polygon(poly) => cells.extend(
+                poly.to_h3_cells(traversal_resolution)
+                    .into_pyresult()?
+                    .iter(),
+            ),
+            Geometry::MultiPolygon(mpoly) => {
+                for poly in mpoly.0.iter() {
+                    cells.extend(
+                        poly.to_h3_cells(traversal_resolution)
+                            .into_pyresult()?
+                            .iter(),
+                    );
+                }
+            }
+            _ => (),
+        };
+
         cells.sort_unstable();
+        cells.dedup();
         Ok(cells)
     } else if area_of_interest.is_instance_of::<PyArray1<u64>>()? {
         let validated_cells: Vec<H3Cell> =
