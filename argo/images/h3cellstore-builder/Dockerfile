@@ -20,7 +20,10 @@ RUN cd /tmp && \
     cd .. && \
     rm -rf cmake-3.23.1
 
-RUN cargo install just && rm -rf ~/.cargo && cp `which just` /usr/local/bin
+RUN cargo install just && \
+    rm -rf $CARGO_HOME/registry/cache && \
+    chmod -R 777 $CARGO_HOME && \
+    cp `which just` /usr/local/bin
 
 # then tag as
 # eoc-gzs-db01-vm.eoc.dlr.de:4002/h3cellstore-builder:latest
