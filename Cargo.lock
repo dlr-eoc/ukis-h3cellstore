@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "h3cellstorepy"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "geo-types",
  "h3cellstore",
