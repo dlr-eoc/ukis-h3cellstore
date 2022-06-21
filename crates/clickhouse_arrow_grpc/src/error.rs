@@ -7,7 +7,7 @@ pub enum Error {
     Polars(#[from] polars_core::error::PolarsError),
 
     #[error("arrow error: {0}")]
-    Arrow(#[from] arrow2::error::ArrowError),
+    Arrow(#[from] arrow2::error::Error),
 
     #[error("tonic GRPC status error: {0}")]
     TonicStatus(#[from] tonic::Status),

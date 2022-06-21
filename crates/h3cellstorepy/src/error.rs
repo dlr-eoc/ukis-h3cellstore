@@ -21,9 +21,7 @@ impl ToCustomPyErr for h3cellstore::export::arrow_h3::export::polars_core::error
     }
 }
 
-impl ToCustomPyErr
-    for h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::error::ArrowError
-{
+impl ToCustomPyErr for h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::error::Error {
     fn to_custom_pyerr(self) -> PyErr {
         PyRuntimeError::new_err(format!("arrow error: {:?}", self))
     }

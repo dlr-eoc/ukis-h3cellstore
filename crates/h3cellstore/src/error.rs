@@ -9,7 +9,7 @@ pub enum Error {
     Polars(#[from] arrow_h3::export::polars_core::error::PolarsError),
 
     #[error("arrow error: {0}")]
-    Arrow(#[from] clickhouse_arrow_grpc::export::arrow2::error::ArrowError),
+    Arrow(#[from] clickhouse_arrow_grpc::export::arrow2::error::Error),
 
     #[error("tonic GRPC status error: {0}")]
     TonicStatus(#[from] clickhouse_arrow_grpc::export::tonic::Status),

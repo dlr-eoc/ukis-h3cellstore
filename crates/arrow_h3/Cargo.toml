@@ -25,15 +25,15 @@ version = "0.1"
 
 [dependencies.h3ron]
 git = "https://github.com/nmandery/h3ron.git"
-rev = "90db233174997d8483982f5255dfff597642c2f1"
+rev = "527ca333d3f506121018270763ac841ba08516d2"
 features = ["use-rayon"]
 
 [dependencies.polars]
-version = "0.21.1"
+version = "0.22"
 features = ["dtype-full", "lazy", "list"]
 
 [dependencies.polars-core]
-version = "0.21.1"
+version = "0.22"
 
 [dependencies.serde]
 version = "1"
