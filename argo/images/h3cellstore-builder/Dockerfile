@@ -1,6 +1,6 @@
 # image to build bamboo and create python wheels
 
-FROM rust:1.60-bullseye
+FROM rust:1.61-bullseye
 
 RUN apt-get update && \
     apt-get install git python3-dev python3-pip --no-install-recommends build-essential clang make curl python3-setuptools python3-venv zip --yes && \
