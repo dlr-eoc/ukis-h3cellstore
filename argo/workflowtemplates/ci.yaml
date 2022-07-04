@@ -114,7 +114,8 @@ spec:
           cargo test --no-default-features
           python3 -m venv venv
           . venv/bin/activate
-          python install-dev-dependencies.py
+          python3 -m pip install --upgrade setuptools pip
+          python3 install-dev-dependencies.py
           maturin develop
           export CLICKHOUSE_GRPC_TESTING_ENDPOINT="http://127.0.0.1:9100"
           pytest -s -vv --tb=native
