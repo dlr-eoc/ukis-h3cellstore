@@ -14,7 +14,7 @@ impl TemporaryKey {
     /// The time when the key has been generated should be visible from the key itself.
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        let ts_millis = Local::now().naive_utc().timestamp_millis().abs() as u64;
+        let ts_millis = Local::now().naive_utc().timestamp_millis().unsigned_abs();
         Self {
             unix_timestamp_secs: ts_millis / 1000,
             unix_timestamp_millis: (ts_millis % 1000) as u16,
