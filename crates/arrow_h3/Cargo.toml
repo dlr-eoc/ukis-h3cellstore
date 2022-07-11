@@ -25,7 +25,7 @@ version = "0.1"
 
 [dependencies.h3ron]
 git = "https://github.com/nmandery/h3ron.git"
-rev = "527ca333d3f506121018270763ac841ba08516d2"
+rev = "13ea3b5310ae6ed83df437d86e640aa6d73dd181"
 features = ["use-rayon"]
 
 [dependencies.polars]
