@@ -114,6 +114,61 @@ impl TraversalOptions {
     }
 }
 
+pub enum TraversalArea {
+    Geometry(Geometry<f64>),
+    H3Cells(Vec<H3Cell>),
+}
+
+impl TraversalArea {
+    ///
+    ///
+    /// The cells are returned sorted for a deterministic traversal order
+    pub fn to_cells(&self, traversal_resolution: u8) -> Result<Vec<H3Cell>, Error> {
+        let mut cells = match self {
+            TraversalArea::Geometry(geometry) => {
+                let mut cells: Vec<_> =
+                    geometry.to_h3_cells(traversal_resolution)?.iter().collect();
+
+                // always add the outer vertices of polygons to ensure having always cells
+                // even when the polygon is too small to have any cells inside
+                match geometry {
+                    Geometry::Polygon(poly) => {
+                        cells.extend(poly.exterior().to_h3_cells(traversal_resolution)?.iter())
+                    }
+                    Geometry::MultiPolygon(mpoly) => {
+                        for poly in mpoly.0.iter() {
+                            cells.extend(poly.exterior().to_h3_cells(traversal_resolution)?.iter());
+                        }
+                    }
+                    _ => (),
+                };
+                cells
+            }
+            TraversalArea::H3Cells(cells) => {
+                let cells: Vec<_> = change_resolution(cells.as_slice(), traversal_resolution)
+                    .collect::<Result<Vec<_>, _>>()?;
+                cells
+            }
+        };
+
+        cells.sort_unstable();
+        cells.dedup();
+        Ok(cells)
+    }
+}
+
+impl From<Geometry<f64>> for TraversalArea {
+    fn from(geom: Geometry<f64>) -> Self {
+        Self::Geometry(geom)
+    }
+}
+
+impl From<Vec<H3Cell>> for TraversalArea {
+    fn from(cells: Vec<H3Cell>) -> Self {
+        Self::H3Cells(cells)
+    }
+}
+
 pub struct Traverser {
     pub num_traversal_cells: usize,
     pub traversal_h3_resolution: u8,
@@ -128,62 +183,31 @@ impl Stream for Traverser {
     }
 }
 
-pub async fn traverse_cells(
-    conn: &mut ClickHouseClient<Channel>,
-    database_name: String,
-    tableset_name: String,
-    area_of_interest: &[H3Cell],
-    options: TraversalOptions,
-) -> Result<Traverser, Error> {
-    let (tableset, traversal_h3_resolution) =
-        inspect_tableset(conn, database_name.as_str(), tableset_name, &options).await?;
-    let traversal_cells = area_of_interest_cells(area_of_interest, traversal_h3_resolution)?;
-    traverse(
-        conn,
-        database_name,
-        tableset,
-        traversal_cells,
-        options,
-        traversal_h3_resolution,
-    )
-    .await
-}
-
-pub async fn traverse_geometry(
-    conn: &mut ClickHouseClient<Channel>,
-    database_name: String,
-    tableset_name: String,
-    area_of_interest: &Geometry,
-    options: TraversalOptions,
-) -> Result<Traverser, Error> {
-    let (tableset, traversal_h3_resolution) =
-        inspect_tableset(conn, database_name.as_str(), tableset_name, &options).await?;
-    let traversal_cells = area_of_interest_geometry(area_of_interest, traversal_h3_resolution)?;
-    traverse(
-        conn,
-        database_name,
-        tableset,
-        traversal_cells,
-        options,
-        traversal_h3_resolution,
-    )
-    .await
-}
-
-async fn inspect_tableset(
+pub async fn traverse(
     client: &mut ClickHouseClient<Channel>,
-    database_name: &str,
+    database_name: String,
     tableset_name: String,
-    options: &TraversalOptions,
-) -> Result<(TableSet, u8), Error> {
-    let tableset = client.get_tableset(database_name, tableset_name).await?;
+    area: &TraversalArea,
+    options: TraversalOptions,
+) -> Result<Traverser, Error> {
+    let tableset = client.get_tableset(&database_name, tableset_name).await?;
     let traversal_h3_resolution =
         select_traversal_resolution(&tableset, options.h3_resolution, options.max_fetch_count);
 
-    Ok((tableset, traversal_h3_resolution))
+    let traversal_cells = area.to_cells(traversal_h3_resolution)?;
+
+    traverse_inner(
+        client,
+        database_name,
+        tableset,
+        traversal_cells,
+        options,
+        traversal_h3_resolution,
+    )
+    .await
 }
 
-async fn traverse(
+async fn traverse_inner(
     client: &mut ClickHouseClient<Channel>,
     database_name: String,
     tableset: TableSet,
@@ -279,51 +303,6 @@ struct WorkerContext {
     client: ClickHouseClient<Channel>,
     database_name: String,
     tableset: TableSet,
-}
-
-///
-///
-/// The cells are returned sorted for a deterministic traversal order
-fn area_of_interest_geometry(
-    area_of_interest: &Geometry,
-    traversal_resolution: u8,
-) -> Result<Vec<H3Cell>, Error> {
-    let mut cells: Vec<_> = area_of_interest
-        .to_h3_cells(traversal_resolution)?
-        .iter()
-        .collect();
-
-    // always add the outer vertices of polygons to ensure having always cells
-    // even when the polygon is too small to have any cells inside
-    match area_of_interest {
-        Geometry::Polygon(poly) => {
-            cells.extend(poly.exterior().to_h3_cells(traversal_resolution)?.iter())
-        }
-        Geometry::MultiPolygon(mpoly) => {
-            for poly in mpoly.0.iter() {
-                cells.extend(poly.exterior().to_h3_cells(traversal_resolution)?.iter());
-            }
-        }
-        _ => (),
-    };
-
-    cells.sort_unstable();
-    cells.dedup();
-    Ok(cells)
-}
-///
-///
-/// The cells are returned sorted for a deterministic traversal order
-fn area_of_interest_cells(
-    area_of_interest: &[H3Cell],
-    traversal_resolution: u8,
-) -> Result<Vec<H3Cell>, Error> {
-    let mut cells: Vec<_> =
-        change_resolution(area_of_interest, traversal_resolution).collect::<Result<Vec<_>, _>>()?;
-
-    cells.sort_unstable();
-    cells.dedup();
-    Ok(cells)
 }
 
 async fn dispatch_traversal_cells(

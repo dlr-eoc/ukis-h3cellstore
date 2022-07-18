@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use h3cellstore::clickhouse::compacted_tables::traversal::{
-    traverse_cells, traverse_geometry, TraversalOptions, Traverser,
+    traverse, TraversalArea, TraversalOptions, Traverser,
 };
 use h3cellstore::clickhouse::compacted_tables::TableSetQuery;
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -159,40 +159,31 @@ impl PyTraverser {
             do_uncompact: options.do_uncompact,
         };
 
-        let traverser = if let Ok(geointerface) = GeoInterface::extract(area_of_interest) {
-            conn.runtime
-                .block_on(async {
-                    traverse_geometry(
-                        &mut conn.client,
-                        conn.database_name.clone(),
-                        tableset_name,
-                        &geointerface.0,
-                        inner_options,
-                    )
-                    .await
-                })
-                .into_pyresult()?
+        let area: TraversalArea = if let Ok(geointerface) = GeoInterface::extract(area_of_interest)
+        {
+            geointerface.0.into()
         } else if area_of_interest.is_instance_of::<PyArray1<u64>>()? {
             let validated_cells: Vec<H3Cell> =
                 indexes_from_numpy(area_of_interest.extract::<PyReadonlyArray1<u64>>()?)?;
-
-            conn.runtime
-                .block_on(async {
-                    traverse_cells(
-                        &mut conn.client,
-                        conn.database_name.clone(),
-                        tableset_name,
-                        &validated_cells,
-                        inner_options,
-                    )
-                    .await
-                })
-                .into_pyresult()?
+            validated_cells.into()
         } else {
             return Err(PyValueError::new_err(
                 "unsupported type for area_of_interest",
             ));
         };
+        let traverser = conn
+            .runtime
+            .block_on(async {
+                traverse(
+                    &mut conn.client,
+                    conn.database_name.clone(),
+                    tableset_name,
+                    &area,
+                    inner_options,
+                )
+                .await
+            })
+            .into_pyresult()?;
 
         Ok(PyTraverser {
             traverser: Arc::new(Mutex::new(traverser)),
