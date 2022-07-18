@@ -1,3 +1,4 @@
+use futures::StreamExt;
 use h3cellstore::clickhouse::compacted_tables::traversal::{
     traverse_cells, traverse_geometry, TraversalOptions, Traverser,
 };
@@ -121,7 +122,7 @@ impl PyTraverser {
             let trav = slf.traverser.clone();
             match slf.runtime.block_on(async {
                 let mut guard = trav.lock().await;
-                timeout(Duration::from_millis(500), guard.dataframe_recv.recv()).await
+                timeout(Duration::from_millis(500), guard.next()).await
             }) {
                 Ok(Some(h3df_result)) => {
                     // channel had a waiting message

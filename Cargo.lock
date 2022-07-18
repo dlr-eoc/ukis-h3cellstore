@@ -862,6 +862,7 @@ dependencies = [
 name = "h3cellstorepy"
 version = "0.9.5"
 dependencies = [
+ "futures",
  "h3cellstore",
  "numpy",
  "once_cell",
