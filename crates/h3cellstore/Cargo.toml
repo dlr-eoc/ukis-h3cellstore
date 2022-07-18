@@ -1,6 +1,6 @@
 [package]
 name = "h3cellstore"
-version = "0.9.3"
+version = "0.10.0"
 edition = "2021"
 description = "High-level rust crate to store H3 cells in ClickHouse databases"
 authors = [
@@ -24,6 +24,9 @@ regex = "1.5"
 itertools = "0.10"
 chrono = "0.4"
 rand = "0.8"
+futures = "0.3"
+postage = "0.5"
+geo-types = "0.7"
 
 [dependencies.tracing]
 version = "0.1"
