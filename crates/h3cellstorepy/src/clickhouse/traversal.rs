@@ -1,5 +1,7 @@
 use geo_types::Geometry;
-use h3cellstore::clickhouse::compacted_tables::{CompactedTablesStore, TableSet, TableSetQuery};
+use h3cellstore::clickhouse::compacted_tables::{
+    CompactedTablesStore, QueryOptions, TableSet, TableSetQuery,
+};
 use h3cellstore::export::arrow_h3::algo::ToIndexCollection;
 use numpy::{PyArray1, PyReadonlyArray1};
 use postage::prelude::{Sink, Stream};
@@ -82,6 +84,9 @@ pub struct TraversalOptions {
     /// This query will be applied to the tables in the reduced `traversal_h3_resolution` and only cells
     /// found by this query will be loaded from the tables in the requested full resolution
     filter_query: Option<TableSetQuery>,
+
+    /// uncompact the cells loaded from the db. This should be true in most cases.
+    do_uncompact: bool,
 }
 
 impl Default for TraversalOptions {
@@ -90,6 +95,7 @@ impl Default for TraversalOptions {
             max_fetch_count: 10_000,
             num_connections: 3,
             filter_query: None,
+            do_uncompact: true,
         }
     }
 }
@@ -191,6 +197,7 @@ impl PyTraverser {
             .into_pyresult()?;
         let traversal_h3_resolution =
             select_traversal_resolution(&tableset, h3_resolution, options.max_fetch_count);
+        let do_uncompact = options.do_uncompact;
         let traversal_cells = area_of_interest_cells(area_of_interest, traversal_h3_resolution)?;
         let num_traversal_cells = traversal_cells.len();
         let runtime = conn.runtime.clone();
@@ -219,6 +226,7 @@ impl PyTraverser {
                             worker_query.clone(),
                             cell,
                             h3_resolution,
+                            do_uncompact,
                         )
                         .await
                         {
@@ -373,9 +381,7 @@ async fn prefilter_traversal_cells(
         .query_tableset_cells(
             &worker_context.database_name,
             worker_context.tableset.clone(),
-            filter_query,
-            cells.to_vec(),
-            traversal_h3_resolution,
+            QueryOptions::new(filter_query, cells.to_vec(), traversal_h3_resolution),
         )
         .await
         .into_pyresult()?;
@@ -401,17 +407,19 @@ async fn load_traversed_cell(
     query: TableSetQuery,
     cell: PyResult<H3Cell>,
     h3_resolution: u8,
+    do_uncompact: bool,
 ) -> PyResult<Option<H3DataFrame>> {
     match cell {
         Ok(cell) => {
+            let mut query_options = QueryOptions::new(query, vec![cell], h3_resolution);
+            query_options.do_uncompact = do_uncompact;
+
             let h3df = worker_context
                 .client
                 .query_tableset_cells(
                     &worker_context.database_name,
                     worker_context.tableset.clone(),
-                    query,
-                    vec![cell],
-                    h3_resolution,
+                    query_options,
                 )
                 .instrument(debug_span!(
                     "Loading traversal cell",

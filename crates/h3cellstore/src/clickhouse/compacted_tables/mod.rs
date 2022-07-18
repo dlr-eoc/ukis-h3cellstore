@@ -30,6 +30,25 @@ pub mod temporary_key;
 /// the column name which must be used for h3indexes.
 pub const COL_NAME_H3INDEX: &str = "h3index";
 
+pub struct QueryOptions {
+    pub query: TableSetQuery,
+    pub cells: Vec<H3Cell>,
+    pub h3_resolution: u8,
+    pub do_uncompact: bool,
+}
+
+impl QueryOptions {
+    pub fn new(query: TableSetQuery, cells: Vec<H3Cell>, h3_resolution: u8) -> Self {
+        // TODO: make cells an iterator with borrow and normalize to `h3_resolution`
+        Self {
+            query,
+            cells,
+            h3_resolution,
+            do_uncompact: true,
+        }
+    }
+}
+
 #[async_trait]
 pub trait CompactedTablesStore {
     async fn list_tablesets<S>(
@@ -89,9 +108,7 @@ pub trait CompactedTablesStore {
         &mut self,
         database_name: S,
         tableset: TS,
-        query: TableSetQuery,
-        cells: Vec<H3Cell>,
-        h3_resolution: u8,
+        query_options: QueryOptions,
     ) -> Result<H3DataFrame, Error>
     where
         S: AsRef<str> + Send + Sync,
@@ -302,9 +319,7 @@ where
         &mut self,
         database_name: S,
         tableset: TS,
-        query: TableSetQuery,
-        cells: Vec<H3Cell>, // TODO: iterator with borrow and normalize to `h3_resolution`
-        h3_resolution: u8,
+        query_options: QueryOptions,
     ) -> Result<H3DataFrame, Error>
     where
         S: AsRef<str> + Send + Sync,
@@ -315,9 +330,14 @@ where
             .await?;
 
         let (query_string, cells) = spawn_blocking(move || {
-            query
-                .build_cell_query_string(&tableset, h3_resolution, &cells)
-                .map(|query_string| (query_string, cells))
+            query_options
+                .query
+                .build_cell_query_string(
+                    &tableset,
+                    query_options.h3_resolution,
+                    &query_options.cells,
+                )
+                .map(|query_string| (query_string, query_options.cells))
         })
         .await??;
 
@@ -330,12 +350,17 @@ where
             .await?;
         let h3df = H3DataFrame::from_dataframe(df, COL_NAME_H3INDEX)?;
 
-        Ok(spawn_blocking(move || {
-            // use restricted uncompacting to filter by input cells so we
-            // avoid over-fetching in case of large, compacted cells.
-            h3df.uncompact_restricted(h3_resolution, cells)
-        })
-        .instrument(debug_span!("Un-compacting queried H3DataFrame"))
-        .await??)
+        let out_h3df = if query_options.do_uncompact {
+            spawn_blocking(move || {
+                // use restricted uncompacting to filter by input cells so we
+                // avoid over-fetching in case of large, compacted cells.
+                h3df.uncompact_restricted(query_options.h3_resolution, cells)
+            })
+            .instrument(debug_span!("Un-compacting queried H3DataFrame"))
+            .await??
+        } else {
+            h3df
+        };
+        Ok(out_h3df)
     }
 }

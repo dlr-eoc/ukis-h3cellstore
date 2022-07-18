@@ -5,7 +5,7 @@ use crate::error::IntoPyResult;
 use crate::frame::{dataframe_from_pyany, ToDataframeWrapper};
 use crate::utils::indexes_from_numpy;
 use h3cellstore::clickhouse::compacted_tables::{
-    CompactedTablesStore, InsertOptions, TableSetQuery,
+    CompactedTablesStore, InsertOptions, QueryOptions, TableSetQuery,
 };
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::arrow_h3::H3DataFrame;
@@ -286,25 +286,25 @@ impl GRPCConnection {
         }
     }
 
+    #[args(do_uncompact = "true")]
     pub fn query_tableset_cells(
         &mut self,
         tableset_name: String,
         query: &PyTableSetQuery,
         cells: PyReadonlyArray1<u64>,
         h3_resolution: u8,
+        do_uncompact: bool,
     ) -> PyResult<PyObject> {
-        let cells = indexes_from_numpy(cells)?;
-        let query = query.query.clone();
+        let mut query_options = QueryOptions::new(
+            query.query.clone(),
+            indexes_from_numpy(cells)?,
+            h3_resolution,
+        );
+        query_options.do_uncompact = do_uncompact;
         self.runtime
             .block_on(async {
                 self.client
-                    .query_tableset_cells(
-                        &self.database_name,
-                        tableset_name,
-                        query,
-                        cells,
-                        h3_resolution,
-                    )
+                    .query_tableset_cells(&self.database_name, tableset_name, query_options)
                     .await
             })
             .into_pyresult()?
