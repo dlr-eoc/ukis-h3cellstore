@@ -1,6 +1,6 @@
 use crate::clickhouse::schema::PyCompactedTableSchema;
 use crate::clickhouse::tableset::PyTableSet;
-use crate::clickhouse::traversal::{PyTraverser, TraversalOptions};
+use crate::clickhouse::traversal::{PyTraversalOptions, PyTraverser};
 use crate::error::IntoPyResult;
 use crate::frame::{dataframe_from_pyany, ToDataframeWrapper};
 use crate::utils::indexes_from_numpy;
@@ -333,7 +333,7 @@ impl GRPCConnection {
         h3_resolution: u8,
         kwargs: Option<&PyDict>,
     ) -> PyResult<PyTraverser> {
-        let options = TraversalOptions::extract(kwargs)?;
+        let options = PyTraversalOptions::extract(kwargs)?;
         PyTraverser::create(
             self,
             tableset_name,

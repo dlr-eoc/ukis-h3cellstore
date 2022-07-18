@@ -26,6 +26,7 @@ pub mod schema;
 mod select;
 pub mod tableset;
 pub mod temporary_key;
+pub mod traversal;
 
 /// the column name which must be used for h3indexes.
 pub const COL_NAME_H3INDEX: &str = "h3index";
