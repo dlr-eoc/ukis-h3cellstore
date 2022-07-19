@@ -1,3 +1,8 @@
+# h3cellstorepy - python library
+
+High-level schematic of the read-workflow:
+
+![](../../doc/img/h3cellstorepy-read.svg)
 
 ## Run the python unittests
 
