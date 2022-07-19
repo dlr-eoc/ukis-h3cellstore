@@ -173,7 +173,7 @@ impl From<Vec<H3Cell>> for TraversalArea {
 pub struct Traverser {
     pub num_traversal_cells: usize,
     pub traversal_h3_resolution: u8,
-    pub dataframe_recv: tokio::sync::mpsc::Receiver<Result<H3DataFrame, Error>>,
+    dataframe_recv: tokio::sync::mpsc::Receiver<Result<H3DataFrame, Error>>,
     num_cells_already_traversed: usize,
 }
 
