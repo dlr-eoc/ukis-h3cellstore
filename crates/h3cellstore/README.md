@@ -1,3 +1,6 @@
+# h3cellstore
+
+High-level rust crate to store H3 cells in ClickHouse databases.
 
 ## Run the examples
 
