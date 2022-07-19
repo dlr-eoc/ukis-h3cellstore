@@ -173,13 +173,29 @@ pub struct Traverser {
     pub num_traversal_cells: usize,
     pub traversal_h3_resolution: u8,
     pub dataframe_recv: tokio::sync::mpsc::Receiver<Result<H3DataFrame, Error>>,
+    num_cells_already_traversed: usize,
 }
 
 impl Stream for Traverser {
     type Item = Result<H3DataFrame, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.get_mut().dataframe_recv.poll_recv(cx)
+        let self_mut = self.get_mut();
+        let polled = self_mut.dataframe_recv.poll_recv(cx);
+
+        if polled.is_ready() {
+            self_mut.num_cells_already_traversed += 1;
+        }
+        polled
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // yielding less elements than hinted is allowed, though not best practice.
+        // We may yield less here when traversal cells to not contain data
+        let num_cells_outstanding = self
+            .num_traversal_cells
+            .saturating_sub(self.num_cells_already_traversed);
+        (num_cells_outstanding, Some(num_cells_outstanding))
     }
 }
 
@@ -295,6 +311,7 @@ async fn traverse_inner(
         num_traversal_cells,
         traversal_h3_resolution,
         dataframe_recv,
+        num_cells_already_traversed: 0,
     })
 }
 
