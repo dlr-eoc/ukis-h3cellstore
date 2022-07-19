@@ -153,6 +153,7 @@ impl TraversalArea {
 
         cells.sort_unstable();
         cells.dedup();
+        cells.shrink_to_fit();
         Ok(cells)
     }
 }
