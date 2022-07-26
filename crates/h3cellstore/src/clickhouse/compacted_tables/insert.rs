@@ -77,7 +77,7 @@ where
             .options
             .abort
             .lock()
-            .map_err(|_| Error::AquiringLockFailed)?;
+            .map_err(|_| Error::AcquiringLockFailed)?;
         if *guard {
             Err(Error::Abort)
         } else {

@@ -68,8 +68,8 @@ pub enum Error {
     #[error("abort has been triggered")]
     Abort,
 
-    #[error("aquiring lock failed")]
-    AquiringLockFailed,
+    #[error("acquiring lock failed")]
+    AcquiringLockFailed,
 }
 
 impl From<AH3Error> for Error {

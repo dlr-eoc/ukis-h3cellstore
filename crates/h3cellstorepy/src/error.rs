@@ -85,7 +85,7 @@ impl ToCustomPyErr for h3cellstore::Error {
 
             Self::ClickhouseException(ce) => ce.to_custom_pyerr(),
 
-            Self::AquiringLockFailed => PyRuntimeError::new_err(self.to_string()),
+            Self::AcquiringLockFailed => PyRuntimeError::new_err(self.to_string()),
 
             Self::CastArrayLengthMismatch
             | Self::ArrowChunkMissingField(_)
