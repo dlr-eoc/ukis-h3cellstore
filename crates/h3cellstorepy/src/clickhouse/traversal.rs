@@ -24,7 +24,15 @@ use crate::utils::{extract_dict_item_option, indexes_from_numpy};
 
 pub struct PyTraversalOptions {
     /// The maximum number of cells to fetch in one DB query.
-    max_fetch_count: usize,
+    ///
+    /// Please note that this setting controls only the number of cells
+    /// requested from the DB. Should - for example - each cell have data
+    /// for multiple time steps in the database, more rows will be returned.
+    ///
+    /// This setting is crucial to control the size of the messages transferred from
+    /// Clickhouse. So, decrease when Clickhouse runs into GRPC message size limits
+    /// (protobuf supports max. 2GB).
+    max_h3indexes_fetch_count: usize,
 
     /// Number of parallel DB connections to use in the background.
     /// Depending with the number of connections used the amount of memory used increases as well as
@@ -44,11 +52,12 @@ pub struct PyTraversalOptions {
 
 impl Default for PyTraversalOptions {
     fn default() -> Self {
+        let upstream_defaults = TraversalOptions::default();
         Self {
-            max_fetch_count: 10_000,
-            num_connections: 3,
-            filter_query: None,
-            do_uncompact: true,
+            max_h3indexes_fetch_count: upstream_defaults.max_h3indexes_fetch_count,
+            num_connections: upstream_defaults.num_connections,
+            filter_query: upstream_defaults.filter_query,
+            do_uncompact: upstream_defaults.do_uncompact,
         }
     }
 }
@@ -57,8 +66,8 @@ impl PyTraversalOptions {
     pub(crate) fn extract(dict: Option<&PyDict>) -> PyResult<Self> {
         let mut kwargs = Self::default();
         if let Some(dict) = dict {
-            if let Some(mfc) = extract_dict_item_option(dict, "max_fetch_count")? {
-                kwargs.max_fetch_count = mfc;
+            if let Some(mfc) = extract_dict_item_option(dict, "max_h3indexes_fetch_count")? {
+                kwargs.max_h3indexes_fetch_count = mfc;
             }
             if let Some(nc) = extract_dict_item_option(dict, "num_connections")? {
                 kwargs.num_connections = nc;
@@ -153,7 +162,7 @@ impl PyTraverser {
         let inner_options = TraversalOptions {
             query,
             h3_resolution,
-            max_fetch_count: options.max_fetch_count,
+            max_h3indexes_fetch_count: options.max_h3indexes_fetch_count,
             num_connections: options.num_connections,
             filter_query: options.filter_query,
             do_uncompact: options.do_uncompact,
