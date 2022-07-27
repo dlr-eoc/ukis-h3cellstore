@@ -161,11 +161,13 @@ where
     );
     let _enter = span.enter();
 
-    // create a temporary df mapping index to uncompacted indexes to use for joining
-    let mut original_index = Vec::with_capacity(h3df.dataframe.shape().0);
-    let mut uncompacted_indexes = Vec::with_capacity(h3df.dataframe.shape().0);
+    let unique_cells = h3df.to_index_collection::<H3CellSet, _>()?;
 
-    for unique_cell in h3df.to_index_collection::<H3CellSet, _>()? {
+    // create a temporary df mapping index to uncompacted indexes to use for joining
+    let mut original_index = Vec::with_capacity(unique_cells.len());
+    let mut uncompacted_indexes = Vec::with_capacity(unique_cells.len());
+
+    for unique_cell in unique_cells {
         match unique_cell.resolution().cmp(&target_resolution) {
             Ordering::Less => {
                 // todo: Not needing to un-compact all children when a filter is specified would be an improvement,
