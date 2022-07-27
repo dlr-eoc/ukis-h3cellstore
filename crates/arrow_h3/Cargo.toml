@@ -30,7 +30,7 @@ features = ["use-rayon"]
 
 [dependencies.polars]
 version = "0.22"
-features = ["dtype-full", "lazy", "list"]
+features = ["dtype-full", "lazy", "list", "timezones"]
 
 [dependencies.polars-core]
 version = "0.22"

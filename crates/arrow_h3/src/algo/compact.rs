@@ -160,6 +160,7 @@ where
         n_columns = h3df.dataframe.shape().1
     );
     let _enter = span.enter();
+    dbg!((target_resolution, h3df.dataframe.shape()));
 
     // create a temporary df mapping index to uncompacted indexes to use for joining
     let mut original_index = Vec::with_capacity(h3df.dataframe.shape().0);
@@ -193,6 +194,11 @@ where
         }
     }
 
+    // early exit when uncompaction does not cause a change
+    if original_index == uncompacted_indexes {
+        return Ok(h3df);
+    }
+
     let join_df = DataFrame::new(vec![
         Series::new(&h3df.h3index_column_name, original_index),
         Series::new(UNCOMPACT_HELPER_COL_NAME, uncompacted_indexes),
@@ -209,7 +215,6 @@ where
         .drop_columns(&[&h3df.h3index_column_name])
         .rename(&[UNCOMPACT_HELPER_COL_NAME], &[&h3df.h3index_column_name])
         .collect()?;
-
     (out_df, h3df.h3index_column_name).try_into()
 }
 
