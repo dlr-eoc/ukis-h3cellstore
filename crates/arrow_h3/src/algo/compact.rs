@@ -13,7 +13,7 @@ use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
 use tracing::{span, Level};
 
-use crate::algo::IterSeriesIndexes;
+use crate::algo::{IterSeriesIndexes, ToIndexCollection};
 use crate::{Error, H3DataFrame};
 
 pub trait Compact {
@@ -165,25 +165,24 @@ where
     let mut original_index = Vec::with_capacity(h3df.dataframe.shape().0);
     let mut uncompacted_indexes = Vec::with_capacity(h3df.dataframe.shape().0);
 
-    for h3df_cell in h3df.iter_indexes::<H3Cell>()? {
-        let h3df_cell = h3df_cell?;
-        match h3df_cell.resolution().cmp(&target_resolution) {
+    for unique_cell in h3df.to_index_collection::<H3CellSet, _>()? {
+        match unique_cell.resolution().cmp(&target_resolution) {
             Ordering::Less => {
                 // todo: Not needing to un-compact all children when a filter is specified would be an improvement,
                 //     especially with large resolution differences.
-                for child_cell in h3df_cell
+                for child_cell in unique_cell
                     .get_children(target_resolution)?
                     .iter()
                     .filter(&cell_filter)
                 {
-                    original_index.push(h3df_cell.h3index() as u64);
+                    original_index.push(unique_cell.h3index() as u64);
                     uncompacted_indexes.push(child_cell.h3index() as u64);
                 }
             }
             Ordering::Equal => {
-                if cell_filter(&h3df_cell) {
-                    original_index.push(h3df_cell.h3index() as u64);
-                    uncompacted_indexes.push(h3df_cell.h3index() as u64);
+                if cell_filter(&unique_cell) {
+                    original_index.push(unique_cell.h3index() as u64);
+                    uncompacted_indexes.push(unique_cell.h3index() as u64);
                 }
             }
             Ordering::Greater => {
