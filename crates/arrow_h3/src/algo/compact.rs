@@ -160,7 +160,6 @@ where
         n_columns = h3df.dataframe.shape().1
     );
     let _enter = span.enter();
-    dbg!((target_resolution, h3df.dataframe.shape()));
 
     // create a temporary df mapping index to uncompacted indexes to use for joining
     let mut original_index = Vec::with_capacity(h3df.dataframe.shape().0);
