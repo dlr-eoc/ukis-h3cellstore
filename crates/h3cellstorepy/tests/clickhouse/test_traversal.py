@@ -71,7 +71,7 @@ def test_traverse_by_cells_with_filter(clickhouse_grpc_endpoint, clickhouse_test
             ctx.df["h3index"].to_numpy(),
             ctx.schema.max_h3_resolution,
             # filter to rule out any results for this unittest
-            filter_query=TableSetQuery.from_template("select h3index from <[table]> where false")
+            filter_query=TableSetQuery.from_template("select h3index from <[table]> where false and h3index in <[h3indexes]>")
         )
         assert traverser.traversal_h3_resolution < ctx.schema.max_h3_resolution
         assert len(traverser) > 0
@@ -94,7 +94,7 @@ def test_traverse_by_cells_with_filter_error(clickhouse_grpc_endpoint, clickhous
             ctx.df["h3index"].to_numpy(),
             ctx.schema.max_h3_resolution,
             # filter to rule out any results for this unittest
-            filter_query=TableSetQuery.from_template("select non_exisiting_column from <[table]>")
+            filter_query=TableSetQuery.from_template("select non_exisiting_column from <[table]> where h3index in <[h3indexes]>")
         )
 
         with pytest.raises(IOError) as excinfo:

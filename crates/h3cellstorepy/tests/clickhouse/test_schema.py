@@ -56,12 +56,12 @@ def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name
 def test_schema_create_and_fill_templatedquery(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):
     with setup_elephant_schema_with_data(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl) as ctx:
         queried_lower_df = ctx.con.query_tableset_cells(ctx.schema.name, TableSetQuery.from_template(
-            "select * from <[table]> where elephant_density < 2"), ctx.disk,
+            "select * from <[table]> where elephant_density < 2 and h3index in <[h3indexes]>"), ctx.disk,
                                                         ctx.schema.max_h3_resolution).to_polars()
         assert queried_lower_df.shape[0] == 0
 
         queried_lower_df = ctx.con.query_tableset_cells(ctx.schema.name, TableSetQuery.from_template(
-            "select * from <[table]> where (rand() % 2) = 0"), ctx.disk,
+            "select * from <[table]> where (rand() % 2) = 0 and h3index in <[h3indexes]>"), ctx.disk,
                                                         ctx.schema.max_h3_resolution).to_polars()
         assert ctx.df.shape[0] > queried_lower_df.shape[0]
         assert ctx.df.shape[1] == queried_lower_df.shape[1]
