@@ -91,6 +91,7 @@ dependencies = [
 name = "arrow_h3"
 version = "0.2.0"
 dependencies = [
+ "geo-types",
  "h3ron",
  "itertools",
  "polars",
