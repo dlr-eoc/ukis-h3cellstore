@@ -15,6 +15,9 @@ serde_arrow = ["use_serde", "arrow_h3/serde"]
 simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
 tls = ["clickhouse_arrow_grpc/tls"]
 export = ["arrow_h3/export", "clickhouse_arrow_grpc/export"]
+polars_interpolate = ["arrow_h3/polars_interpolate"]
+polars_asof_join = ["arrow_h3/polars_asof_join"]
+
 
 [dependencies]
 async-trait = "0.1"

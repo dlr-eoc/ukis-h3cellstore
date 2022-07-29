@@ -12,6 +12,8 @@ authors = [
 [features]
 serde = ["dep:serde", "polars/serde", "polars/serde-lazy", "h3ron/use-serde"]
 simd = ["polars-core/simd", "polars/simd"]
+polars_interpolate = ["polars/interpolate"]
+polars_asof_join = ["polars/asof_join"]
 
 # activate to re-export depdendencies
 export = []
