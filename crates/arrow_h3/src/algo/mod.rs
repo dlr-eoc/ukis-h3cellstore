@@ -6,6 +6,7 @@ pub use iter::{
 pub use resolution::{AppendResolutionColumn, ObtainH3Resolutions};
 pub use split::SplitByH3Resolution;
 
+pub mod area;
 pub mod centroid;
 pub mod compact;
 pub mod iter;

@@ -6,11 +6,11 @@ use polars_core::prelude::NamedFrom;
 use polars_core::series::Series;
 
 // TODO: assumes cells
-pub trait ObtainH3CellsCentroids {
+pub trait H3CellCentroids {
     fn h3cell_centroids(&self) -> Result<Vec<Coordinate<f64>>, Error>;
 }
 
-impl ObtainH3CellsCentroids for Series {
+impl H3CellCentroids for Series {
     fn h3cell_centroids(&self) -> Result<Vec<Coordinate<f64>>, Error> {
         self.iter_indexes::<H3Cell>()?
             .map(|cell_result| match cell_result {
@@ -21,7 +21,7 @@ impl ObtainH3CellsCentroids for Series {
     }
 }
 
-impl ObtainH3CellsCentroids for H3DataFrame {
+impl H3CellCentroids for H3DataFrame {
     fn h3cell_centroids(&self) -> Result<Vec<Coordinate<f64>>, Error> {
         self.index_series()?.h3cell_centroids()
     }
