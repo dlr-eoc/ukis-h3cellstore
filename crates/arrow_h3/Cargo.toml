@@ -1,6 +1,6 @@
 [package]
 name = "arrow_h3"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "H3-related algorithms on dataframes containing H3 cells"
 authors = [
@@ -32,11 +32,11 @@ rev = "13ea3b5310ae6ed83df437d86e640aa6d73dd181"
 features = ["use-rayon"]
 
 [dependencies.polars]
-version = "0.22"
+version = "0.23"
 features = ["dtype-full", "lazy", "list", "timezones"]
 
 [dependencies.polars-core]
-version = "0.22"
+version = "0.23"
 
 [dependencies.serde]
 version = "1"

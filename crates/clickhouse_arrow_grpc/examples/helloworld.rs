@@ -1,6 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use polars::prelude::{DataFrame, NamedFrom};
 use polars::series::Series;
+use tonic::codec::CompressionEncoding;
 
 use clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 
@@ -11,8 +12,8 @@ async fn main() -> eyre::Result<()> {
 
     let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
         .await?
-        .send_gzip()
-        .accept_gzip();
+        .send_compressed(CompressionEncoding::Gzip)
+        .accept_compressed(CompressionEncoding::Gzip);
 
     // query
     let df = client

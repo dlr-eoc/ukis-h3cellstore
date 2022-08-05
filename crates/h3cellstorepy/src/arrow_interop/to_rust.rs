@@ -5,15 +5,15 @@ use pyo3::prelude::*;
 use h3cellstore::export::arrow_h3::export::polars::export::rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
 };
-use h3cellstore::export::arrow_h3::export::polars::prelude::{DataFrame, Series};
+use h3cellstore::export::arrow_h3::export::polars::prelude::{ArrayRef, DataFrame, Series};
 use h3cellstore::export::arrow_h3::export::polars_core::utils::accumulate_dataframes_vertical;
 use h3cellstore::export::arrow_h3::export::polars_core::POOL;
-use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::array::ArrayRef;
 use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::datatypes::DataType as ArrowDataType;
 use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::ffi;
 
 use crate::error::{IntoPyResult, ToCustomPyErr};
 
+/// from https://github.com/pola-rs/polars/blob/d1e5b1062c6872cd030b04b96505d2fac36b5376/py-polars/src/arrow_interop/to_rust.rs
 pub fn array_to_rust(obj: &PyAny) -> PyResult<ArrayRef> {
     // prepare a pointer to receive the Array struct
     let array = Box::new(ffi::ArrowArray::empty());
@@ -31,8 +31,8 @@ pub fn array_to_rust(obj: &PyAny) -> PyResult<ArrayRef> {
 
     unsafe {
         let field = ffi::import_field_from_c(schema.as_ref()).into_pyresult()?;
-        let array = ffi::import_array_from_c(array, field.data_type).into_pyresult()?;
-        Ok(array.into())
+        let array = ffi::import_array_from_c(*array, field.data_type).into_pyresult()?;
+        Ok(array)
     }
 }
 

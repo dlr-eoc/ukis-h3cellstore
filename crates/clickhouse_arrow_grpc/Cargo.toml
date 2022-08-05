@@ -1,6 +1,6 @@
 [package]
 name = "clickhouse_arrow_grpc"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
 authors = [
@@ -17,7 +17,7 @@ export = []
 
 
 [dependencies]
-prost = "0.10"
+prost = "0.11"
 thiserror = "1"
 async-trait = "0.1"
 chrono = "0.4"
@@ -26,21 +26,21 @@ chrono = "0.4"
 version = "0.1"
 
 [dependencies.arrow2]
-version = "0.12"
+version = "0.13"
 features = [
     "io_ipc"
 ]
 
 [dependencies.polars]
-version = "0.22"
-features = ["dtype-full"]
+version = "0.23"
+features = ["dtype-full", "timezones"]
 
 [dependencies.polars-core]
-version = "0.22"
+version = "0.23"
 
 [dependencies.tonic]
-version = "0.7"
-features = ["compression"]
+version = "0.8"
+features = ["gzip"]
 
 [dependencies.tokio]
 version = "1.12"
@@ -51,7 +51,7 @@ version = "1.12"
 #]
 
 [build-dependencies]
-tonic-build = { version = "0.7", features = ["compression"] }
+tonic-build = { version = "0.8", features = [] }
 
 [[example]]
 name = "helloworld"

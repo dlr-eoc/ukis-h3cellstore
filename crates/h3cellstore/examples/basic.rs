@@ -7,6 +7,7 @@ use arrow_h3::export::polars::prelude::NamedFrom;
 use arrow_h3::export::polars::series::Series;
 use arrow_h3::series::to_index_series;
 use arrow_h3::H3DataFrame;
+use clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
     CompactedTableSchemaBuilder, SimpleColumn, TemporalPartitioning,
@@ -77,8 +78,8 @@ async fn main() -> eyre::Result<()> {
 
     let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
         .await?
-        .send_gzip()
-        .accept_gzip();
+        .send_compressed(CompressionEncoding::Gzip)
+        .accept_compressed(CompressionEncoding::Gzip);
 
     let play_db = "play";
     client

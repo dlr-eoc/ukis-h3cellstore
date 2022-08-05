@@ -9,6 +9,7 @@ use h3cellstore::clickhouse::compacted_tables::{
 };
 use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::arrow_h3::H3DataFrame;
+use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 use numpy::PyReadonlyArray1;
@@ -353,8 +354,8 @@ async fn connect(
     let mut client = ClickHouseClient::connect(grpc_endpoint)
         .await
         .into_pyresult()?
-        .send_gzip()
-        .accept_gzip();
+        .accept_compressed(CompressionEncoding::Gzip)
+        .send_compressed(CompressionEncoding::Gzip);
 
     if create_db {
         client

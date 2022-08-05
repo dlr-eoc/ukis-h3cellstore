@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::ops::Add;
-use std::sync::Arc;
 
 use arrow2::array::{new_empty_array, Array, PrimitiveArray};
 use arrow2::chunk::Chunk;
@@ -29,9 +28,10 @@ enum ClickhouseArrowCast {
 }
 
 impl ClickhouseArrowCast {
-    fn apply(&self, array: &Arc<dyn Array>) -> Result<Arc<dyn Array>, Error> {
+    #[allow(clippy::borrowed_box)]
+    fn apply(&self, array: &Box<dyn Array>) -> Result<Box<dyn Array>, Error> {
         match self {
-            Self::Simple(dtype) => Ok(cast(array.as_ref(), dtype, Default::default())?.into()),
+            Self::Simple(dtype) => Ok(cast(array.as_ref(), dtype, Default::default())?),
             Self::DateTimeFromChDate => {
                 // A date. Stored in two bytes as the number of days since 1970-01-01 (unsigned).
                 // Allows storing values from just after the beginning of the Unix Epoch to the upper
@@ -39,6 +39,7 @@ impl ClickhouseArrowCast {
                 // the year 2149, but the final fully-supported year is 2148).
                 // Supported range of values: [1970-01-01, 2149-06-06].
                 // Source: https://clickhouse.com/docs/en/sql-reference/data-types/date/
+                #[allow(clippy::useless_conversion)]
                 Ok(unary(
                     array
                         .as_any()
@@ -59,6 +60,7 @@ impl ClickhouseArrowCast {
                 // Resolution: 1 second.
                 // Source: https://clickhouse.com/docs/en/sql-reference/data-types/datetime/
                 // TODO: support timezones
+                #[allow(clippy::useless_conversion)]
                 Ok(unary(
                     array
                         .as_any()
@@ -90,9 +92,9 @@ impl ClickhouseArrowCast {
 }
 
 fn apply_casts_to_chunk(
-    chunk: &Chunk<Arc<dyn Array>>,
+    chunk: &Chunk<Box<dyn Array>>,
     casts_to_perform: &[Option<ClickhouseArrowCast>],
-) -> Result<Chunk<Arc<dyn Array>>, Error> {
+) -> Result<Chunk<Box<dyn Array>>, Error> {
     if chunk.arrays().len() != casts_to_perform.len() {
         return Err(Error::CastArrayLengthMismatch);
     }
@@ -160,7 +162,7 @@ impl TryInto<DataFrame> for super::api::Result {
             casts_to_perform.push(cast_to_perform);
         }
 
-        let chunks = FileReader::new(cur, metadata, None).collect::<Result<Vec<_>, _>>()?;
+        let chunks = FileReader::new(cur, metadata, None, None).collect::<Result<Vec<_>, _>>()?;
         let mut dfs = Vec::with_capacity(chunks.len());
         for chunk in chunks {
             dfs.push(DataFrame::try_from((
@@ -175,10 +177,7 @@ impl TryInto<DataFrame> for super::api::Result {
             let empty_cols = fields
                 .iter()
                 .map(|fld| {
-                    Series::try_from((
-                        fld.name.as_str(),
-                        Arc::from(new_empty_array(fld.data_type.clone())),
-                    ))
+                    Series::try_from((fld.name.as_str(), new_empty_array(fld.data_type.clone())))
                 })
                 .collect::<polars_core::error::Result<_>>()?;
             Ok(DataFrame::new(empty_cols)?)
