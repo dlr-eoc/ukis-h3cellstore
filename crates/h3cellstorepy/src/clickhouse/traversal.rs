@@ -171,6 +171,7 @@ impl PyTraverser {
             num_connections: options.num_connections,
             filter_query: options.filter_query,
             do_uncompact: options.do_uncompact,
+            ..Default::default()
         };
 
         let area: TraversalArea = if let Ok(geointerface) = GeoInterface::extract(area_of_interest)

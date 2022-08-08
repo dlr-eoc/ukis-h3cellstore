@@ -1,4 +1,5 @@
 use arrow_h3::algo::ToIndexCollection;
+use arrow_h3::export::h3ron::collections::H3CellSet;
 use arrow_h3::export::h3ron::iter::change_resolution;
 use arrow_h3::export::h3ron::{H3Cell, ToH3Cells};
 use arrow_h3::H3DataFrame;
@@ -82,6 +83,11 @@ pub struct TraversalOptions {
 
     /// uncompact the cells loaded from the db. This should be true in most cases.
     pub do_uncompact: bool,
+
+    /// include the cells with in the buffer around the traversal-cell into the returned data.
+    ///
+    /// Unit for the buffer is number of cells in reslution `h3_resolution`. No buffer is used per default.
+    pub include_buffer: u32,
 }
 
 impl Default for TraversalOptions {
@@ -93,6 +99,7 @@ impl Default for TraversalOptions {
             num_connections: 3,
             filter_query: None,
             do_uncompact: true,
+            include_buffer: 0,
         }
     }
 }
@@ -238,6 +245,7 @@ async fn traverse_inner(
     let do_uncompact = options.do_uncompact;
     let num_traversal_cells = traversal_cells.len();
     let h3_resolution = options.h3_resolution;
+    let include_buffer = options.include_buffer;
     let mut context = WorkerContext {
         client: client.clone(),
         database_name,
@@ -264,6 +272,7 @@ async fn traverse_inner(
                         cell,
                         h3_resolution,
                         do_uncompact,
+                        include_buffer,
                     )
                     .await
                     {
@@ -388,16 +397,39 @@ pub struct TraversedCell {
     pub contained_data: H3DataFrame,
 }
 
+fn buffer_cell(
+    cell: H3Cell,
+    buffer_h3_resolution: u8,
+    buffer_width: u32,
+) -> Result<Vec<H3Cell>, Error> {
+    // TODO: brute force implementation - needs to be improved when used often
+    let children = cell.get_children(buffer_h3_resolution)?;
+    let mut cellset = H3CellSet::with_capacity(children.capacity());
+    for child_cell in children.iter() {
+        cellset.insert(child_cell);
+        cellset.extend(child_cell.grid_disk(buffer_width)?.iter());
+    }
+
+    Ok(cellset.drain().collect())
+}
+
 async fn load_traversed_cell(
     worker_context: &mut WorkerContext,
     query: TableSetQuery,
     cell: Result<H3Cell, Error>,
     h3_resolution: u8,
     do_uncompact: bool,
+    include_buffer: u32,
 ) -> Result<Option<TraversedCell>, Error> {
     match cell {
         Ok(cell) => {
-            let mut query_options = QueryOptions::new(query, vec![cell], h3_resolution);
+            let cells_to_load = if include_buffer == 0 {
+                vec![cell]
+            } else {
+                spawn_blocking(move || buffer_cell(cell, h3_resolution, include_buffer)).await??
+            };
+
+            let mut query_options = QueryOptions::new(query, cells_to_load, h3_resolution);
             query_options.do_uncompact = do_uncompact;
 
             let contained_data = worker_context
