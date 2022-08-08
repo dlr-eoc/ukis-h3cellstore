@@ -135,7 +135,12 @@ impl PyTraverser {
             }) {
                 Ok(Some(h3df_result)) => {
                     // channel had a waiting message
-                    return Ok(Some(h3df_result.into_pyresult()?.to_dataframewrapper()?));
+                    return Ok(Some(
+                        h3df_result
+                            .into_pyresult()?
+                            .contained_data
+                            .to_dataframewrapper()?,
+                    ));
                 }
                 Ok(None) => {
                     // channel has been closed - no messages left

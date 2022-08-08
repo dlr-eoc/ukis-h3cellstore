@@ -173,12 +173,12 @@ impl From<Vec<H3Cell>> for TraversalArea {
 pub struct Traverser {
     pub num_traversal_cells: usize,
     pub traversal_h3_resolution: u8,
-    dataframe_recv: tokio::sync::mpsc::Receiver<Result<H3DataFrame, Error>>,
+    dataframe_recv: tokio::sync::mpsc::Receiver<Result<TraversedCell, Error>>,
     num_cells_already_traversed: usize,
 }
 
 impl Stream for Traverser {
-    type Item = Result<H3DataFrame, Error>;
+    type Item = Result<TraversedCell, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let self_mut = self.get_mut();
@@ -267,7 +267,7 @@ async fn traverse_inner(
                     )
                     .await
                     {
-                        Ok(Some(h3df)) => Ok(h3df),
+                        Ok(Some(traversed_cell)) => Ok(traversed_cell),
                         Ok(None) => {
                             // no data found, continue to the next cell
                             info!("traversal cell yielded no data - skipping");
@@ -380,19 +380,27 @@ async fn prefilter_traversal_cells(
     .await??)
 }
 
+pub struct TraversedCell {
+    /// the traversal cell whose child cells where loaded
+    pub cell: H3Cell,
+
+    /// dataframe containing the data of the child cells
+    pub contained_data: H3DataFrame,
+}
+
 async fn load_traversed_cell(
     worker_context: &mut WorkerContext,
     query: TableSetQuery,
     cell: Result<H3Cell, Error>,
     h3_resolution: u8,
     do_uncompact: bool,
-) -> Result<Option<H3DataFrame>, Error> {
+) -> Result<Option<TraversedCell>, Error> {
     match cell {
         Ok(cell) => {
             let mut query_options = QueryOptions::new(query, vec![cell], h3_resolution);
             query_options.do_uncompact = do_uncompact;
 
-            let h3df = worker_context
+            let contained_data = worker_context
                 .client
                 .query_tableset_cells(
                     &worker_context.database_name,
@@ -405,12 +413,15 @@ async fn load_traversed_cell(
                 ))
                 .await?;
 
-            if h3df.dataframe.shape().0 == 0 {
+            if contained_data.dataframe.shape().0 == 0 {
                 // no data found, continue to the next cell
                 info!("Discarding received empty dataframe");
                 return Ok(None);
             }
-            Ok(Some(h3df))
+            Ok(Some(TraversedCell {
+                cell,
+                contained_data,
+            }))
         }
         Err(e) => Err(e),
     }
