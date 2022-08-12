@@ -279,7 +279,7 @@ async fn traverse_inner(
                         Ok(Some(traversed_cell)) => Ok(traversed_cell),
                         Ok(None) => {
                             // no data found, continue to the next cell
-                            info!("traversal cell yielded no data - skipping");
+                            debug!("traversal cell yielded no data - skipping");
                             continue;
                         }
                         Err(e) => Err(e),
@@ -289,7 +289,7 @@ async fn traverse_inner(
                         debug!("worker channel has been closed upstream. shutting down worker");
                         break;
                     } else {
-                        info!("traversal cell loaded and send");
+                        debug!("traversal cell loaded and send");
                     }
                 }
             });
@@ -447,7 +447,7 @@ async fn load_traversed_cell(
 
             if contained_data.dataframe.shape().0 == 0 {
                 // no data found, continue to the next cell
-                info!("Discarding received empty dataframe");
+                debug!("Discarding received empty dataframe");
                 return Ok(None);
             }
             Ok(Some(TraversedCell {
