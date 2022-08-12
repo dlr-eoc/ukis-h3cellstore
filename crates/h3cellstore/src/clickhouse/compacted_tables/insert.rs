@@ -309,7 +309,7 @@ where
                 .iter()
                 .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
                 .filter_map(|(col_name, agg_opt)| {
-                    // columns which are not used in aggragation are preserved as they are and are used
+                    // columns which are not used in aggregation are preserved as they are and are used
                     // for grouping.
                     if agg_opt.is_none() {
                         Some(format!("{}.{}", ALIAS_SOURCE_TABLE, col_name))
