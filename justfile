@@ -12,3 +12,12 @@ print-desc:
                 t = toml.load(manifest)
                 pkg = t["package"]
                 print(f"- **{pkg['name']}**: {pkg.get('description') or '-'}")
+
+
+clickhouse:
+    podman run --rm -it \
+        -u 101 \
+        -v $PWD/dev/clickhouse-server/config.xml:/etc/clickhouse-server/config.xml \
+        -p 9100:9100 \
+        -p 8123:8123 \
+        clickhouse/clickhouse-server:22.4
