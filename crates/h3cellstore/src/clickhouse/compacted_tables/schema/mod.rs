@@ -466,6 +466,9 @@ impl CompactedTableSchemaBuilder {
         self
     }
 
+    /// add a column
+    ///
+    /// replaces previously added columns with the same name
     pub fn add_column(mut self, column_name: &str, def: ColumnDefinition) -> Self {
         self.schema.columns.insert(column_name.to_string(), def);
         self
