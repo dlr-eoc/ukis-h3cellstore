@@ -27,19 +27,24 @@ def test_ingest_raster_is_covered(testdata_path, rasterio, clickhouse_grpc_endpo
         mask = msk.read(1)
 
         from h3ronpy.raster import raster_to_dataframe
-        df = raster_to_dataframe(mask, msk.transform, h3_res, compacted=True, geo=False)
-        df.rename(columns={"value": "is_water"}, inplace=True)
-        df["is_water"] = df["is_water"].astype('float')
+        df_in = raster_to_dataframe(mask, msk.transform, h3_res, compacted=True, geo=False)
+        df_in.rename(columns={"value": "is_water"}, inplace=True)
+        df_in["is_water"] = df_in["is_water"].astype('float')
 
         con = GRPCConnection(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
         con.drop_tableset(tableset_name)  # just to be sure that its empty
         schema = get_schema(tableset_name, h3_res)
         con.create_tableset(schema)
-        con.insert_h3dataframe_into_tableset(schema, df)
+        con.insert_h3dataframe_into_tableset(schema, df_in)
+
+        # save for debugging
+        from h3ronpy.util import dataframe_to_geodataframe
+        # dataframe_to_geodataframe(df_in).to_file("/tmp/in_df.gpkg", driver="GPKG")
+
 
         # reduce the number of h3indexes to pass to clickhouse by converting to a lower resolution
         from h3ronpy.op import change_resolution
-        aoi_h3indexes = np.unique(change_resolution(df["h3index"].to_numpy(), h3_res - 5))
+        aoi_h3indexes = np.unique(change_resolution(df_in["h3index"].to_numpy(), h3_res - 5))
 
         traverser = con.traverse_tableset_area_of_interest(
             tableset_name,
@@ -51,7 +56,6 @@ def test_ingest_raster_is_covered(testdata_path, rasterio, clickhouse_grpc_endpo
         fetched_df = pd.concat([df.to_pandas() for df in traverser])
         fetched_df = fetched_df[fetched_df.is_water > 0.0]
 
-        from h3ronpy.util import dataframe_to_geodataframe
         fetched_geo_df = dataframe_to_geodataframe(fetched_df)
 
         from rasterio.features import rasterize
@@ -64,7 +68,7 @@ def test_ingest_raster_is_covered(testdata_path, rasterio, clickhouse_grpc_endpo
             "height": rasterized.shape[0]
         })
         # with rasterio.open("/tmp/rasterized.tif", "w", **profile) as dest:
-        #    dest.write(rasterized, 1)
+        #   dest.write(rasterized, 1)
 
         missed_values = np.where(rasterized == 0, mask,
                                  0)  # contains only pixels not covered by the df fetched from the db
