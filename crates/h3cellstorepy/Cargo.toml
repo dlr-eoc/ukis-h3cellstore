@@ -1,6 +1,6 @@
 [package]
 name = "h3cellstorepy"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2021"
 description = "High-level Python library to store H3 cells in ClickHouse databases"
 authors = [

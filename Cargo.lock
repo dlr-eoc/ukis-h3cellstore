@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "h3cellstore"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "arrow_h3",
  "async-trait",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "h3cellstorepy"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "futures",
  "h3cellstore",
