@@ -291,15 +291,6 @@ where
             })
             .collect();
 
-        let source_columns_expr = std::iter::once(COL_NAME_H3INDEX_PARENT_AGG)
-            .chain(
-                column_names_with_aggregation
-                    .iter()
-                    .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
-                    .map(|(col_name, _)| col_name.as_str()),
-            )
-            .join(", ");
-
         let group_by_columns_expr = std::iter::once(format!(
             "{}.{}",
             ALIAS_SOURCE_TABLE, COL_NAME_H3INDEX_PARENT_AGG
@@ -361,14 +352,16 @@ where
                     ),
                 ];
 
-                // the compacted tables in between
-                for r in (target_resolution + 1)..=source_resolution {
-                    source_tables.push((
-                        r,
-                        self.schema
-                            .build_table(&ResolutionMetadata::new(r, true), &temporary_key)
-                            .to_table_name(),
-                    ));
+                // the compacted tables in between.
+                for r in target_resolution..=source_resolution {
+                    if resolutions_to_aggregate.contains(&r) {
+                        source_tables.push((
+                            r,
+                            self.schema
+                                .build_table(&ResolutionMetadata::new(r, true), &temporary_key)
+                                .to_table_name(),
+                        ));
+                    }
                 }
                 source_tables
             };
@@ -455,6 +448,25 @@ where
                 num_rows_opt.flatten().unwrap_or(1usize)
             };
             debug!("using {} batches for aggregation", num_batches);
+
+            let source_columns_expr = std::iter::once(COL_NAME_H3INDEX_PARENT_AGG.to_string())
+                .chain(
+                    column_names_with_aggregation
+                        .iter()
+                        .filter(|(col_name, _)| col_name.as_str() != COL_NAME_H3INDEX)
+                        .map(|(col_name, agg_opt)| {
+                            match agg_opt {
+                                Some(AggregationMethod::RelativeToCellArea) => {
+                                    // correct the value so the division through number of children of the outer query
+                                    // returns the correct result
+                                    format!("if(h3GetResolution({}) = {}, {} * length(h3ToChildren({}, {})), {}) as {}",
+                                            COL_NAME_H3INDEX, target_resolution ,col_name, COL_NAME_H3INDEX, source_resolution, col_name, col_name)
+                                }
+                                _ => col_name.to_string(),
+                            }
+                        }),
+                )
+                .join(", ");
 
             // append a parent index column to use for the aggregation to the source tables
             for (_, table_name) in source_tables.iter() {

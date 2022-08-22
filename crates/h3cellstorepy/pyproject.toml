@@ -5,6 +5,8 @@ requires = [
     "polars", # unittests
     "pandas",  # unittests
     "geojson",  # unittests
+    "h3ronpy",  # unittests
+    "rasterio", # unittests
     "sphinx-markdown-builder"  # for building docs
 ]
 build-backend = "maturin"

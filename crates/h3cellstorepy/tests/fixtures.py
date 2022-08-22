@@ -1,5 +1,6 @@
 import pytest
 import os
+from pathlib import Path
 
 
 def __clickhouse_grpc_endpoint():
@@ -40,6 +41,21 @@ def geojson():
     except ImportError:
         raise pytest.skip()
 
+
 @pytest.fixture
 def clickhouse_testdb_name():
     return "test"
+
+
+@pytest.fixture
+def rasterio():
+    try:
+        import rasterio
+        return rasterio
+    except ImportError:
+        raise pytest.skip()
+
+
+@pytest.fixture()
+def testdata_path():
+    return Path(__file__).parent.parent / "testdata"
