@@ -25,8 +25,7 @@ geo-types = "0.7"
 version = "0.1"
 
 [dependencies.h3ron]
-git = "https://github.com/nmandery/h3ron.git"
-rev = "13ea3b5310ae6ed83df437d86e640aa6d73dd181"
+version = "0.15"
 features = ["use-rayon"]
 
 [dependencies.polars]

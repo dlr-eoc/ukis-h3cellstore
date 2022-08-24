@@ -1,5 +1,5 @@
 use arrow_h3::algo::ToIndexCollection;
-use arrow_h3::export::h3ron::collections::H3CellSet;
+use arrow_h3::export::h3ron::collections::{H3CellSet, RandomState};
 use arrow_h3::export::h3ron::iter::change_resolution;
 use arrow_h3::export::h3ron::{H3Cell, ToH3Cells};
 use arrow_h3::H3DataFrame;
@@ -404,7 +404,8 @@ fn buffer_cell(
 ) -> Result<Vec<H3Cell>, Error> {
     // TODO: brute force implementation - needs to be improved when used often
     let children = cell.get_children(buffer_h3_resolution)?;
-    let mut cellset = H3CellSet::with_capacity(children.capacity());
+    let mut cellset =
+        H3CellSet::with_capacity_and_hasher(children.capacity(), RandomState::default());
     for child_cell in children.iter() {
         cellset.insert(child_cell);
         cellset.extend(child_cell.grid_disk(buffer_width)?.iter());

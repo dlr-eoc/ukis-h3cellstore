@@ -165,7 +165,7 @@ fn collect_queryable_h3indexes(
         .iter()
         .chain(tableset.compacted_tables.iter())
         .filter(|(r, _)| **r <= query_h3_resolution)
-        .map(|(r, _)| (*r, HashSet::new()))
+        .map(|(r, _)| (*r, HashSet::default()))
         .collect();
 
     for (resolution, queryable_h3indexes_set) in queryable_h3indexes.iter_mut() {
