@@ -946,9 +946,9 @@ dependencies = [
 
 [[package]]
 name = "h3ron"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a45f5cf5c231acea09bad3cfeeeb46ca2485339fb40823b8ab1ce964c830bfd4"
+checksum = "e7d52875c47f35a0db141bef968682165623e7d1671a0da40b87f581a3a953fd"
 dependencies = [
  "ahash 0.8.0",
  "geo",
@@ -961,13 +961,14 @@ dependencies = [
 
 [[package]]
 name = "h3ron-h3-sys"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "976c73546ef0a191de2e9382db6d9713e5296f9d4a857ebe99c639b124550a2e"
+checksum = "ddae1b7eda4d5a2aee298cac8bed0df4ddab51549b7eadb29e4f3c8fb8940ca1"
 dependencies = [
  "bindgen",
- "cmake",
+ "cc",
  "geo-types",
+ "glob",
  "regex",
 ]
 

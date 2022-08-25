@@ -79,3 +79,42 @@ def test_ingest_raster_is_covered(testdata_path, rasterio, clickhouse_grpc_endpo
         num_missed_values = np.count_nonzero(missed_values)
         num_values = missed_values.size
         assert float(num_missed_values) / float(num_values) < 0.005, f"{num_missed_values} of {num_values} got lost"
+
+
+def test_ingest_raster_agg_rta(testdata_path, rasterio, clickhouse_grpc_endpoint, clickhouse_testdb_name, pd):
+    """ingest a raster file and test if aggregation RelativeToArea"""
+    tableset_name = "from_raster"
+    h3_res = 12
+    with rasterio.open(testdata_path / "S2B_MSIL1C_20181011T101019_N0206_R022_T32TPT_20181011T122059_WATER.tif") as msk:
+        mask = msk.read(1)
+
+        from h3ronpy.raster import raster_to_dataframe
+        df_in = raster_to_dataframe(mask, msk.transform, h3_res, compacted=True, geo=False)
+        df_in.rename(columns={"value": "is_water"}, inplace=True)
+        df_in["is_water"] = df_in["is_water"].astype('float')
+
+        con = GRPCConnection(clickhouse_grpc_endpoint, clickhouse_testdb_name, create_db=True)
+        con.drop_tableset(tableset_name)  # just to be sure that its empty
+        schema = get_schema(tableset_name, h3_res)
+        con.create_tableset(schema)
+        con.insert_h3dataframe_into_tableset(schema, df_in)
+
+        # reduce the number of h3indexes to pass to clickhouse by converting to a lower resolution
+        from h3ronpy.op import change_resolution
+        aoi_h3indexes = np.unique(change_resolution(df_in["h3index"].to_numpy(), h3_res - 5))
+
+        traverser = con.traverse_tableset_area_of_interest(
+            tableset_name,
+            TableSetQuery(),
+            aoi_h3indexes,
+            h3_res - 3,
+        )
+
+        fetched_df = pd.concat([df.to_pandas() for df in traverser])
+        fetched_df = fetched_df[fetched_df.is_water > 0.0]
+
+        # values above 1.0 are not possible and should not exist
+        assert (fetched_df.is_water > 1.0).value_counts().get(True, 0) == 0, "found values > 1.0"
+
+
+
