@@ -114,7 +114,7 @@ def test_ingest_raster_agg_rta(testdata_path, rasterio, clickhouse_grpc_endpoint
         fetched_df = fetched_df[fetched_df.is_water > 0.0]
 
         # values above 1.0 are not possible and should not exist
-        assert (fetched_df.is_water > 1.0).value_counts()[True] == 0, "found values > 1.0"
+        assert (fetched_df.is_water > 1.0).value_counts().get(True, 0) == 0, "found values > 1.0"
 
 
 

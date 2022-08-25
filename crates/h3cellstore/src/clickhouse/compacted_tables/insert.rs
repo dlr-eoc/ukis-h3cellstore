@@ -353,7 +353,7 @@ where
                 ];
 
                 // the compacted tables in between.
-                for r in target_resolution..=source_resolution {
+                for r in (target_resolution + 1)..=source_resolution {
                     if resolutions_to_aggregate.contains(&r) {
                         source_tables.push((
                             r,
