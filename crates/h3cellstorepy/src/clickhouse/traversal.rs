@@ -4,7 +4,7 @@ use h3cellstore::clickhouse::compacted_tables::traversal::{
 };
 use h3cellstore::clickhouse::compacted_tables::TableSetQuery;
 use numpy::{PyArray1, PyReadonlyArray1};
-use py_geo_interface::GeoInterface;
+use py_geo_interface::Geometry as GiGeometry;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -174,9 +174,8 @@ impl PyTraverser {
             ..Default::default()
         };
 
-        let area: TraversalArea = if let Ok(geointerface) = GeoInterface::extract(area_of_interest)
-        {
-            geointerface.0.into()
+        let area: TraversalArea = if let Ok(gigeometry) = GiGeometry::extract(area_of_interest) {
+            gigeometry.0.into()
         } else if area_of_interest.is_instance_of::<PyArray1<u64>>()? {
             let validated_cells: Vec<H3Cell> =
                 indexes_from_numpy(area_of_interest.extract::<PyReadonlyArray1<u64>>()?)?;

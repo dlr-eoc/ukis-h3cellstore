@@ -25,6 +25,7 @@ use tokio::sync::oneshot::error::TryRecvError;
 use tracing::debug_span;
 use tracing::log::warn;
 
+#[derive(Clone)]
 #[pyclass]
 pub struct GRPCRuntime {
     runtime: Arc<Runtime>,
@@ -96,11 +97,11 @@ impl GRPCConnection {
         grpc_endpoint: &str,
         database_name: &str,
         create_db: bool,
-        runtime: Option<&GRPCRuntime>,
+        runtime: Option<GRPCRuntime>,
     ) -> PyResult<Self> {
         let runtime = match runtime {
             None => obtain_runtime()?,
-            Some(gprc_runtime) => gprc_runtime.runtime.clone(),
+            Some(gprc_runtime) => gprc_runtime.runtime,
         };
         let grpc_endpoint_str = grpc_endpoint.to_string();
         let db_name_str = database_name.to_string();
