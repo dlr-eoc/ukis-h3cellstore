@@ -30,7 +30,7 @@ pub trait ValidateSchema {
 }
 
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CompactedTableSchema {
     pub name: String,
     table_engine: TableEngine,

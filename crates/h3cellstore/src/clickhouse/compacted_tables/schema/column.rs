@@ -8,7 +8,7 @@ use crate::clickhouse::compacted_tables::schema::{
 };
 use crate::{Error, Named};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum ColumnDefinition {
     /// a simple column which just stores data.
@@ -76,7 +76,7 @@ impl ValidateSchema for ColumnDefinition {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub struct SimpleColumn {
     datatype: ClickhouseDataType,

@@ -59,17 +59,17 @@ impl GRPCRuntime {
 
 /// obtain the runtime defined in the python module
 fn obtain_runtime() -> PyResult<Arc<Runtime>> {
-    let guard = Python::acquire_gil();
-    let py = guard.python();
-
     // load the default runtime created by the python module.
-    let module = py.import(concat!(env!("CARGO_PKG_NAME"), ".clickhouse"))?;
-    let runtime = module
-        .getattr("_RUNTIME")?
-        .extract::<PyRef<'_, GRPCRuntime>>()?
-        .runtime
-        .clone();
-    Ok(runtime)
+    Python::with_gil(|py| {
+        let module = py.import(concat!(env!("CARGO_PKG_NAME"), ".clickhouse"))?;
+
+        let runtime = module
+            .getattr("_RUNTIME")?
+            .extract::<PyRef<'_, GRPCRuntime>>()?
+            .runtime
+            .clone();
+        Ok(runtime)
+    })
 }
 
 /// GPRC connection to the Clickhouse DB server.
@@ -264,16 +264,14 @@ impl GRPCConnection {
         });
 
         loop {
-            {
-                let gilguard = Python::acquire_gil();
-                let py = gilguard.python();
+            Python::with_gil(|py| {
                 if py.check_signals().is_err() {
                     if let Ok(mut guard) = abort_mutex.lock() {
                         warn!("Received Abort request during insert");
                         *guard = true;
                     }
                 }
-            }
+            });
 
             match oneshot_recv.try_recv() {
                 Ok(res) => {

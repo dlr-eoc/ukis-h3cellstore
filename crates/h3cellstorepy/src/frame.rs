@@ -69,19 +69,19 @@ impl From<DataFrame> for PyDataFrame {
 }
 
 fn dataframe_to_arrow(df: &mut DataFrame) -> PyResult<Vec<PyObject>> {
-    let guard = Python::acquire_gil();
-    let py = guard.python();
-
     // mostly from https://github.com/pola-rs/polars/blob/8b2db30ac18d219f4c3d02e2d501d2966cf58930/py-polars/src/dataframe.rs#L557
     df.rechunk();
-    let pyarrow = py.import("pyarrow")?;
-    let names = df.get_column_names();
 
-    let rbs = df
-        .iter_chunks()
-        .map(|rb| to_py_rb(&rb, &names, py, pyarrow))
-        .collect::<PyResult<_>>()?;
-    Ok(rbs)
+    Python::with_gil(|py| {
+        let pyarrow = py.import("pyarrow")?;
+        let names = df.get_column_names();
+
+        let rbs = df
+            .iter_chunks()
+            .map(|rb| to_py_rb(&rb, &names, py, pyarrow))
+            .collect::<PyResult<_>>()?;
+        Ok(rbs)
+    })
 }
 
 pub trait ToDataframeWrapper {
@@ -119,25 +119,22 @@ fn frame_module(py: Python) -> PyResult<&PyModule> {
 
 /// return wrapped in a python `DataFrameWrapper` instance
 fn wrapped_frame<T: PyClass>(frame: impl Into<PyClassInitializer<T>>) -> PyResult<PyObject> {
-    let guard = Python::acquire_gil();
-    let py = guard.python();
-
-    let obj = PyCell::new(py, frame)?.to_object(py);
-    let args = PyTuple::new(py, [obj]);
-    Ok(frame_module(py)?
-        .getattr("DataFrameWrapper")?
-        .call1(args)?
-        .to_object(py))
+    Python::with_gil(|py| {
+        let obj = PyCell::new(py, frame)?.to_object(py);
+        let args = PyTuple::new(py, [obj]);
+        Ok(frame_module(py)?
+            .getattr("DataFrameWrapper")?
+            .call1(args)?
+            .to_object(py))
+    })
 }
 
 pub fn dataframe_from_pyany(obj: &PyAny) -> PyResult<DataFrame> {
-    let guard = Python::acquire_gil();
-    let py = guard.python();
+    Python::with_gil(|py| {
+        let wrapped = frame_module(py)?
+            .getattr("ensure_wrapped")?
+            .call1(PyTuple::new(py, [obj]))?;
 
-    let wrapped = frame_module(py)?
-        .getattr("ensure_wrapped")?
-        .call1(PyTuple::new(py, [obj]))?;
-    let arrow_chunks = {
         let output = wrapped
             .getattr("to_arrow")?
             .call0()?
@@ -153,7 +150,6 @@ pub fn dataframe_from_pyany(obj: &PyAny) -> PyResult<DataFrame> {
                 "received unsupported output from to_arrow method",
             ));
         }
-        arrow_chunks
-    };
-    to_rust_df(&arrow_chunks)
+        to_rust_df(&arrow_chunks)
+    })
 }

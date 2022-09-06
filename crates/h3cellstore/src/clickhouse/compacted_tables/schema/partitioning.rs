@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::clickhouse::compacted_tables::schema::ValidateSchema;
 use crate::Error;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum TemporalResolution {
     Second,
@@ -19,7 +19,7 @@ impl Default for TemporalResolution {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum TemporalPartitioning {
     /// Monthly/multi-month partitions
@@ -92,7 +92,7 @@ impl TemporalPartitioning {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 pub enum H3Partitioning {
     /// partition by basecell

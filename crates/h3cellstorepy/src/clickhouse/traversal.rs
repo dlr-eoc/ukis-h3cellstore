@@ -148,7 +148,7 @@ impl PyTraverser {
                 }
                 Err(_) => {
                     // timeout has elapsed - so lets check for user interrupts
-                    Python::acquire_gil().python().check_signals()?;
+                    Python::with_gil(|py| py.check_signals())?;
                 }
             }
         }

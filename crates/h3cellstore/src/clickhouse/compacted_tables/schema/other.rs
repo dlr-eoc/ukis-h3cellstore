@@ -7,7 +7,7 @@ use crate::clickhouse::compacted_tables::schema::ValidateSchema;
 use crate::Error;
 
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TableEngine {
     ReplacingMergeTree,
     SummingMergeTree(Vec<String>),
@@ -20,7 +20,7 @@ impl Default for TableEngine {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "use_serde", derive(Serialize, Deserialize))]
 #[allow(clippy::upper_case_acronyms)]
 pub enum CompressionMethod {
