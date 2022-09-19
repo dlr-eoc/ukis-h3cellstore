@@ -179,7 +179,7 @@ impl TryInto<DataFrame> for super::api::Result {
                 .map(|fld| {
                     Series::try_from((fld.name.as_str(), new_empty_array(fld.data_type.clone())))
                 })
-                .collect::<polars_core::error::Result<_>>()?;
+                .collect::<polars_core::error::PolarsResult<_>>()?;
             Ok(DataFrame::new(empty_cols)?)
         } else {
             let mut df = accumulate_dataframes_vertical(dfs)?;
