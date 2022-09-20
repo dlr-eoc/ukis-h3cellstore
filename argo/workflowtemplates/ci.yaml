@@ -86,6 +86,7 @@ spec:
           # in /nonexistent directory :(
           export HOME=$PWD  
 
+          rm -rf h3cellstore  # remove in case the WF has been retried
           git clone https://token:`echo "$GIT_TOKEN" | tr -d '\n'`@gitlab.dlr.de/gzs-processing/h3cellstore.git
           pushd h3cellstore
           set -x
