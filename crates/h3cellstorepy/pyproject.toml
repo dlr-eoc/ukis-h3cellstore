@@ -4,6 +4,7 @@ requires = [
     "pytest==7.1",
     "polars", # unittests
     "pandas",  # unittests
+    "geopandas",  # unittests
     "geojson",  # unittests
     "h3ronpy",  # unittests
     "rasterio", # unittests
