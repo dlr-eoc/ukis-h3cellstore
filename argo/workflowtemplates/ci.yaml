@@ -91,11 +91,6 @@ spec:
           pushd h3cellstore
           set -x
 
-          echo "---- arrowh3 -----------------------------------------------------"
-          pushd crates/arrow_h3
-          cargo clippy --all-targets --no-deps
-          cargo test
-          popd
           
           echo "---- clickhouse_arrow_grpc ---------------------------------------"
           pushd crates/clickhouse_arrow_grpc
