@@ -15,8 +15,6 @@ pub use self::error::Error;
 pub mod api;
 mod arrow_integration;
 mod error;
-
-#[cfg(feature = "export")]
 pub mod export;
 
 #[async_trait]

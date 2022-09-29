@@ -1,6 +1,7 @@
-use h3cellstore::export::arrow_h3::export::h3ron;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic;
 use h3cellstore::export::clickhouse_arrow_grpc::ClickhouseException;
+use h3cellstore::export::h3ron;
+use h3cellstore::export::h3ron_polars::Error;
 use pyo3::exceptions::{PyIOError, PyKeyboardInterrupt, PyRuntimeError, PyValueError};
 use pyo3::{PyErr, PyResult};
 use tracing::debug;
@@ -15,13 +16,13 @@ impl ToCustomPyErr for tonic::Status {
     }
 }
 
-impl ToCustomPyErr for h3cellstore::export::arrow_h3::export::polars_core::error::PolarsError {
+impl ToCustomPyErr for h3cellstore::export::polars::error::PolarsError {
     fn to_custom_pyerr(self) -> PyErr {
         PyRuntimeError::new_err(format!("polars is unhappy: {:?}", self))
     }
 }
 
-impl ToCustomPyErr for h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::error::Error {
+impl ToCustomPyErr for h3cellstore::export::polars::error::ArrowError {
     fn to_custom_pyerr(self) -> PyErr {
         PyRuntimeError::new_err(format!("arrow error: {:?}", self))
     }
@@ -70,6 +71,17 @@ impl ToCustomPyErr for ClickhouseException {
     }
 }
 
+impl ToCustomPyErr for h3cellstore::export::h3ron_polars::Error {
+    fn to_custom_pyerr(self) -> PyErr {
+        match self {
+            Error::Polars(e) => e.to_custom_pyerr(),
+            Error::Arrow(e) => e.to_custom_pyerr(),
+            Error::H3ron(e) => e.to_custom_pyerr(),
+            Error::SpatialIndex(_) => PyRuntimeError::new_err(self.to_string()),
+        }
+    }
+}
+
 impl ToCustomPyErr for h3cellstore::Error {
     fn to_custom_pyerr(self) -> PyErr {
         match self {
@@ -78,6 +90,7 @@ impl ToCustomPyErr for h3cellstore::Error {
             Self::JoinError(e) => e.to_custom_pyerr(),
             Self::Arrow(e) => e.to_custom_pyerr(),
             Self::TonicStatus(status) => status.to_custom_pyerr(),
+            Self::H3ronPolars(e) => e.to_custom_pyerr(),
 
             Self::MissingPrecondidtionsForPartialOptimization
             | Self::TableSetNotFound(_)
@@ -115,19 +128,6 @@ impl ToCustomPyErr for h3cellstore::export::clickhouse_arrow_grpc::Error {
             Self::CastArrayLengthMismatch | Self::ArrowChunkMissingField(_) => {
                 PyValueError::new_err(self.to_string())
             }
-        }
-    }
-}
-
-impl ToCustomPyErr for h3cellstore::export::arrow_h3::Error {
-    fn to_custom_pyerr(self) -> PyErr {
-        match self {
-            Self::H3ron(e) => e.to_custom_pyerr(),
-            Self::Polars(e) => e.to_custom_pyerr(),
-            Self::DataframeInvalidH3IndexType(_, _)
-            | Self::DataframeMissingColumn(_)
-            | Self::UnsupportedH3Resolution(_)
-            | Self::MissingIndexValue => PyValueError::new_err(self.to_string()),
         }
     }
 }

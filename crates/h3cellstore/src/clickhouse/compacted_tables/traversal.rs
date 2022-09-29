@@ -1,12 +1,11 @@
-use arrow_h3::algo::ToIndexCollection;
-use arrow_h3::export::h3ron::collections::{H3CellSet, RandomState};
-use arrow_h3::export::h3ron::iter::change_resolution;
-use arrow_h3::export::h3ron::{H3Cell, ToH3Cells};
-use arrow_h3::H3DataFrame;
+use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use clickhouse_arrow_grpc::ClickHouseClient;
 use futures::Stream;
 use geo_types::Geometry;
+use h3ron::collections::{H3CellSet, RandomState};
+use h3ron::iter::change_resolution;
+use h3ron::{H3Cell, ToH3Cells};
 use postage::prelude::{Sink, Stream as _};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -376,7 +375,7 @@ async fn prefilter_traversal_cells(
         .await?;
 
     // use only the indexes from the filter query to be able to fetch a smaller subset
-    Ok(spawn_blocking(move || {
+    spawn_blocking(move || {
         filter_h3df
             .to_index_collection()
             .map(|mut cells: Vec<H3Cell>| {
@@ -386,7 +385,7 @@ async fn prefilter_traversal_cells(
                 cells
             })
     })
-    .await??)
+    .await?
 }
 
 pub struct TraversedCell {

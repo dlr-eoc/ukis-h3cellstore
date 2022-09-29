@@ -12,60 +12,27 @@ authors = [
 simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
 tls = ["tonic/tls"]
 
-# activate to re-export depdendencies
-export = []
-
-
 [dependencies]
-prost = "0.11"
-thiserror = "1"
+arrow2 = { version = "0.14", features = [ "io_ipc" ]}
 async-trait = "0.1"
 chrono = "0.4"
-
-[dependencies.tracing]
-version = "0.1"
-
-[dependencies.arrow2]
-version = "0.14"
-features = [
-    "io_ipc"
-]
-
-[dependencies.polars]
-version = "0.24"
-features = ["dtype-full", "timezones"]
-
-[dependencies.polars-core]
-version = "0.24"
-
-[dependencies.tonic]
-version = "0.8"
-features = ["gzip"]
-
-[dependencies.tokio]
-version = "1.12"
-#features = [
-#    "rt-multi-thread",
-#    "macros",
-#    "sync"
-#]
+polars-core = "0.24"
+polars = { version = "0.24", features = ["dtype-full", "timezones"] }
+prost = "0.11"
+thiserror = "1"
+tokio = "1"
+tonic = { version = "0.8", features = ["gzip"] }
+tracing = "0.1"
 
 [build-dependencies]
 tonic-build = { version = "0.8", features = [] }
 
-[[example]]
-name = "helloworld"
-
-
 [dev-dependencies]
 chrono = "0.4"
 eyre = "0.6"
+tokio = { version = "1.12", features = [ "rt-multi-thread", "macros", "sync" ] }
 tracing-subscriber = "0.3"
 
-[dev-dependencies.tokio]
-version = "1.12"
-features = [
-    "rt-multi-thread",
-    "macros",
-    "sync"
-]
+[[example]]
+name = "helloworld"
+

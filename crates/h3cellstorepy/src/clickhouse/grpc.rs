@@ -8,10 +8,10 @@ use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions, TableSetQuery,
 };
 use h3cellstore::clickhouse::H3CellStore;
-use h3cellstore::export::arrow_h3::H3DataFrame;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
+use h3cellstore::frame::H3DataFrame;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;
@@ -241,12 +241,11 @@ impl GRPCConnection {
         options: Option<&PyInsertOptions>,
     ) -> PyResult<()> {
         let insert_options = options.map(|o| o.options.clone()).unwrap_or_default();
-        let h3df: H3DataFrame = (
+        let h3df = H3DataFrame::from_dataframe(
             dataframe_from_pyany(dataframe)?,
             schema.schema.h3index_column().into_pyresult()?.0,
         )
-            .try_into()
-            .into_pyresult()?;
+        .into_pyresult()?;
 
         let abort_mutex = insert_options.abort.clone();
         let (oneshot_send, mut oneshot_recv) = tokio::sync::oneshot::channel();

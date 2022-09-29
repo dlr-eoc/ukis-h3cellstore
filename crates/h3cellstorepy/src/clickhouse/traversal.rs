@@ -18,7 +18,7 @@ use tracing::log::debug;
 use crate::clickhouse::grpc::{GRPCConnection, PyTableSetQuery};
 use crate::error::IntoPyResult;
 use crate::frame::ToDataframeWrapper;
-use h3cellstore::export::arrow_h3::export::h3ron::H3Cell;
+use h3cellstore::export::h3ron::H3Cell;
 
 use crate::utils::{extract_dict_item_option, indexes_from_numpy};
 

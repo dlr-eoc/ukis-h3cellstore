@@ -1,6 +1,6 @@
-use h3cellstore::export::arrow_h3::export::polars::frame::ArrowChunk;
-use h3cellstore::export::arrow_h3::export::polars::prelude::{ArrayRef, ArrowField};
 use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::ffi;
+use h3cellstore::export::polars::frame::ArrowChunk;
+use h3cellstore::export::polars::prelude::{ArrayRef, ArrowField};
 use pyo3::ffi::Py_uintptr_t;
 use pyo3::prelude::PyModule;
 use pyo3::{PyObject, PyResult, Python, ToPyObject};

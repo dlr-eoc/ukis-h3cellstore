@@ -7,9 +7,9 @@ pub use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 pub use agg::AggregationMethod;
-use arrow_h3::export::h3ron::H3_MAX_RESOLUTION;
 pub use column::{ColumnDefinition, SimpleColumn};
 pub use datatype::ClickhouseDataType;
+use h3ron::H3_MAX_RESOLUTION;
 use once_cell::sync::Lazy;
 pub use other::{CompressionMethod, TableEngine};
 pub use partitioning::{H3Partitioning, TemporalPartitioning, TemporalResolution};

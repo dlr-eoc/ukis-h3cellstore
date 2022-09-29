@@ -2,14 +2,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::ffi::Py_uintptr_t;
 use pyo3::prelude::*;
 
-use h3cellstore::export::arrow_h3::export::polars::export::rayon::iter::{
+use h3cellstore::export::polars::export::arrow::datatypes::DataType as ArrowDataType;
+use h3cellstore::export::polars::export::arrow::ffi;
+use h3cellstore::export::polars::export::rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
 };
-use h3cellstore::export::arrow_h3::export::polars::prelude::{ArrayRef, DataFrame, Series};
-use h3cellstore::export::arrow_h3::export::polars_core::utils::accumulate_dataframes_vertical;
-use h3cellstore::export::arrow_h3::export::polars_core::POOL;
-use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::datatypes::DataType as ArrowDataType;
-use h3cellstore::export::clickhouse_arrow_grpc::export::arrow2::ffi;
+use h3cellstore::export::polars::prelude::{ArrayRef, DataFrame, Series};
+use polars_core::utils::accumulate_dataframes_vertical;
+use polars_core::POOL;
 
 use crate::error::{IntoPyResult, ToCustomPyErr};
 

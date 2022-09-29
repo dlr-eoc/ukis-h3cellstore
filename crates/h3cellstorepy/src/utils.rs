@@ -1,5 +1,5 @@
 use crate::error::{IntoPyResult, ToCustomPyErr};
-use h3cellstore::export::arrow_h3::export::h3ron::Index;
+use h3cellstore::export::h3ron::Index;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyDict;
