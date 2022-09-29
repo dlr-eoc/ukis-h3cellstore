@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.3
+
+- switch to h3ron-polars
+
+## 0.10.2
+
+- Fix of compaction bug
+
 ## 0.9.0
 
 - Complete rewrite of all crates on basis of arrow, polars and GRPC. So there are many API changes - too 

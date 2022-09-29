@@ -2,13 +2,14 @@ use std::default::Default;
 
 use async_trait::async_trait;
 use tokio::task::spawn_blocking;
-use tracing::{debug_span, info_span, warn, Instrument};
+use tracing::{debug, info_span, warn, Instrument};
 
-use arrow_h3::algo::UnCompact;
-use arrow_h3::export::h3ron::collections::HashMap;
-use arrow_h3::export::h3ron::H3Cell;
-use arrow_h3::H3DataFrame;
+use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
+use h3ron::collections::{H3CellSet, HashMap};
+use h3ron::iter::change_resolution;
+use h3ron::{H3Cell, Index};
+use h3ron_polars::algorithm::frame::H3UncompactDataframe;
 pub use tableset::{Table, TableSet, TableSpec};
 
 pub use crate::clickhouse::compacted_tables::insert::InsertOptions;
@@ -273,7 +274,7 @@ where
         let insert_result = inserter
             .insert(h3df)
             .instrument(info_span!(
-                "Inserting H3DataFrame into tableset",
+                "Inserting CellFrame into tableset",
                 num_rows = h3df_shape.0,
                 num_cols = h3df_shape.1,
                 schema = schema.name.as_str(),
@@ -284,7 +285,7 @@ where
         let finish_result = inserter
             .finish()
             .instrument(info_span!(
-                "Finishing H3DataFrame inserter",
+                "Finishing CellFrame inserter",
                 num_rows = h3df_shape.0,
                 num_cols = h3df_shape.1,
                 schema = schema.name.as_str(),
@@ -352,16 +353,37 @@ where
         let h3df = H3DataFrame::from_dataframe(df, COL_NAME_H3INDEX)?;
 
         let out_h3df = if query_options.do_uncompact {
-            spawn_blocking(move || {
-                // use restricted uncompacting to filter by input cells so we
-                // avoid over-fetching in case of large, compacted cells.
-                h3df.uncompact_restricted(query_options.h3_resolution, cells)
-            })
-            .instrument(debug_span!("Un-compacting queried H3DataFrame"))
-            .await??
+            debug!(
+                "Un-compacting queried H3DataFrame to target_resolution {}",
+                query_options.h3_resolution
+            );
+            spawn_blocking(move || uncompact(h3df, cells, query_options.h3_resolution)).await??
         } else {
+            debug!("returning queried H3DataFrame without un-compaction");
             h3df
         };
         Ok(out_h3df)
     }
+}
+
+fn uncompact(
+    h3df: H3DataFrame,
+    cell_subset: Vec<H3Cell>,
+    target_resolution: u8,
+) -> Result<H3DataFrame, Error> {
+    // use restricted uncompacting to filter by input cells so we
+    // avoid over-fetching in case of large, compacted cells.
+    let cells: H3CellSet = change_resolution(
+        cell_subset
+            .into_iter()
+            .filter(|c| c.resolution() <= target_resolution),
+        target_resolution,
+    )
+    .filter_map(|c| c.ok())
+    .collect();
+
+    h3df.dataframe
+        .h3_uncompact_dataframe_subset(&h3df.h3index_column_name, target_resolution, &cells)
+        .map_err(Error::from)
+        .and_then(|df| H3DataFrame::from_dataframe(df, h3df.h3index_column_name))
 }

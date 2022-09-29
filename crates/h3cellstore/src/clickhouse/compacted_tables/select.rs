@@ -1,8 +1,8 @@
 use tracing::error;
 
-use arrow_h3::export::h3ron::collections::{HashMap, HashSet};
-use arrow_h3::export::h3ron::iter::change_resolution;
-use arrow_h3::export::h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
+use h3ron::collections::{HashMap, HashSet};
+use h3ron::iter::change_resolution;
+use h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
 
 use crate::clickhouse::compacted_tables::{Table, TableSet, TableSpec, COL_NAME_H3INDEX};
 use crate::Error;

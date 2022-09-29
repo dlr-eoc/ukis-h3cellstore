@@ -11,10 +11,9 @@ authors = [
 
 [features]
 use_serde = ["dep:serde"]  # rust 1.60: calling this feature just 'serde' does not lead to inclusion of the serde crate when activated
-serde_arrow = ["use_serde", "arrow_h3/serde"]
-simd = ["arrow_h3/simd", "clickhouse_arrow_grpc/simd"]
+serde_arrow = ["use_serde"]
+simd = ["clickhouse_arrow_grpc/simd"]
 tls = ["clickhouse_arrow_grpc/tls"]
-export = ["arrow_h3/export", "clickhouse_arrow_grpc/export"]
 
 
 [dependencies]
@@ -28,17 +27,20 @@ rand = "0.8"
 futures = "0.3"
 postage = "0.5"
 geo-types = "0.7"
+h3ron = { git = "https://github.com/nmandery/h3ron.git", rev = "cfd132c" }
+h3ron-polars = { git = "https://github.com/nmandery/h3ron.git", rev = "cfd132c" }
+polars = { version = "0.24", features = ["dtype-full", "lazy", "list", "timezones"] }
 
 [dependencies.tracing]
 version = "0.1"
 
 [dependencies.clickhouse_arrow_grpc]
 path = "../clickhouse_arrow_grpc"
-features = ["export"]
 
-[dependencies.arrow_h3]
-path = "../arrow_h3"
-features = ["export"]
+#[dependencies.arrow_h3]
+#path = "../arrow_h3"
+#features = ["export"]
+
 
 [dependencies.serde]
 version = "1"
@@ -65,4 +67,4 @@ features = [
 
 [[example]]
 name = "basic"
-required-features = ["export"]
+#required-features = ["export"]

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 
-use arrow_h3::algo::IterRowCountLimited;
-use arrow_h3::H3DataFrame;
+use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::ArrowInterface;
 use clickhouse_arrow_grpc::QueryInfo;
 
@@ -42,7 +41,14 @@ pub trait H3CellStore {
     {
         let db_name = database_name.as_ref().to_string();
         let tb_name = table_name.as_ref().to_string();
-        for chunk_h3df in h3df.iter_row_count_limited(max_num_rows_per_chunk)? {
+
+        let mut current_offset = 0i64;
+        while current_offset < h3df.dataframe.shape().0 as i64 {
+            let chunk_h3df = H3DataFrame {
+                dataframe: h3df.dataframe.slice(current_offset, max_num_rows_per_chunk),
+                h3index_column_name: h3df.h3index_column_name.clone(),
+            };
+            current_offset += max_num_rows_per_chunk as i64;
             self.insert_h3dataframe(&db_name, &tb_name, chunk_h3df)
                 .await?;
         }

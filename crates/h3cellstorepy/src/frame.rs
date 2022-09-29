@@ -5,8 +5,8 @@ use pyo3::PyClass;
 
 use crate::arrow_interop::to_py::to_py_rb;
 use crate::arrow_interop::to_rust::to_rust_df;
-use h3cellstore::export::arrow_h3::export::polars::frame::DataFrame;
-use h3cellstore::export::arrow_h3::H3DataFrame;
+use h3cellstore::export::polars::frame::DataFrame;
+use h3cellstore::frame::H3DataFrame;
 
 /// A wrapper for internal dataframe with an associated name for the column containing H3 cells.
 ///

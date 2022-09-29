@@ -1,12 +1,9 @@
 use chrono::Local;
 use geo_types::Coordinate;
+use h3ron::H3Cell;
+use h3ron_polars::FromIndexIterator;
+use polars::prelude::{DataFrame, NamedFrom, Series};
 
-use arrow_h3::export::h3ron::H3Cell;
-use arrow_h3::export::polars::frame::DataFrame;
-use arrow_h3::export::polars::prelude::NamedFrom;
-use arrow_h3::export::polars::series::Series;
-use arrow_h3::series::to_index_series;
-use arrow_h3::H3DataFrame;
 use clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
@@ -17,6 +14,7 @@ use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions,
 };
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
+use h3cellstore::frame::H3DataFrame;
 
 const MAX_H3_RES: u8 = 5;
 
@@ -44,12 +42,13 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
 }
 
 fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame> {
-    let index_series = to_index_series(
-        COL_NAME_H3INDEX,
+    let mut index_series = Series::from_index_iter(
         H3Cell::from_coordinate(center, MAX_H3_RES)?
             .grid_disk(10)?
             .iter(),
     );
+    index_series.rename(COL_NAME_H3INDEX);
+    dbg!(&index_series);
 
     let num_cells = index_series.len();
     let df = DataFrame::new(vec![
@@ -122,7 +121,6 @@ async fn main() -> eyre::Result<()> {
             ),
         )
         .await?;
-    dbg!(&queried_df);
     assert_eq!(queried_df.dataframe.shape().0, 7);
 
     client.drop_tableset(&play_db, "okavango_delta").await?;
