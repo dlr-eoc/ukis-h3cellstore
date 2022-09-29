@@ -94,6 +94,9 @@ impl ToCustomPyErr for h3cellstore::Error {
 
             Self::MissingPrecondidtionsForPartialOptimization
             | Self::TableSetNotFound(_)
+            | Self::DatabaseNotFound(_)
+            | Self::Io(_)
+            | Self::TonicTansport(_)
             | Self::NoQueryableTables => PyIOError::new_err(self.to_string()),
 
             Self::ClickhouseException(ce) => ce.to_custom_pyerr(),

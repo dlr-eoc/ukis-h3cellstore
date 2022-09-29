@@ -16,6 +16,9 @@ pub enum Error {
     #[error("tonic GRPC status error: {0}")]
     TonicStatus(#[from] clickhouse_arrow_grpc::export::tonic::Status),
 
+    #[error("tonic GRPC transport error: {0}")]
+    TonicTansport(#[from] clickhouse_arrow_grpc::export::tonic::transport::Error),
+
     #[error("ClickhouseException({})", .0.to_string())]
     ClickhouseException(ClickhouseException),
 
@@ -26,7 +29,7 @@ pub enum Error {
     ArrowChunkMissingField(String),
 
     #[error("join error")]
-    JoinError(#[from] clickhouse_arrow_grpc::export::tokio::task::JoinError),
+    JoinError(#[from] tokio::task::JoinError),
 
     #[error("h3ron error: {0}")]
     H3ron(#[from] h3ron::Error),
@@ -64,6 +67,9 @@ pub enum Error {
     #[error("tableset not found: {0}")]
     TableSetNotFound(String),
 
+    #[error("database not found: {0}")]
+    DatabaseNotFound(String),
+
     #[error("missing index value")]
     MissingIndexValue,
 
@@ -72,6 +78,9 @@ pub enum Error {
 
     #[error("acquiring lock failed")]
     AcquiringLockFailed,
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 impl From<CAGError> for Error {
