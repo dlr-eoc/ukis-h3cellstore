@@ -113,20 +113,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrow_h3"
-version = "0.3.0"
-dependencies = [
- "geo-types",
- "h3ron 0.15.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "itertools",
- "polars",
- "polars-core",
- "serde",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "async-stream"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -726,21 +712,6 @@ dependencies = [
 
 [[package]]
 name = "geo"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0943f2fcf1e21429a6d3a9842308ee363a6d9018fda475c47c564156d44eef3"
-dependencies = [
- "float_next_after",
- "geo-types",
- "geographiclib-rs",
- "log",
- "num-traits",
- "robust",
- "rstar",
-]
-
-[[package]]
-name = "geo"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b684179d4c034f9e6718692601a7ec77e4a3b654dbc09b5e4fd342f0e48f2ba1"
@@ -846,7 +817,7 @@ dependencies = [
  "eyre",
  "futures",
  "geo-types",
- "h3ron 0.15.1 (git+https://github.com/nmandery/h3ron.git?rev=cfd132c)",
+ "h3ron",
  "h3ron-polars",
  "itertools",
  "once_cell",
@@ -883,41 +854,14 @@ dependencies = [
 [[package]]
 name = "h3ron"
 version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7d52875c47f35a0db141bef968682165623e7d1671a0da40b87f581a3a953fd"
-dependencies = [
- "ahash 0.8.0",
- "geo 0.22.1",
- "geo-types",
- "h3ron-h3-sys 0.15.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "hashbrown",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "h3ron"
-version = "0.15.1"
 source = "git+https://github.com/nmandery/h3ron.git?rev=cfd132c#cfd132ca95c86a7e77f042a02164a9fee0e13a00"
 dependencies = [
  "ahash 0.8.0",
- "geo 0.23.0",
+ "geo",
  "geo-types",
- "h3ron-h3-sys 0.15.1 (git+https://github.com/nmandery/h3ron.git?rev=cfd132c)",
+ "h3ron-h3-sys",
  "hashbrown",
  "thiserror",
-]
-
-[[package]]
-name = "h3ron-h3-sys"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1dac84cfd145eea3191a24b3681fc65073036e858057d45bf16d64668808c6b"
-dependencies = [
- "cc",
- "geo-types",
- "glob",
- "regex",
 ]
 
 [[package]]
@@ -936,9 +880,9 @@ name = "h3ron-polars"
 version = "0.1.0"
 source = "git+https://github.com/nmandery/h3ron.git?rev=cfd132c#cfd132ca95c86a7e77f042a02164a9fee0e13a00"
 dependencies = [
- "geo 0.23.0",
+ "geo",
  "geo-types",
- "h3ron 0.15.1 (git+https://github.com/nmandery/h3ron.git?rev=cfd132c)",
+ "h3ron",
  "polars",
  "polars-core",
  "thiserror",
@@ -967,7 +911,6 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
  "ahash 0.7.6",
  "rayon",
- "serde",
 ]
 
 [[package]]
@@ -1110,7 +1053,6 @@ checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
 dependencies = [
  "autocfg",
  "hashbrown",
- "serde",
 ]
 
 [[package]]
@@ -1659,7 +1601,6 @@ dependencies = [
  "arrow2",
  "hashbrown",
  "num",
- "serde",
  "thiserror",
 ]
 
@@ -1686,7 +1627,6 @@ dependencies = [
  "rand_distr",
  "rayon",
  "regex",
- "serde",
  "smartstring",
  "thiserror",
 ]
@@ -1714,7 +1654,6 @@ dependencies = [
  "polars-utils",
  "rayon",
  "regex",
- "serde",
  "simdutf8",
 ]
 
@@ -1735,7 +1674,6 @@ dependencies = [
  "polars-time",
  "polars-utils",
  "rayon",
- "serde",
 ]
 
 [[package]]
@@ -1760,7 +1698,6 @@ dependencies = [
  "polars-arrow",
  "polars-core",
  "polars-utils",
- "serde",
 ]
 
 [[package]]

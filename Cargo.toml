@@ -2,7 +2,6 @@
 
 members = [
     "crates/clickhouse_arrow_grpc",
-    "crates/arrow_h3",
     "crates/h3cellstore",
     "crates/h3cellstorepy"
 ]
