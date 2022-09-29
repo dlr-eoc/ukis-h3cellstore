@@ -101,7 +101,7 @@ spec:
           echo "---- h3cellstore ----------------------------------------------"
           pushd crates/h3cellstore
           cargo clippy --all-targets --no-deps
-          cargo test --all-targets --features="export"
+          cargo test --all-targets
           popd
           
           echo "---- h3cellstorepy ----------------------------------------------"
