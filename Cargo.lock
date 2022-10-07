@@ -866,6 +866,7 @@ name = "h3cellstorepy"
 version = "0.10.3"
 dependencies = [
  "futures",
+ "geo-types",
  "h3cellstore",
  "numpy",
  "once_cell",

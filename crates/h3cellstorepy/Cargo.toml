@@ -17,6 +17,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 futures = "0.3"
+geo-types = "0.7"
 h3cellstore = { path = "../h3cellstore", features = [ "tls", "use_serde" ] }
 numpy = "0.17"
 once_cell = "1"

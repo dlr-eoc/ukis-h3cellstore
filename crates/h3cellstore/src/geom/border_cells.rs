@@ -36,7 +36,7 @@ pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>
                         offsetted.vertex_data[l - 1].y,
                     ),
                 )
-                .densify(cell_radius);
+                .densify(cell_radius * 0.8);
 
                 for c in ls.0.iter() {
                     let cell = H3Cell::from_coordinate(*c, h3_resolution)?;
