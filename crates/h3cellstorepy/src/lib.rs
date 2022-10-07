@@ -2,6 +2,7 @@ mod arrow_interop;
 mod clickhouse;
 mod error;
 mod frame;
+mod geom;
 mod utils;
 
 use pyo3::{prelude::*, wrap_pyfunction, Python};
@@ -9,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::clickhouse::init_clickhouse_submodule;
 use crate::frame::{PyDataFrame, PyH3DataFrame};
+use crate::geom::init_geom_submodule;
 
 /// version of the module
 #[pyfunction]
@@ -44,6 +46,10 @@ fn h3cellstorepy(py: Python, m: &PyModule) -> PyResult<()> {
     let clickhouse_submod = PyModule::new(py, "clickhouse")?;
     init_clickhouse_submodule(py, clickhouse_submod)?;
     m.add_submodule(clickhouse_submod)?;
+
+    let geom_submod = PyModule::new(py, "geom")?;
+    init_geom_submodule(py, geom_submod)?;
+    m.add_submodule(geom_submod)?;
 
     Ok(())
 }
