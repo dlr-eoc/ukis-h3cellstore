@@ -1,7 +1,7 @@
 use crate::Error;
 use cavalier_contours::polyline::{PlineCreation, PlineSource, PlineSourceMut, Polyline};
 use geo::{BoundingRect, Densify, EuclideanLength, Winding};
-use geo_types::{Line, LineString, Polygon};
+use geo_types::{Line, LineString, Polygon, Rect};
 use h3ron::collections::HashSet;
 use h3ron::{H3Cell, ToCoordinate, ToPolygon};
 use ordered_float::OrderedFloat;
@@ -42,14 +42,7 @@ pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>
                     let cell = H3Cell::from_coordinate(*c, h3_resolution)?;
 
                     // reverse check as the cell may be beyond the start or endpoint of the line.
-                    // bbox containment check is not applicable because of possible strictly vertical
-                    // or horizontal line segments.
-                    let cell_coord = cell.to_coordinate()?;
-                    if !((cell_coord.x < line_rect.min().x && cell_coord.y < line_rect.min().y)
-                        || (cell_coord.x > line_rect.max().x && cell_coord.y > line_rect.max().y)
-                        || (cell_coord.x > line_rect.max().x && cell_coord.y < line_rect.min().y)
-                        || (cell_coord.x < line_rect.min().x && cell_coord.y > line_rect.max().y))
-                    {
+                    if cell_within_rect(cell, &line_rect)? {
                         out_cells.insert(cell);
                     }
                 }
@@ -57,6 +50,18 @@ pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>
         }
     }
     Ok(out_cells)
+}
+
+/// bbox containment check is not applicable because of possible strictly vertical
+/// or horizontal line segments.
+fn cell_within_rect(cell: H3Cell, rect: &Rect) -> Result<bool, Error> {
+    let cell_coord = cell.to_coordinate()?;
+    Ok(
+        !((cell_coord.x < rect.min().x && cell_coord.y < rect.min().y)
+            || (cell_coord.x > rect.max().x && cell_coord.y > rect.max().y)
+            || (cell_coord.x > rect.max().x && cell_coord.y < rect.min().y)
+            || (cell_coord.x < rect.min().x && cell_coord.y > rect.max().y)),
+    )
 }
 
 fn max_cell_radius(ls: &LineString, h3_resolution: u8) -> Result<f64, Error> {
@@ -114,7 +119,6 @@ mod tests {
             let fc = geojson::FeatureCollection::from(&gc);
             std::fs::write("/tmp/border.geojson", fc.to_string()).unwrap();
         }
-
          */
 
         let n_cells_contained = border.iter().fold(0, |mut acc, bc| {
@@ -123,6 +127,6 @@ mod tests {
             }
             acc
         });
-        assert_eq!(border.len(), n_cells_contained);
+        assert!(border.len() <= n_cells_contained);
     }
 }
