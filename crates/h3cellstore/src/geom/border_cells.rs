@@ -86,9 +86,9 @@ fn cell_radius(cell: H3Cell) -> Result<f64, Error> {
 #[cfg(test)]
 mod tests {
     use crate::geom::border_cells;
-    use geo_types::{Geometry, GeometryCollection, Point, Rect};
+    use geo_types::{Geometry, Rect};
     use h3ron::collections::HashSet;
-    use h3ron::{ToCoordinate, ToH3Cells};
+    use h3ron::ToH3Cells;
 
     #[test]
     fn border_cells_within_rect() {
@@ -102,13 +102,18 @@ mod tests {
 
         // write geojson for visual inspection
         /*
-        let mut geoms: Vec<Geometry> = vec![rect.into()];
-        for bc in border.iter() {
-            geoms.push(Point::from(bc.to_coordinate().unwrap()).into());
+        {
+            use geo_types::{GeometryCollection, Point};
+            use h3ron::{ToCoordinate, ToPolygon};
+            let mut geoms: Vec<Geometry> = vec![rect.into()];
+            for bc in border.iter() {
+                //geoms.push(Point::from(bc.to_coordinate().unwrap()).into());
+                geoms.push(bc.to_polygon().unwrap().into());
+            }
+            let gc = GeometryCollection::from(geoms);
+            let fc = geojson::FeatureCollection::from(&gc);
+            std::fs::write("/tmp/border.geojson", fc.to_string()).unwrap();
         }
-        let gc = GeometryCollection::from(geoms);
-        let fc = geojson::FeatureCollection::from(&gc);
-        std::fs::write("/tmp/border.geojson", fc.to_string()).unwrap();
 
          */
 
