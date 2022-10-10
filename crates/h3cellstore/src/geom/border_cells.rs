@@ -10,7 +10,13 @@ use ordered_float::OrderedFloat;
 ///
 /// The border cells are not guaranteed to be exactly one cell wide. Due to grid orientation
 /// the line may be two cells wide at some places.
-pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>, Error> {
+///
+/// `width`: Width of the border in (approx.) number of cells. Default: 1
+pub fn border_cells(
+    poly: &Polygon,
+    h3_resolution: u8,
+    width: Option<u32>,
+) -> Result<HashSet<H3Cell>, Error> {
     let ext_ring = {
         let mut ext_ring = poly.exterior().clone();
         ext_ring.make_ccw_winding(); // make coord order deterministic so the offset direction is correct
@@ -18,7 +24,7 @@ pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>
     };
 
     let cell_radius = max_cell_radius(&ext_ring, h3_resolution)?;
-    let buffer_offset = cell_radius * 1.5;
+    let buffer_offset = cell_radius * 1.5 * (width.unwrap_or(1) as f64);
 
     // small rects -> smaller grid_disks for H3 to generate
     let densification = cell_radius * 10.0;

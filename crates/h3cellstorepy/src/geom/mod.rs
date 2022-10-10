@@ -9,21 +9,28 @@ use pyo3::prelude::*;
 use pyo3::{wrap_pyfunction, PyResult, Python};
 
 /// find the cells located directly within the exterior ring of the given polygon
-#[pyfunction]
+///
+/// The border cells are not guaranteed to be exactly one cell wide. Due to grid orientation
+/// the line may be two cells wide at some places.
+///
+/// `width`: Width of the border in (approx.) number of cells. Default: 1
+#[pyfunction(width = "1")]
 fn border_cells(
     py: Python,
     geometry: GiGeometry,
     h3_resolution: u8,
+    width: u32,
 ) -> PyResult<Py<PyArray1<u64>>> {
+    let width = Some(width);
     let cells = match &geometry.0 {
         Geometry::Polygon(poly) => {
-            h3cellstore::geom::border_cells(poly, h3_resolution).into_pyresult()?
+            h3cellstore::geom::border_cells(poly, h3_resolution, width).into_pyresult()?
         }
         Geometry::MultiPolygon(mp) => {
             let mut hs = HashSet::default();
             for poly in mp {
                 hs.extend(
-                    h3cellstore::geom::border_cells(poly, h3_resolution)
+                    h3cellstore::geom::border_cells(poly, h3_resolution, width)
                         .into_pyresult()?
                         .iter(),
                 );
