@@ -1,12 +1,15 @@
 use crate::Error;
 use cavalier_contours::polyline::{PlineCreation, PlineSource, PlineSourceMut, Polyline};
-use geo::{BoundingRect, Densify, EuclideanLength, Winding};
+use geo::{Densify, EuclideanLength, Winding};
 use geo_types::{Line, LineString, Polygon, Rect};
 use h3ron::collections::HashSet;
-use h3ron::{H3Cell, ToCoordinate, ToPolygon};
+use h3ron::{H3Cell, ToCoordinate, ToH3Cells, ToPolygon};
 use ordered_float::OrderedFloat;
 
 /// find the cells located directly within the exterior ring of the given polygon
+///
+/// The border cells are not guaranteed to be exactly one cell wide. Due to grid orientation
+/// the line may be two cells wide at some places.
 pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>, Error> {
     let ext_ring = {
         let mut ext_ring = poly.exterior().clone();
@@ -15,53 +18,56 @@ pub fn border_cells(poly: &Polygon, h3_resolution: u8) -> Result<HashSet<H3Cell>
     };
 
     let cell_radius = max_cell_radius(&ext_ring, h3_resolution)?;
-    let buffer_offset = cell_radius;
+    let buffer_offset = cell_radius * 1.5;
+
+    // small rects -> smaller grid_disks for H3 to generate
+    let densification = cell_radius * 10.0;
 
     let mut out_cells = HashSet::default();
     for ext_line_segment in ext_ring.0.windows(2) {
         let line = Line::new(ext_line_segment[0], ext_line_segment[1]);
-        let line_rect = line.bounding_rect();
 
-        let mut pline = Polyline::with_capacity(2, false);
-        pline.add(line.start.x, line.start.y, 0.0);
-        pline.add(line.end.x, line.end.y, 0.0);
+        let line_with_offset = {
+            let mut pline = Polyline::with_capacity(2, false);
+            pline.add(line.start.x, line.start.y, 0.0);
+            pline.add(line.end.x, line.end.y, 0.0);
 
-        for offsetted in pline.parallel_offset(buffer_offset) {
-            let l = offsetted.vertex_data.len();
-            if l >= 2 {
-                let ls = Line::new(
-                    (offsetted.vertex_data[0].x, offsetted.vertex_data[0].y),
-                    (
-                        offsetted.vertex_data[l - 1].x,
-                        offsetted.vertex_data[l - 1].y,
-                    ),
-                )
-                .densify(cell_radius * 0.8);
-
-                for c in ls.0.iter() {
-                    let cell = H3Cell::from_coordinate(*c, h3_resolution)?;
-
-                    // reverse check as the cell may be beyond the start or endpoint of the line.
-                    if cell_within_rect(cell, &line_rect)? {
-                        out_cells.insert(cell);
-                    }
-                }
+            let offsetted = pline.parallel_offset(buffer_offset);
+            if offsetted.is_empty() {
+                continue;
             }
+
+            let offsetted_pline = &offsetted[0];
+            if offsetted_pline.vertex_data.len() < 2 {
+                continue;
+            }
+            let l = offsetted_pline.vertex_data.len();
+            Line::new(
+                (
+                    offsetted_pline.vertex_data[0].x,
+                    offsetted_pline.vertex_data[0].y,
+                ),
+                (
+                    offsetted_pline.vertex_data[l - 1].x,
+                    offsetted_pline.vertex_data[l - 1].y,
+                ),
+            )
+        };
+
+        let line_with_offset = line_with_offset.densify(densification);
+        let line = line.densify(densification);
+
+        for (line_window, line_with_offset_window) in
+            line.0.windows(2).zip(line_with_offset.0.windows(2))
+        {
+            out_cells.extend(
+                Rect::new(line_window[0], line_with_offset_window[1])
+                    .to_h3_cells(h3_resolution)?
+                    .iter(),
+            );
         }
     }
     Ok(out_cells)
-}
-
-/// bbox containment check is not applicable because of possible strictly vertical
-/// or horizontal line segments.
-fn cell_within_rect(cell: H3Cell, rect: &Rect) -> Result<bool, Error> {
-    let cell_coord = cell.to_coordinate()?;
-    Ok(
-        !((cell_coord.x < rect.min().x && cell_coord.y < rect.min().y)
-            || (cell_coord.x > rect.max().x && cell_coord.y > rect.max().y)
-            || (cell_coord.x > rect.max().x && cell_coord.y < rect.min().y)
-            || (cell_coord.x < rect.min().x && cell_coord.y > rect.max().y)),
-    )
 }
 
 fn max_cell_radius(ls: &LineString, h3_resolution: u8) -> Result<f64, Error> {
@@ -106,20 +112,20 @@ mod tests {
         assert!(border.len() > 100);
 
         // write geojson for visual inspection
-        /*
+        /**/
         {
             use geo_types::{GeometryCollection, Point};
             use h3ron::{ToCoordinate, ToPolygon};
             let mut geoms: Vec<Geometry> = vec![rect.into()];
             for bc in border.iter() {
-                //geoms.push(Point::from(bc.to_coordinate().unwrap()).into());
+                geoms.push(Point::from(bc.to_coordinate().unwrap()).into());
                 geoms.push(bc.to_polygon().unwrap().into());
             }
             let gc = GeometryCollection::from(geoms);
             let fc = geojson::FeatureCollection::from(&gc);
             std::fs::write("/tmp/border.geojson", fc.to_string()).unwrap();
         }
-         */
+        /**/
 
         let n_cells_contained = border.iter().fold(0, |mut acc, bc| {
             if filled_cells.contains(bc) {
@@ -127,6 +133,7 @@ mod tests {
             }
             acc
         });
+        dbg!(n_cells_contained);
         assert!(border.len() <= n_cells_contained);
     }
 }
