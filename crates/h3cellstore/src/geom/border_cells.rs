@@ -113,12 +113,12 @@ mod tests {
         let h3_resolution = 7;
 
         let filled_cells = HashSet::from_iter(rect.to_h3_cells(h3_resolution).unwrap().iter());
-        let border = border_cells(&rect.to_polygon(), h3_resolution).unwrap();
+        let border = border_cells(&rect.to_polygon(), h3_resolution, Some(1)).unwrap();
         dbg!(filled_cells.len(), border.len());
         assert!(border.len() > 100);
 
         // write geojson for visual inspection
-        /**/
+        /*
         {
             use geo_types::{GeometryCollection, Point};
             use h3ron::{ToCoordinate, ToPolygon};
@@ -131,7 +131,7 @@ mod tests {
             let fc = geojson::FeatureCollection::from(&gc);
             std::fs::write("/tmp/border.geojson", fc.to_string()).unwrap();
         }
-        /**/
+        */
 
         let n_cells_contained = border.iter().fold(0, |mut acc, bc| {
             if filled_cells.contains(bc) {
