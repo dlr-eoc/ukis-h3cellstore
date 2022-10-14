@@ -253,7 +253,7 @@ impl PyCompactedTableSchemaBuilder {
                             ))
                         })
                     })
-                    .unwrap_or(Ok(1_u8))?;
+                    .unwrap_or_else(|| Ok(1_u8))?;
                 TemporalPartitioning::Months(num_months)
             }
             "year" | "years" => {
@@ -267,7 +267,7 @@ impl PyCompactedTableSchemaBuilder {
                             ))
                         })
                     })
-                    .unwrap_or(Ok(1_u8))?;
+                    .unwrap_or_else(|| Ok(1_u8))?;
                 TemporalPartitioning::Years(num_years)
             }
             _ => {
