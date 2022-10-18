@@ -11,7 +11,7 @@ use h3cellstore::clickhouse::H3CellStore;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
-use h3cellstore::frame::H3DataFrame;
+use h3cellstore::export::h3ron_polars::frame::H3DataFrame;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
 use pyo3::prelude::*;

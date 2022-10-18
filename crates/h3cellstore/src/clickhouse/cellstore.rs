@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use h3ron::H3Cell;
+use h3ron_polars::frame::H3DataFrame;
 
-use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::ArrowInterface;
 use clickhouse_arrow_grpc::QueryInfo;
 
@@ -12,7 +13,7 @@ pub trait H3CellStore {
         &mut self,
         mut q: QueryInfo,
         h3index_column_name: S,
-    ) -> Result<H3DataFrame, Error>
+    ) -> Result<H3DataFrame<H3Cell>, Error>
     where
         S: AsRef<str> + Send;
 
@@ -21,7 +22,7 @@ pub trait H3CellStore {
 
         database_name: S1,
         table_name: S2,
-        mut h3df: H3DataFrame,
+        mut h3df: H3DataFrame<H3Cell>,
     ) -> Result<(), Error>
     where
         S1: AsRef<str> + Send,
@@ -32,7 +33,7 @@ pub trait H3CellStore {
 
         database_name: S1,
         table_name: S2,
-        h3df: H3DataFrame,
+        h3df: H3DataFrame<H3Cell>,
         max_num_rows_per_chunk: usize,
     ) -> Result<(), Error>
     where
@@ -43,11 +44,12 @@ pub trait H3CellStore {
         let tb_name = table_name.as_ref().to_string();
 
         let mut current_offset = 0i64;
-        while current_offset < h3df.dataframe.shape().0 as i64 {
-            let chunk_h3df = H3DataFrame {
-                dataframe: h3df.dataframe.slice(current_offset, max_num_rows_per_chunk),
-                h3index_column_name: h3df.h3index_column_name.clone(),
-            };
+        while current_offset < h3df.dataframe().shape().0 as i64 {
+            let chunk_h3df = H3DataFrame::from_dataframe_nonvalidated(
+                h3df.dataframe()
+                    .slice(current_offset, max_num_rows_per_chunk),
+                h3df.h3index_column_name(),
+            );
             current_offset += max_num_rows_per_chunk as i64;
             self.insert_h3dataframe(&db_name, &tb_name, chunk_h3df)
                 .await?;
@@ -69,7 +71,7 @@ where
         &mut self,
         q: QueryInfo,
         h3index_column_name: S,
-    ) -> Result<H3DataFrame, Error>
+    ) -> Result<H3DataFrame<H3Cell>, Error>
     where
         S: AsRef<str> + Send,
     {
@@ -81,15 +83,14 @@ where
         &mut self,
         database_name: S1,
         table_name: S2,
-        h3df: H3DataFrame,
+        h3df: H3DataFrame<H3Cell>,
     ) -> Result<(), Error>
     where
         S1: AsRef<str> + Send,
         S2: AsRef<str> + Send,
     {
-        Ok(self
-            .insert_dataframe(database_name, table_name, h3df.dataframe)
-            .await?)
+        let df = h3df.into_dataframe();
+        Ok(self.insert_dataframe(database_name, table_name, df).await?)
     }
 
     async fn database_exists<S>(&mut self, database_name: S) -> Result<bool, Error>

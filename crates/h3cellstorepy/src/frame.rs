@@ -1,3 +1,5 @@
+use h3cellstore::export::h3ron::H3Cell;
+use h3cellstore::export::h3ron_polars::frame::H3DataFrame;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
@@ -6,7 +8,6 @@ use pyo3::PyClass;
 use crate::arrow_interop::to_py::to_py_rb;
 use crate::arrow_interop::to_rust::to_rust_df;
 use h3cellstore::export::polars::frame::DataFrame;
-use h3cellstore::frame::H3DataFrame;
 
 /// A wrapper for internal dataframe with an associated name for the column containing H3 cells.
 ///
@@ -15,27 +16,27 @@ use h3cellstore::frame::H3DataFrame;
 /// This class should not be used directly in python, it is used within `DataFrameWrapper`.
 #[pyclass]
 pub struct PyH3DataFrame {
-    h3df: H3DataFrame,
+    h3df: H3DataFrame<H3Cell>,
 }
 
 #[pymethods]
 impl PyH3DataFrame {
     pub fn shape(&self) -> (usize, usize) {
-        self.h3df.dataframe.shape()
+        self.h3df.dataframe().shape()
     }
 
     pub fn h3index_column_name(&self) -> String {
-        self.h3df.h3index_column_name.clone()
+        self.h3df.h3index_column_name().to_string()
     }
 
     #[allow(clippy::wrong_self_convention)]
     pub fn to_arrow(&mut self) -> PyResult<Vec<PyObject>> {
-        dataframe_to_arrow(&mut self.h3df.dataframe)
+        dataframe_to_arrow(self.h3df.dataframe_mut())
     }
 }
 
-impl From<H3DataFrame> for PyH3DataFrame {
-    fn from(h3df: H3DataFrame) -> Self {
+impl From<H3DataFrame<H3Cell>> for PyH3DataFrame {
+    fn from(h3df: H3DataFrame<H3Cell>) -> Self {
         Self { h3df }
     }
 }
@@ -101,7 +102,7 @@ impl ToDataframeWrapper for PyDataFrame {
     }
 }
 
-impl ToDataframeWrapper for H3DataFrame {
+impl ToDataframeWrapper for H3DataFrame<H3Cell> {
     fn to_dataframewrapper(self) -> PyResult<PyObject> {
         PyH3DataFrame::from(self).to_dataframewrapper()
     }

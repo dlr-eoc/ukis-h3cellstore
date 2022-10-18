@@ -2,12 +2,11 @@ use h3ron::H3Cell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use h3ron_polars::algorithm::frame::{H3CompactDataframe, H3ResolutionOp};
+use h3ron_polars::frame::H3DataFrame;
 use itertools::Itertools;
 use tokio::task::spawn_blocking;
 use tracing::{debug, debug_span, error, trace_span, Instrument};
 
-use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 
 use crate::clickhouse::compacted_tables::optimize::{
@@ -87,17 +86,13 @@ where
     }
 
     /// This method is a somewhat expensive operation
-    pub async fn insert(&mut self, h3df: H3DataFrame) -> Result<(), Error> {
-        let h3index_column_name = h3df.h3index_column_name.clone();
-        let frames_by_resolution = if h3df.dataframe.is_empty() {
+    pub async fn insert(&mut self, h3df: H3DataFrame<H3Cell>) -> Result<(), Error> {
+        let frames_by_resolution = if h3df.dataframe().is_empty() {
             Default::default()
         } else {
             let frames_by_resolution = spawn_blocking(move || {
-                h3df.dataframe
-                    .h3_compact_dataframe(&h3df.h3index_column_name, true)
-                    .and_then(|compacted| {
-                        compacted.h3_split_by_resolution::<H3Cell, _>(&h3df.h3index_column_name)
-                    })
+                h3df.h3_compact_dataframe(true)
+                    .and_then(|compacted| compacted.h3_split_by_resolution())
             })
             .await??;
 
@@ -117,7 +112,9 @@ where
         self.check_for_abort()?;
 
         if frames_by_resolution.is_empty()
-            || frames_by_resolution.iter().all(|(_, df)| df.is_empty())
+            || frames_by_resolution
+                .iter()
+                .all(|(_, h3df)| h3df.dataframe().is_empty())
         {
             // no data to insert, so exit early
             return Ok(());
@@ -141,7 +138,7 @@ where
             .await?;
 
         // insert into temporary tables
-        for (h3_resolution, df) in frames_by_resolution {
+        for (h3_resolution, h3df) in frames_by_resolution {
             let table = self.schema.build_table(
                 &ResolutionMetadata::new(
                     h3_resolution,
@@ -155,7 +152,7 @@ where
                 .insert_h3dataframe_chunked(
                     self.database_name.as_str(),
                     table.to_table_name(),
-                    H3DataFrame::from_dataframe(df, &h3index_column_name)?,
+                    h3df,
                     self.options.max_num_rows_per_chunk,
                 )
                 .await?;

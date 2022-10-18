@@ -1,4 +1,3 @@
-use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::export::tonic::transport::Channel;
 use clickhouse_arrow_grpc::ClickHouseClient;
 use futures::Stream;
@@ -6,6 +5,7 @@ use geo_types::Geometry;
 use h3ron::collections::{H3CellSet, RandomState};
 use h3ron::iter::change_resolution;
 use h3ron::{H3Cell, ToH3Cells};
+use h3ron_polars::frame::H3DataFrame;
 use postage::prelude::{Sink, Stream as _};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -377,12 +377,17 @@ async fn prefilter_traversal_cells(
     // use only the indexes from the filter query to be able to fetch a smaller subset
     spawn_blocking(move || {
         filter_h3df
-            .to_index_collection()
-            .map(|mut cells: Vec<H3Cell>| {
-                // remove duplicates
-                cells.sort_unstable();
-                cells.dedup();
-                cells
+            .h3indexchunked()
+            .map_err(Error::from)
+            .and_then(|ic| {
+                ic.to_collection::<Vec<_>>()
+                    .map_err(Error::from)
+                    .map(|mut cells| {
+                        // remove duplicates
+                        cells.sort_unstable();
+                        cells.dedup();
+                        cells
+                    })
             })
     })
     .await?
@@ -393,7 +398,7 @@ pub struct TraversedCell {
     pub cell: H3Cell,
 
     /// dataframe containing the data of the child cells
-    pub contained_data: H3DataFrame,
+    pub contained_data: H3DataFrame<H3Cell>,
 }
 
 fn buffer_cell(
@@ -445,7 +450,7 @@ async fn load_traversed_cell(
                 ))
                 .await?;
 
-            if contained_data.dataframe.shape().0 == 0 {
+            if contained_data.dataframe().shape().0 == 0 {
                 // no data found, continue to the next cell
                 debug!("Discarding received empty dataframe");
                 return Ok(None);

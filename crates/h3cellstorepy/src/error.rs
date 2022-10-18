@@ -78,6 +78,7 @@ impl ToCustomPyErr for h3cellstore::export::h3ron_polars::Error {
             Error::Arrow(e) => e.to_custom_pyerr(),
             Error::H3ron(e) => e.to_custom_pyerr(),
             Error::SpatialIndex(_) => PyRuntimeError::new_err(self.to_string()),
+            Error::InvalidH3Indexes => PyValueError::new_err(self.to_string()),
         }
     }
 }

@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use tokio::task::spawn_blocking;
 use tracing::{debug, info_span, warn, Instrument};
 
-use crate::frame::H3DataFrame;
 use clickhouse_arrow_grpc::{ArrowInterface, QueryInfo};
 use h3ron::collections::{H3CellSet, HashMap};
 use h3ron::iter::change_resolution;
 use h3ron::{H3Cell, Index};
-use h3ron_polars::algorithm::frame::H3UncompactDataframe;
+use h3ron_polars::frame::H3DataFrame;
 pub use tableset::{Table, TableSet, TableSpec};
 
 pub use crate::clickhouse::compacted_tables::insert::InsertOptions;
@@ -92,7 +91,7 @@ pub trait CompactedTablesStore {
         &mut self,
         database_name: S,
         schema: &CompactedTableSchema,
-        h3df: H3DataFrame,
+        h3df: H3DataFrame<H3Cell>,
         options: InsertOptions,
     ) -> Result<(), Error>
     where
@@ -111,7 +110,7 @@ pub trait CompactedTablesStore {
         database_name: S,
         tableset: TS,
         query_options: QueryOptions,
-    ) -> Result<H3DataFrame, Error>
+    ) -> Result<H3DataFrame<H3Cell>, Error>
     where
         S: AsRef<str> + Send + Sync,
         TS: LoadTableSet + Send + Sync;
@@ -253,17 +252,17 @@ where
         &mut self,
         database_name: S,
         schema: &CompactedTableSchema,
-        h3df: H3DataFrame,
+        h3df: H3DataFrame<H3Cell>,
         options: InsertOptions,
     ) -> Result<(), Error>
     where
         S: AsRef<str> + Sync + Send,
     {
-        if h3df.dataframe.is_empty() {
+        if h3df.dataframe().is_empty() {
             return Ok(());
         }
 
-        let h3df_shape = h3df.dataframe.shape();
+        let h3df_shape = h3df.dataframe().shape();
 
         let mut inserter = Inserter::new(
             self.clone(),
@@ -322,7 +321,7 @@ where
         database_name: S,
         tableset: TS,
         query_options: QueryOptions,
-    ) -> Result<H3DataFrame, Error>
+    ) -> Result<H3DataFrame<H3Cell>, Error>
     where
         S: AsRef<str> + Send + Sync,
         TS: LoadTableSet + Send + Sync,
@@ -367,10 +366,10 @@ where
 }
 
 fn uncompact(
-    h3df: H3DataFrame,
+    h3df: H3DataFrame<H3Cell>,
     cell_subset: Vec<H3Cell>,
     target_resolution: u8,
-) -> Result<H3DataFrame, Error> {
+) -> Result<H3DataFrame<H3Cell>, Error> {
     // use restricted uncompacting to filter by input cells so we
     // avoid over-fetching in case of large, compacted cells.
     let cells: H3CellSet = change_resolution(
@@ -382,8 +381,6 @@ fn uncompact(
     .filter_map(|c| c.ok())
     .collect();
 
-    h3df.dataframe
-        .h3_uncompact_dataframe_subset(&h3df.h3index_column_name, target_resolution, &cells)
+    h3df.h3_uncompact_dataframe_subset(target_resolution, &cells)
         .map_err(Error::from)
-        .and_then(|df| H3DataFrame::from_dataframe(df, h3df.h3index_column_name))
 }

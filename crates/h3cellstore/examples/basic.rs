@@ -1,6 +1,7 @@
 use chrono::Local;
 use geo_types::Coordinate;
 use h3ron::H3Cell;
+use h3ron_polars::frame::H3DataFrame;
 use h3ron_polars::FromIndexIterator;
 use polars::prelude::{DataFrame, NamedFrom, Series};
 
@@ -14,7 +15,6 @@ use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions,
 };
 use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
-use h3cellstore::frame::H3DataFrame;
 
 const MAX_H3_RES: u8 = 5;
 
@@ -41,7 +41,7 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
     Ok(schema)
 }
 
-fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame> {
+fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame<H3Cell>> {
     let mut index_series = Series::from_index_iter(
         H3Cell::from_coordinate(center, MAX_H3_RES)?
             .grid_disk(10)?
@@ -121,7 +121,7 @@ async fn main() -> eyre::Result<()> {
             ),
         )
         .await?;
-    assert_eq!(queried_df.dataframe.shape().0, 7);
+    assert_eq!(queried_df.dataframe().shape().0, 7);
 
     client.drop_tableset(&play_db, "okavango_delta").await?;
     assert!(!client

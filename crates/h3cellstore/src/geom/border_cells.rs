@@ -103,7 +103,7 @@ fn cell_radius(cell: H3Cell) -> Result<f64, Error> {
 #[cfg(test)]
 mod tests {
     use crate::geom::border_cells;
-    use geo_types::{Geometry, Rect};
+    use geo_types::Rect;
     use h3ron::collections::HashSet;
     use h3ron::ToH3Cells;
 
@@ -120,7 +120,7 @@ mod tests {
         // write geojson for visual inspection
         /*
         {
-            use geo_types::{GeometryCollection, Point};
+            use geo_types::{GeometryCollection, Point, Geometry};
             use h3ron::{ToCoordinate, ToPolygon};
             let mut geoms: Vec<Geometry> = vec![rect.into()];
             for bc in border.iter() {
