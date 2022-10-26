@@ -925,21 +925,24 @@ dependencies = [
 
 [[package]]
 name = "h3ron"
-version = "0.15.1"
-source = "git+https://github.com/nmandery/h3ron.git?rev=4f5b830#4f5b830ef82cd0f312b130c3a2a2392ad810df5d"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d71b40c852263f760233f189e324930e1672276f1c91fe079bd9fd58e590600"
 dependencies = [
  "ahash 0.8.0",
  "geo",
  "geo-types",
  "h3ron-h3-sys",
  "hashbrown",
+ "indexmap",
  "thiserror",
 ]
 
 [[package]]
 name = "h3ron-h3-sys"
-version = "0.15.1"
-source = "git+https://github.com/nmandery/h3ron.git?rev=4f5b830#4f5b830ef82cd0f312b130c3a2a2392ad810df5d"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08c039f9d6d4fc8b77f31739cd5290a70476888f9b57375395d75b9cf1c49f10"
 dependencies = [
  "cc",
  "geo-types",
@@ -950,7 +953,8 @@ dependencies = [
 [[package]]
 name = "h3ron-polars"
 version = "0.1.0"
-source = "git+https://github.com/nmandery/h3ron.git?rev=4f5b830#4f5b830ef82cd0f312b130c3a2a2392ad810df5d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e73ffcf5deb793249a10c653e39c8d6c6e590ae289870e4ce638078cae70ff43"
 dependencies = [
  "geo",
  "geo-types",

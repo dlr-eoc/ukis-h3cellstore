@@ -92,7 +92,7 @@ where
         } else {
             let frames_by_resolution = spawn_blocking(move || {
                 h3df.h3_compact_dataframe(true)
-                    .and_then(|compacted| compacted.h3_split_by_resolution())
+                    .and_then(|compacted| compacted.h3_partition_by_resolution())
             })
             .await??;
 
