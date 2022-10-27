@@ -20,4 +20,4 @@ clickhouse:
         -v $PWD/dev/clickhouse-server/config.xml:/etc/clickhouse-server/config.xml \
         -p 9100:9100 \
         -p 8123:8123 \
-        clickhouse/clickhouse-server:22.4
+        clickhouse/clickhouse-server:22.8
