@@ -94,19 +94,19 @@ spec:
           
           echo "---- clickhouse_arrow_grpc ---------------------------------------"
           pushd crates/clickhouse_arrow_grpc
-          cargo clippy --all-targets --no-deps
+          #cargo clippy --all-targets --no-deps
           cargo test --all-targets # runs test example
           popd
           
           echo "---- h3cellstore ----------------------------------------------"
           pushd crates/h3cellstore
-          cargo clippy --all-targets --no-deps
+          #cargo clippy --all-targets --no-deps
           cargo test --all-targets
           popd
           
           echo "---- h3cellstorepy ----------------------------------------------"
           pushd crates/h3cellstorepy
-          cargo clippy --all-targets --no-deps
+          #cargo clippy --all-targets --no-deps
           cargo test --no-default-features
           python3 -m venv venv
           . venv/bin/activate
