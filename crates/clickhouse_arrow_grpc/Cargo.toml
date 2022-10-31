@@ -16,8 +16,8 @@ tls = ["tonic/tls"]
 arrow2 = { version = "0.14", features = [ "io_ipc" ]}
 async-trait = "0.1"
 chrono = "0.4"
-polars-core = "0.24"
-polars = { version = "0.24", features = ["dtype-full", "timezones"] }
+polars-core = "0.25"
+polars = { version = "0.25", features = ["dtype-full", "timezones"] }
 prost = "0.11"
 thiserror = "1"
 tokio = "1"
