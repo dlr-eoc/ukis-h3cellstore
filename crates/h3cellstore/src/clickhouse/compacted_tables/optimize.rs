@@ -38,9 +38,7 @@ where
 
             // obtain the list of relevant partitions which did receive changes by running
             // the partition expression on the temporary table.
-            let mut partitions: Vec<String> = vec![];
-            #[allow(clippy::manual_flatten)]
-            for pe in store
+            let partitions: Vec<_> = store
                 .execute_into_dataframe(QueryInfo {
                     query: format!(
                         "select distinct toString(({})) pe from {}",
@@ -53,11 +51,9 @@ where
                 .column("pe")?
                 .utf8()?
                 .into_iter()
-            {
-                if let Some(partition) = pe {
-                    partitions.push(partition.to_string());
-                }
-            }
+                .flatten()
+                .map(|p| p.to_string())
+                .collect();
 
             let table_final = schema
                 .build_table(resolution_metadata, &None)
