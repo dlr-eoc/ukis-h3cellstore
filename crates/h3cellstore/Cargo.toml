@@ -9,7 +9,7 @@ authors = [
 
 [features]
 serde_arrow = ["use_serde"]
-simd = ["clickhouse_arrow_grpc/simd"]
+#simd = ["clickhouse_arrow_grpc/simd"]
 tls = ["clickhouse_arrow_grpc/tls"]
 use_serde = ["dep:serde"]  # rust 1.60: calling this feature just 'serde' does not lead to inclusion of the serde crate when activated
 sync = ["tokio/rt-multi-thread", "tokio/macros", "tokio/sync"]

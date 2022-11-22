@@ -67,8 +67,10 @@ impl ClickhouseArrowCast {
                         .downcast_ref::<PrimitiveArray<u32>>()
                         .expect("Ch datetime expected to be u32"),
                     |v| {
-                        chrono::NaiveDate::from_ymd(1970, 1, 1)
-                            .and_hms(0, 0, 0)
+                        chrono::NaiveDate::from_ymd_opt(1970, 1, 1)
+                            .expect("out of range date")
+                            .and_hms_opt(0, 0, 0)
+                            .expect("out of range datetime")
                             .add(chrono::Duration::seconds(v as i64))
                             .timestamp()
                     },

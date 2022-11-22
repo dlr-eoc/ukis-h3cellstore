@@ -52,7 +52,7 @@ where
                 .utf8()?
                 .into_iter()
                 .flatten()
-                .map(|p| p.to_string())
+                .map(str::to_string)
                 .collect();
 
             let table_final = schema

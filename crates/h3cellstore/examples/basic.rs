@@ -89,18 +89,18 @@ async fn main() -> eyre::Result<()> {
         .await?;
 
     let schema = okavango_delta_schema()?;
-    client.drop_tableset(&play_db, &schema.name).await?;
+    client.drop_tableset(play_db, &schema.name).await?;
     //return Ok(());
-    client.create_tableset(&play_db, &schema).await?;
+    client.create_tableset(play_db, &schema).await?;
 
-    let tablesets = client.list_tablesets(&play_db).await?;
+    let tablesets = client.list_tablesets(play_db).await?;
     assert!(tablesets.contains_key(&schema.name));
 
     let h3df = make_h3dataframe(center)?;
 
     client
         .insert_h3dataframe_into_tableset(
-            &play_db,
+            play_db,
             &schema,
             h3df,
             InsertOptions {
@@ -112,7 +112,7 @@ async fn main() -> eyre::Result<()> {
 
     let queried_df = client
         .query_tableset_cells(
-            &play_db,
+            play_db,
             &schema.name,
             QueryOptions::new(
                 Default::default(),
@@ -123,9 +123,9 @@ async fn main() -> eyre::Result<()> {
         .await?;
     assert_eq!(queried_df.dataframe().shape().0, 7);
 
-    client.drop_tableset(&play_db, "okavango_delta").await?;
+    client.drop_tableset(play_db, "okavango_delta").await?;
     assert!(!client
-        .list_tablesets(&play_db)
+        .list_tablesets(play_db)
         .await?
         .contains_key("okavango_delta"));
 
