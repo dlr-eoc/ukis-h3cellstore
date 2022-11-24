@@ -239,7 +239,7 @@ impl PyCompactedTableSchemaBuilder {
 
         let unit_string = cap
             .get(3)
-            .map(|s| s.as_str().to_string().to_lowercase())
+            .map(|s| s.as_str().to_lowercase())
             .unwrap_or_else(|| "".to_string());
         self.temporal_partitioning = Some(match unit_string.as_str() {
             "month" | "months" => {
