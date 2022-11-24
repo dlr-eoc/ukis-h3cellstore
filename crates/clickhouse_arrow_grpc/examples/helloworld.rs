@@ -100,19 +100,27 @@ fn make_dataframe(df_len: usize) -> eyre::Result<DataFrame> {
         Series::new(
             "c_datetime64",
             (0..df_len)
-                .map(|v| NaiveDateTime::from_timestamp((v as i64).pow(2), 0))
+                .map(|v| {
+                    NaiveDateTime::from_timestamp_opt((v as i64).pow(2), 0)
+                        .expect("invalid timestamp")
+                })
                 .collect::<Vec<_>>(),
         ),
         Series::new(
             "c_date",
             (0..df_len)
-                .map(|_| NaiveDate::from_ymd(2000, 5, 23))
+                .map(|_| NaiveDate::from_ymd_opt(2000, 5, 23).expect("invalid date"))
                 .collect::<Vec<_>>(),
         ),
         Series::new(
             "c_datetime",
             (0..df_len)
-                .map(|_| NaiveDate::from_ymd(2000, 5, 23).and_hms(12, 13, 14))
+                .map(|_| {
+                    NaiveDate::from_ymd_opt(2000, 5, 23)
+                        .expect("invalid date")
+                        .and_hms_opt(12, 13, 14)
+                        .expect("invalid datetime")
+                })
                 .collect::<Vec<_>>(),
         ),
         Series::new("b", (0..df_len).map(|v| v % 2 == 0).collect::<Vec<_>>()),

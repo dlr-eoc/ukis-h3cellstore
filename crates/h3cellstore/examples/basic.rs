@@ -1,5 +1,5 @@
 use chrono::Local;
-use geo_types::Coordinate;
+use geo_types::Coord;
 use h3ron::H3Cell;
 use h3ron_polars::frame::H3DataFrame;
 use h3ron_polars::FromIndexIterator;
@@ -73,7 +73,7 @@ async fn main() -> eyre::Result<()> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 
-    let center = Coordinate::from((22.8996, -19.3325));
+    let center = Coord::from((22.8996, -19.3325));
 
     let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
         .await?
