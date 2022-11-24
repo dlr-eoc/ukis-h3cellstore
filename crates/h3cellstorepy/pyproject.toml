@@ -1,6 +1,7 @@
 [build-system]
 requires = [
-    "maturin==0.12",
+    "maturin==0.14",
+    "patchelf>=0.17",
     "pytest==7.1",
     "polars", # unittests
     "pandas",  # unittests
@@ -19,4 +20,13 @@ addopts = "--doctest-modules"
 testpaths = [
     "h3cellstorepy",
     "tests"
+]
+
+[project]
+name = "h3cellstorepy"
+dependencies = [
+    "h3>=3.7.4",
+    "geojson",
+    "numpy",
+    "pyarrow>=7.0.0"
 ]

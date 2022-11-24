@@ -30,10 +30,3 @@ tokio = { version = "^1", default-features = false, features = [ "io-util", "tim
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [ "env-filter", ] }
 
-[package.metadata.maturin]
-requires-dist = [
-    "h3>=3.7.4",
-    "geojson",
-    "numpy",
-    "pyarrow>=7.0.0"
-]
