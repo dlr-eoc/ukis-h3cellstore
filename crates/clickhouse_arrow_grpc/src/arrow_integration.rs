@@ -82,7 +82,7 @@ impl ClickhouseArrowCast {
         }
     }
 
-    fn ouptut_datatype(&self) -> &DataType {
+    fn output_datatype(&self) -> &DataType {
         match self {
             ClickhouseArrowCast::Simple(dt) => dt,
             ClickhouseArrowCast::DateTimeFromChDate => &DataType::Date32,
@@ -149,13 +149,13 @@ impl TryInto<DataFrame> for super::api::Result {
                     ("Date", DataType::UInt16) => {
                         let mut new_field = (*schema_field).clone();
                         let cast_to_perform = ClickhouseArrowCast::DateTimeFromChDate;
-                        new_field.data_type = cast_to_perform.ouptut_datatype().clone();
+                        new_field.data_type = cast_to_perform.output_datatype().clone();
                         (new_field, Some(cast_to_perform))
                     }
                     ("DateTime", DataType::UInt32) => {
                         let mut new_field = (*schema_field).clone();
                         let cast_to_perform = ClickhouseArrowCast::DateTimeFromChDateTime;
-                        new_field.data_type = cast_to_perform.ouptut_datatype().clone();
+                        new_field.data_type = cast_to_perform.output_datatype().clone();
                         (new_field, Some(cast_to_perform))
                     }
                     _ => ((*schema_field).clone(), None),
