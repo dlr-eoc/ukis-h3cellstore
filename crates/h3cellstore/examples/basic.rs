@@ -18,7 +18,7 @@ use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClien
 
 const MAX_H3_RES: u8 = 5;
 
-fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
+fn okavango_delta_schema() -> anyhow::Result<CompactedTableSchema> {
     let schema = CompactedTableSchemaBuilder::new("okavango_delta")
         .h3_base_resolutions((0..=MAX_H3_RES).collect())
         .temporal_partitioning(TemporalPartitioning::Months(1))
@@ -41,7 +41,7 @@ fn okavango_delta_schema() -> eyre::Result<CompactedTableSchema> {
     Ok(schema)
 }
 
-fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame<H3Cell>> {
+fn make_h3dataframe(center: Coord<f64>) -> anyhow::Result<H3DataFrame<H3Cell>> {
     let mut index_series = Series::from_index_iter(
         H3Cell::from_coordinate(center, MAX_H3_RES)?
             .grid_disk(10)?
@@ -69,7 +69,7 @@ fn make_h3dataframe(center: Coordinate<f64>) -> eyre::Result<H3DataFrame<H3Cell>
 }
 
 #[tokio::main]
-async fn main() -> eyre::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 

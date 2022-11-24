@@ -28,8 +28,8 @@ tracing = "0.1"
 tonic-build = { version = "0.8", features = [] }
 
 [dev-dependencies]
+anyhow = "1"
 chrono = "0.4"
-eyre = "0.6"
 tokio = { version = "1.12", features = [ "rt-multi-thread", "macros", "sync" ] }
 tracing-subscriber = "0.3"
 

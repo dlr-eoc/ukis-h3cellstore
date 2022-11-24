@@ -6,7 +6,7 @@ use tonic::codec::CompressionEncoding;
 use clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
 
 #[tokio::main]
-async fn main() -> eyre::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 
@@ -84,7 +84,7 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
-fn make_dataframe(df_len: usize) -> eyre::Result<DataFrame> {
+fn make_dataframe(df_len: usize) -> anyhow::Result<DataFrame> {
     let test_df = DataFrame::new(vec![
         Series::new("v1", (0..df_len).map(|v| v as u64).collect::<Vec<_>>()),
         Series::new(

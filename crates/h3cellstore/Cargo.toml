@@ -39,7 +39,7 @@ tracing = "0.1"
 
 
 [dev-dependencies]
-eyre = "0.6"
+anyhow = "1"
 geojson = { version = "0.24", features = ["geo-types"] }
 serde_json = "1"
 tokio = { version = "1.12", features = ["rt-multi-thread", "macros", "sync"] }
