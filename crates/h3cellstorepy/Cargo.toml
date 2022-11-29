@@ -18,7 +18,7 @@ crate-type = ["cdylib"]
 [dependencies]
 futures = "0.3"
 geo-types = "0.7"
-h3cellstore = { path = "../h3cellstore", features = [ "tls", "use_serde" ] }
+h3cellstore = { path = "../h3cellstore", features = [ "tls", "use_serde", "border_cells" ] }
 numpy = "0.17"
 once_cell = "1"
 polars-core = "0.25"

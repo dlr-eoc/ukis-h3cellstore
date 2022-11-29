@@ -13,11 +13,12 @@ serde_arrow = ["use_serde"]
 tls = ["clickhouse_arrow_grpc/tls"]
 use_serde = ["dep:serde"]  # rust 1.60: calling this feature just 'serde' does not lead to inclusion of the serde crate when activated
 sync = ["tokio/rt-multi-thread", "tokio/macros", "tokio/sync"]
+border_cells = ["dep:cavalier_contours", "dep:ordered-float"]
 
 
 [dependencies]
 async-trait = "0.1"
-cavalier_contours = "0.2"
+cavalier_contours = { version = "0.2", optional = true }
 chrono = "0.4"
 clickhouse_arrow_grpc = { path = "../clickhouse_arrow_grpc" }
 futures = "0.3"
@@ -27,7 +28,7 @@ h3ron = "0.16"
 h3ron-polars = "0.2"
 itertools = "0.10"
 once_cell = "1"
-ordered-float = "3"
+ordered-float = { version = "3", optional = true}
 polars = { version = "0.25", features = ["dtype-full", "lazy", "timezones"] }
 postage = "0.5"
 rand = "0.8"
