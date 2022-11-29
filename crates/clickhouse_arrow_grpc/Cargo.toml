@@ -9,7 +9,7 @@ authors = [
 
 
 [features]
-simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
+# simd = ["polars/simd", "polars-core/simd", "arrow2/simd"]
 tls = ["tonic/tls"]
 
 [dependencies]
