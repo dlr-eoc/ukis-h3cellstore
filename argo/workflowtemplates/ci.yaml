@@ -35,7 +35,7 @@ spec:
             path: /tmp/python-packages
       sidecars:
         - name: clickhouse
-          image: eoc-gzs-db01-vm.eoc.dlr.de:4002/gzs-clickhouse-server:22.8
+          image: eoc-gzs-db01-vm.eoc.dlr.de:4002/gzs-clickhouse-server:22.11
           command:
             - /entrypoint.sh
           # TODO: securitycontext. reducing the required permissions probably requires a patched image :(
