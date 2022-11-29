@@ -25,8 +25,22 @@ impl SyncBridge {
         DBN: AsRef<str>,
     {
         let rt = Arc::new(build_runtime()?);
+        Self::connect_grpc_with_runtime(rt, endpoint, database_name)
+    }
+
+    ///
+    /// The `runtime` should be a multithreaded variant
+    pub fn connect_grpc_with_runtime<EP, DBN>(
+        runtime: Arc<Runtime>,
+        endpoint: EP,
+        database_name: DBN,
+    ) -> Result<Self, Error>
+    where
+        EP: AsRef<str>,
+        DBN: AsRef<str>,
+    {
         let endpoint_string = endpoint.as_ref().to_string();
-        let mut client = rt.block_on(async {
+        let mut client = runtime.block_on(async {
             ClickHouseClient::connect(endpoint_string)
                 .await
                 .map(|client| {
@@ -37,12 +51,12 @@ impl SyncBridge {
         })?;
 
         let database_name = database_name.as_ref().to_string();
-        if !rt.block_on(async { client.database_exists(&database_name).await })? {
+        if !runtime.block_on(async { client.database_exists(&database_name).await })? {
             return Err(Error::DatabaseNotFound(database_name));
         }
 
         Ok(Self {
-            rt,
+            rt: runtime,
             database_name,
             client,
         })
