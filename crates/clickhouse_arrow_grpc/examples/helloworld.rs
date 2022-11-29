@@ -25,7 +25,8 @@ async fn main() -> anyhow::Result<()> {
                 cast(now() as DateTime) as ts_datetime,
                 toDateTime(now(), 'Asia/Istanbul') AS ts_datetime_tz,
                 cast(now() as Date) as ts_date,
-                cast(now() as DateTime64) as ts64
+                cast(now() as DateTime64) as ts64,
+                cast(1 as UInt8) as some_u8
             from tables"#
                 .to_string(),
             database: "system".to_string(),
