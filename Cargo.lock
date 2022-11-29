@@ -879,7 +879,7 @@ dependencies = [
 
 [[package]]
 name = "h3cellstore"
-version = "0.12.1"
+version = "0.12.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "h3cellstorepy"
-version = "0.11.1"
+version = "0.11.2"
 dependencies = [
  "futures",
  "geo-types",
