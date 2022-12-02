@@ -2,7 +2,7 @@ use tracing::error;
 
 use h3ron::collections::{HashMap, HashSet};
 use h3ron::iter::change_resolution;
-use h3ron::{H3Cell, Index, H3_MIN_RESOLUTION};
+use h3ron::{H3Cell, Index};
 
 use crate::clickhouse::compacted_tables::{Table, TableSet, TableSpec, COL_NAME_H3INDEX};
 use crate::Error;
@@ -142,28 +142,19 @@ impl BuildCellQueryString for TableSetQuery {
                             .replace("<[h3indexes]>", query_h3indexesarray_string),
                     }
                 };
-            for r in H3_MIN_RESOLUTION..=h3_resolution {
-                if let Some(query_h3indexes) = queryable_h3indexes.get(&r) {
+            for table in tableset.tables_to_satisfy_query_at_resolution(h3_resolution)? {
+                if let Some(query_h3indexes) = queryable_h3indexes.get(&table.spec.h3_resolution) {
                     let query_h3indexesarray_string = format!(
                         "[{}]",
                         itertools::join(query_h3indexes.iter().map(|hi| hi.to_string()), ",",)
                     );
-
-                    if r == h3_resolution {
-                        query_string_parts.push(build_query_string_part(
-                            r,
-                            false,
-                            query_h3indexesarray_string.as_str(),
-                        ));
-                    }
                     query_string_parts.push(build_query_string_part(
-                        r,
-                        true,
+                        table.spec.h3_resolution,
+                        table.spec.is_compacted,
                         query_h3indexesarray_string.as_str(),
                     ));
                 }
             }
-
             itertools::join(query_string_parts.iter(), " union all ")
         };
         Ok(query_string)

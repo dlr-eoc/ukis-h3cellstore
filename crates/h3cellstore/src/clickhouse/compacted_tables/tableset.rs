@@ -80,6 +80,13 @@ impl<'a> Table<'a> {
             }
         )
     }
+
+    fn from_tablespec(basename: &'a str, spec: &TableSpec) -> Self {
+        Self {
+            basename: basename.into(),
+            spec: spec.clone(),
+        }
+    }
 }
 
 impl<'a> ToString for Table<'a> {
@@ -119,27 +126,17 @@ impl TableSet {
     }
 
     pub fn compacted_tables(&self) -> Vec<Table> {
-        let mut tables = Vec::new();
-        for (_, table_spec) in self.compacted_tables.iter() {
-            let t = Table {
-                basename: self.basename.as_str().into(),
-                spec: table_spec.clone(),
-            };
-            tables.push(t);
-        }
-        tables
+        self.compacted_tables
+            .iter()
+            .map(|(_, table_spec)| Table::from_tablespec(&self.basename, table_spec))
+            .collect()
     }
 
     pub fn base_tables(&self) -> Vec<Table> {
-        let mut tables = Vec::new();
-        for (_, table_spec) in self.base_tables.iter() {
-            let t = Table {
-                basename: self.basename.as_str().into(),
-                spec: table_spec.clone(),
-            };
-            tables.push(t);
-        }
-        tables
+        self.base_tables
+            .iter()
+            .map(|(_, table_spec)| Table::from_tablespec(&self.basename, table_spec))
+            .collect()
     }
 
     pub fn tables(&self) -> Vec<Table> {
@@ -150,6 +147,26 @@ impl TableSet {
 
     pub fn num_tables(&self) -> usize {
         self.base_tables.len() + self.compacted_tables.len()
+    }
+
+    /// tables to fetch to satisfy a query for the data at `h3_resolution`
+    pub fn tables_to_satisfy_query_at_resolution(
+        &self,
+        h3_resolution: u8,
+    ) -> Result<Vec<Table>, Error> {
+        let mut tables: Vec<_> = self
+            .compacted_tables
+            .iter()
+            .filter(|(k, _)| **k <= h3_resolution)
+            .map(|(_, ts)| Table::from_tablespec(&self.basename, ts))
+            .collect();
+        tables.push(
+            self.base_tables
+                .get(&h3_resolution)
+                .ok_or(Error::UnsupportedH3Resolution(h3_resolution))
+                .map(|ts| Table::from_tablespec(&self.basename, ts))?,
+        );
+        Ok(tables)
     }
 }
 
