@@ -82,7 +82,7 @@ impl BuildCellQueryString for TableSetQuery {
                 "Resolution {} is not a part of the base tables of tableset {}",
                 h3_resolution, tableset.basename
             );
-            return Err(Error::NoQueryableTables);
+            return Err(Error::UnsupportedH3Resolution(h3_resolution));
         }
         if h3cells.is_empty() {
             return Err(Error::EmptyCells);
