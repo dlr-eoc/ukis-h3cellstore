@@ -155,7 +155,7 @@ impl CompactedTableSchema {
         temporary_key: &Option<TemporaryKey>,
     ) -> Table {
         Table {
-            basename: self.name.clone(),
+            basename: self.name.as_str().into(),
             spec: TableSpec {
                 h3_resolution: resolution_metadata.h3_resolution,
                 is_compacted: resolution_metadata.is_compacted,

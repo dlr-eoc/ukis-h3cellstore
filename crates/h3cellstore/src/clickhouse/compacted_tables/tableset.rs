@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::borrow::Cow;
 
 use h3ron::collections::HashMap;
 
@@ -28,8 +29,8 @@ impl TableSpec {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Table {
-    pub basename: String,
+pub struct Table<'a> {
+    pub basename: Cow<'a, str>,
     pub spec: TableSpec,
 }
 
@@ -38,11 +39,11 @@ static RE_TABLE: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-impl Table {
+impl<'a> Table<'a> {
     /// TODO: this should return an error? at least no unwrapping would be nice
-    pub fn parse(full_table_name: &str) -> Option<Table> {
+    pub fn parse(full_table_name: &str) -> Option<Self> {
         RE_TABLE.captures(full_table_name).map(|captures| Table {
-            basename: captures[1].to_string(),
+            basename: captures[1].to_string().into(),
             spec: TableSpec {
                 h3_resolution: captures[2].parse().unwrap(),
                 is_compacted: if let Some(suffix) = captures.get(4) {
@@ -81,7 +82,7 @@ impl Table {
     }
 }
 
-impl ToString for Table {
+impl<'a> ToString for Table<'a> {
     fn to_string(&self) -> String {
         self.to_table_name()
     }
@@ -106,14 +107,14 @@ impl TableSet {
     }
 
     pub fn base_resolutions(&self) -> Vec<u8> {
-        self.base_tables.keys().sorted_unstable().cloned().collect()
+        self.base_tables.keys().sorted_unstable().copied().collect()
     }
 
     pub fn compacted_resolutions(&self) -> Vec<u8> {
         self.compacted_tables
             .keys()
             .sorted_unstable()
-            .cloned()
+            .copied()
             .collect()
     }
 
@@ -121,7 +122,7 @@ impl TableSet {
         let mut tables = Vec::new();
         for (_, table_spec) in self.compacted_tables.iter() {
             let t = Table {
-                basename: self.basename.clone(),
+                basename: self.basename.as_str().into(),
                 spec: table_spec.clone(),
             };
             tables.push(t);
@@ -133,7 +134,7 @@ impl TableSet {
         let mut tables = Vec::new();
         for (_, table_spec) in self.base_tables.iter() {
             let t = Table {
-                basename: self.basename.clone(),
+                basename: self.basename.as_str().into(),
                 spec: table_spec.clone(),
             };
             tables.push(t);
@@ -233,7 +234,7 @@ mod tests {
     #[test]
     fn test_table_to_name() {
         let mut table = Table {
-            basename: "some_table".to_string(),
+            basename: "some_table".into(),
             spec: TableSpec {
                 h3_resolution: 5,
                 is_compacted: false,
@@ -253,7 +254,7 @@ mod tests {
         let table = Table::parse("some_ta78ble_05_base");
         assert!(table.is_some());
         let table_u = table.unwrap();
-        assert_eq!(table_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table_u.basename.as_ref(), "some_ta78ble");
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert!(!table_u.spec.is_compacted);
         assert!(!table_u.spec.is_temporary());
@@ -264,7 +265,7 @@ mod tests {
         let table = Table::parse("some_ta78ble_05");
         assert!(table.is_some());
         let table_u = table.unwrap();
-        assert_eq!(table_u.basename, "some_ta78ble".to_string());
+        assert_eq!(table_u.basename.as_ref(), "some_ta78ble");
         assert_eq!(table_u.spec.h3_resolution, 5_u8);
         assert!(!table_u.spec.is_compacted);
         assert!(!table_u.spec.is_temporary());
@@ -274,7 +275,7 @@ mod tests {
     fn test_table_from_name_temporary_temporarykey() {
         let temporary_key = TemporaryKey::new();
         let table = Table {
-            basename: "some_table".to_string(),
+            basename: "some_table".into(),
             spec: TableSpec {
                 h3_resolution: 5,
                 is_compacted: false,

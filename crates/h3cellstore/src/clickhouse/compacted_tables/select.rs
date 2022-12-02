@@ -110,7 +110,7 @@ impl BuildCellQueryString for TableSetQuery {
             let build_query_string_part =
                 |h3_resolution: u8, is_compacted: bool, query_h3indexesarray_string: &str| {
                     let tablename = Table {
-                        basename: tableset.basename.clone(),
+                        basename: tableset.basename.as_str().into(),
                         spec: TableSpec {
                             h3_resolution,
                             is_compacted,
