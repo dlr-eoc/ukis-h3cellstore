@@ -150,9 +150,8 @@ impl TraversalArea {
                 cells
             }
             TraversalArea::H3Cells(cells) => {
-                let cells: Vec<_> = change_resolution(cells.as_slice(), traversal_resolution)
-                    .collect::<Result<Vec<_>, _>>()?;
-                cells
+                change_resolution(cells.as_slice(), traversal_resolution)
+                    .collect::<Result<Vec<_>, _>>()?
             }
         };
 
