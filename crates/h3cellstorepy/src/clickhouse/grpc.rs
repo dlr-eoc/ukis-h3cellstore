@@ -8,9 +8,7 @@ use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions, TableSetQuery,
 };
 use h3cellstore::clickhouse::H3CellStore;
-use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
-use h3cellstore::export::clickhouse_arrow_grpc::export::tonic::transport::Channel;
-use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
+use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, Client, QueryInfo};
 use h3cellstore::export::h3ron_polars::frame::H3DataFrame;
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::{PyIOError, PyRuntimeError};
@@ -79,7 +77,7 @@ fn obtain_runtime() -> PyResult<Arc<Runtime>> {
 pub struct GRPCConnection {
     pub(crate) database_name: String,
     pub(crate) runtime: Arc<Runtime>,
-    pub(crate) client: ClickHouseClient<Channel>,
+    pub(crate) client: Client,
 }
 
 #[pymethods]
@@ -348,12 +346,8 @@ async fn connect(
     grpc_endpoint: String,
     database_name: String,
     create_db: bool,
-) -> PyResult<ClickHouseClient<Channel>> {
-    let mut client = ClickHouseClient::connect(grpc_endpoint)
-        .await
-        .into_pyresult()?
-        .accept_compressed(CompressionEncoding::Gzip)
-        .send_compressed(CompressionEncoding::Gzip);
+) -> PyResult<Client> {
+    let mut client = Client::connect(grpc_endpoint).await.into_pyresult()?;
 
     if create_db {
         client

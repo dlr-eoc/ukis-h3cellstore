@@ -1,19 +1,15 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use polars::prelude::{DataFrame, NamedFrom};
 use polars::series::Series;
-use tonic::codec::CompressionEncoding;
 
-use clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
+use clickhouse_arrow_grpc::{ArrowInterface, Client, QueryInfo};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // install global collector configured based on RUST_LOG env var.
     tracing_subscriber::fmt::init();
 
-    let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
-        .await?
-        .send_compressed(CompressionEncoding::Gzip)
-        .accept_compressed(CompressionEncoding::Gzip);
+    let mut client = Client::connect("http://127.0.0.1:9100").await?;
 
     // query
     let df = client

@@ -5,7 +5,6 @@ use h3ron_polars::frame::H3DataFrame;
 use h3ron_polars::FromIndexIterator;
 use polars::prelude::{DataFrame, NamedFrom, Series};
 
-use clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use h3cellstore::clickhouse::compacted_tables::schema::{
     AggregationMethod, ClickhouseDataType, ColumnDefinition, CompactedTableSchema,
     CompactedTableSchemaBuilder, SimpleColumn, TemporalPartitioning,
@@ -14,7 +13,7 @@ use h3cellstore::clickhouse::compacted_tables::COL_NAME_H3INDEX;
 use h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions,
 };
-use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, ClickHouseClient, QueryInfo};
+use h3cellstore::export::clickhouse_arrow_grpc::{ArrowInterface, Client, QueryInfo};
 
 const MAX_H3_RES: u8 = 5;
 
@@ -75,10 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     let center = Coord::from((22.8996, -19.3325));
 
-    let mut client = ClickHouseClient::connect("http://127.0.0.1:9100")
-        .await?
-        .send_compressed(CompressionEncoding::Gzip)
-        .accept_compressed(CompressionEncoding::Gzip);
+    let mut client = Client::connect("http://127.0.0.1:9100").await?;
 
     let play_db = "play";
     client
