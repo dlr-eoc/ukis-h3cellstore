@@ -3,10 +3,8 @@ use crate::clickhouse::compacted_tables::traversal::{
 };
 use crate::clickhouse::H3CellStore;
 use crate::Error;
-use clickhouse_arrow_grpc::export::tonic::codec::CompressionEncoding;
 use clickhouse_arrow_grpc::export::tonic::codegen::futures_core::Stream;
-use clickhouse_arrow_grpc::export::tonic::transport::Channel;
-use clickhouse_arrow_grpc::ClickHouseClient;
+use clickhouse_arrow_grpc::Client;
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -15,7 +13,7 @@ use tokio::runtime::Runtime;
 pub struct SyncBridge {
     rt: Arc<Runtime>,
     database_name: String,
-    client: ClickHouseClient<Channel>,
+    client: Client,
 }
 
 impl SyncBridge {
@@ -40,15 +38,7 @@ impl SyncBridge {
         DBN: AsRef<str>,
     {
         let endpoint_string = endpoint.as_ref().to_string();
-        let mut client = runtime.block_on(async {
-            ClickHouseClient::connect(endpoint_string)
-                .await
-                .map(|client| {
-                    client
-                        .accept_compressed(CompressionEncoding::Gzip)
-                        .send_compressed(CompressionEncoding::Gzip)
-                })
-        })?;
+        let mut client = runtime.block_on(async { Client::connect(endpoint_string).await })?;
 
         let database_name = database_name.as_ref().to_string();
         if !runtime.block_on(async { client.database_exists(&database_name).await })? {

@@ -1,5 +1,4 @@
-use clickhouse_arrow_grpc::export::tonic::transport::Channel;
-use clickhouse_arrow_grpc::ClickHouseClient;
+use clickhouse_arrow_grpc::Client;
 use futures::Stream;
 use geo_types::Geometry;
 use h3ron::collections::{H3CellSet, RandomState};
@@ -207,7 +206,7 @@ impl Stream for Traverser {
 }
 
 pub async fn traverse(
-    client: &mut ClickHouseClient<Channel>,
+    client: &mut Client,
     database_name: String,
     tableset_name: String,
     area: &TraversalArea,
@@ -234,7 +233,7 @@ pub async fn traverse(
 }
 
 async fn traverse_inner(
-    client: &mut ClickHouseClient<Channel>,
+    client: &mut Client,
     database_name: String,
     tableset: TableSet,
     traversal_cells: Vec<H3Cell>,
@@ -329,7 +328,7 @@ async fn traverse_inner(
 
 #[derive(Clone)]
 struct WorkerContext {
-    client: ClickHouseClient<Channel>,
+    client: Client,
     database_name: String,
     tableset: TableSet,
 }
