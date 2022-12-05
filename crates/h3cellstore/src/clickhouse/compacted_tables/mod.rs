@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::default::Default;
 
 use async_trait::async_trait;
@@ -9,6 +10,8 @@ use h3ron::collections::{H3CellSet, HashMap};
 use h3ron::iter::change_resolution;
 use h3ron::{H3Cell, Index};
 use h3ron_polars::frame::H3DataFrame;
+use itertools::join;
+use polars::prelude::{DataFrame, NamedFrom, Series};
 pub use tableset::{Table, TableSet, TableSpec};
 
 pub use crate::clickhouse::compacted_tables::insert::InsertOptions;
@@ -111,6 +114,17 @@ pub trait CompactedTablesStore {
         tableset: TS,
         query_options: QueryOptions,
     ) -> Result<H3DataFrame<H3Cell>, Error>
+    where
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync;
+
+    /// get stats about the number of cells and compacted cells in all the
+    /// resolutions of the tableset
+    async fn tableset_stats<S, TS>(
+        &mut self,
+        database_name: S,
+        tableset: TS,
+    ) -> Result<DataFrame, Error>
     where
         S: AsRef<str> + Send + Sync,
         TS: LoadTableSet + Send + Sync;
@@ -363,6 +377,83 @@ where
         };
         Ok(out_h3df)
     }
+
+    async fn tableset_stats<S, TS>(
+        &mut self,
+        database_name: S,
+        tableset: TS,
+    ) -> Result<DataFrame, Error>
+    where
+        S: AsRef<str> + Send + Sync,
+        TS: LoadTableSet + Send + Sync,
+    {
+        let tableset = tableset
+            .load_tableset_from_store(self, database_name.as_ref())
+            .await?;
+
+        let compacted_counts = {
+            let df = self
+                .execute_into_dataframe(compacted_counts_stmt(&tableset, database_name.as_ref()))
+                .await?;
+
+            let cc: Vec<_> = df
+                .column("r")?
+                .u8()?
+                .into_iter()
+                .zip(df.column("num_cells_stored_compacted")?.u64()?.into_iter())
+                .map(|(r, count)| (r.unwrap(), count.unwrap()))
+                .collect();
+            cc
+        };
+
+        let mut df = self
+            .execute_into_dataframe(uncompacted_counts_stmt(&tableset, database_name.as_ref()))
+            .await?;
+
+        let mut num_cells_stored_compacted = Vec::with_capacity(df.shape().0);
+        let mut num_cells = Vec::with_capacity(df.shape().0);
+        let mut num_cells_stored_at_resolution = Vec::with_capacity(df.shape().0);
+        for (r, n_uncompacted) in df.column("resolution")?.u8()?.into_iter().zip(
+            df.column("num_cells_stored_at_resolution")?
+                .u64()?
+                .into_iter(),
+        ) {
+            let r = r.unwrap();
+            let n_uncompacted = n_uncompacted.unwrap();
+
+            let mut n_stored_compacted = 0u64;
+            let mut n_cells_at_resolution = n_uncompacted;
+            let mut n_cells = n_uncompacted;
+            for (r_c, c_c) in compacted_counts.iter() {
+                match r_c.cmp(&r) {
+                    Ordering::Less => {
+                        n_stored_compacted += c_c;
+                        n_cells += c_c * 7u64.pow((r - r_c) as u32);
+                    }
+                    Ordering::Equal => {
+                        n_cells_at_resolution += c_c;
+                        n_cells += c_c;
+                    }
+                    Ordering::Greater => (),
+                }
+            }
+            num_cells_stored_compacted.push(n_stored_compacted);
+            num_cells.push(n_cells);
+            num_cells_stored_at_resolution.push(n_cells_at_resolution);
+        }
+
+        df.with_column(Series::new(
+            "num_cells_stored_compacted",
+            num_cells_stored_compacted,
+        ))?;
+        df.with_column(Series::new("num_cells", num_cells))?;
+        df.with_column(Series::new(
+            "num_cells_stored_at_resolution",
+            num_cells_stored_at_resolution,
+        ))?;
+        df.sort_in_place(["resolution"], vec![false])?;
+        Ok(df)
+    }
 }
 
 fn uncompact(
@@ -383,4 +474,40 @@ fn uncompact(
 
     h3df.h3_uncompact_dataframe_subset(target_resolution, &cells)
         .map_err(Error::from)
+}
+
+fn compacted_counts_stmt(ts: &TableSet, database_name: &str) -> QueryInfo {
+    let query = join(
+        ts.compacted_tables().into_iter().map(|table| {
+            format!(
+                "select cast({} as UInt8) as r, count(*) as num_cells_stored_compacted from {}",
+                table.spec.h3_resolution,
+                table.to_table_name()
+            )
+        }),
+        " union all ",
+    );
+    QueryInfo {
+        query,
+        database: database_name.to_string(),
+        ..Default::default()
+    }
+}
+
+fn uncompacted_counts_stmt(ts: &TableSet, database_name: &str) -> QueryInfo {
+    let query = join(
+        ts.base_tables().into_iter().map(|table| {
+            format!(
+                "select cast({} as UInt8) as resolution, count(*) as num_cells_stored_at_resolution from {}",
+                table.spec.h3_resolution,
+                table.to_table_name()
+            )
+        }),
+        " union all ",
+    );
+    QueryInfo {
+        query,
+        database: database_name.to_string(),
+        ..Default::default()
+    }
 }

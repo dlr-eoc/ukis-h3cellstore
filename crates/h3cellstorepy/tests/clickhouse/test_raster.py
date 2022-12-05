@@ -36,6 +36,7 @@ def test_ingest_raster_is_covered(testdata_path, rasterio, clickhouse_grpc_endpo
         schema = get_schema(tableset_name, h3_res)
         con.create_tableset(schema)
         con.insert_h3dataframe_into_tableset(schema, df_in)
+        print(con.tableset_stats(tableset_name).to_pandas())
 
         # save for debugging
         from h3ronpy.util import dataframe_to_geodataframe
