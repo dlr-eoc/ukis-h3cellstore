@@ -93,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     assert!(tablesets.contains_key(&schema.name));
 
     let h3df = make_h3dataframe(center)?;
+    //dbg!(h3df.dataframe().shape());
 
     client
         .insert_h3dataframe_into_tableset(
@@ -105,6 +106,8 @@ async fn main() -> anyhow::Result<()> {
             },
         )
         .await?;
+
+    dbg!(client.tableset_stats(play_db, &schema.name).await?);
 
     let queried_df = client
         .query_tableset_cells(

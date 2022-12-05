@@ -340,6 +340,19 @@ impl GRPCConnection {
             options,
         )
     }
+
+    /// get stats about the number of cells and compacted cells in all the
+    /// resolutions of the tableset
+    pub fn tableset_stats(&mut self, tableset_name: String) -> PyResult<PyObject> {
+        self.runtime
+            .block_on(async {
+                self.client
+                    .tableset_stats(&self.database_name, tableset_name)
+                    .await
+            })
+            .into_pyresult()?
+            .to_dataframewrapper()
+    }
 }
 
 async fn connect(
