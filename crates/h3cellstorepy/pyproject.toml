@@ -24,6 +24,8 @@ testpaths = [
 
 [project]
 name = "h3cellstorepy"
+license = "Apache-2.0"
+description = "High-level Python library to store H3 cells in ClickHouse databases"
 dependencies = [
     "h3>=3.7.4",
     "geojson",
