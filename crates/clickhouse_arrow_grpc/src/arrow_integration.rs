@@ -221,7 +221,7 @@ pub fn serialize_for_clickhouse(df: &mut DataFrame) -> Result<Vec<u8>, Error> {
     }
 
     let new_schema = Schema::from(new_fields);
-    let mut out_buf = vec![];
+    let mut out_buf = Vec::with_capacity(2 << 15);
 
     let mut ipc_writer = FileWriter::try_new(&mut out_buf, &new_schema, None, Default::default())?;
     df.rechunk();
