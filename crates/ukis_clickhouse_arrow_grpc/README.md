@@ -1,31 +1,26 @@
-# ukis_h3cellstore
+# clickhouse_arrow_grpc
 
-Python bindings to integrate clickhouse H3 databases with the python data-science world.
+GPRC-based interface to Clickhouse to directly exchange arrow-based data
 
-Schematic of the read-workflow:
+* Uses [polars](https://www.pola.rs/) as dataframe abstraction over arrow data.
+* Improves on [Clickhouse default type mappings](https://clickhouse.com/docs/en/interfaces/formats/#data_types-matching-arrow) 
+  * auto-converting strings and booleans based on Clickhouse column types
 
-![](doc/img/h3cellstorepy-read.svg)
+## Building
 
-## Contents
+Requires `protoc` - the protobuf compiler - to b available on the system ([tonic #1047](https://github.com/hyperium/tonic/issues/1047)). Install on ubuntu:
 
-- [ukis_clickhouse_arrow_grpc](crates/ukis_clickhouse_arrow_grpc/README.md): GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format
-- [ukis_h3cellstore](crates/ukis_h3cellstore/README.md): High-level rust crate to store H3 cells in ClickHouse databases
-- [ukis_h3cellstorepy](crates/ukis_h3cellstorepy/README.md): High-level Python library to store H3 cells in ClickHouse databases
+```shell
+apt install -y protobuf-compiler libprotobuf-dev
+```
 
-See `crates` subdirectory.
+## Run the examples
 
-## Inner workings
+Launch a ClickHouse server as described in the main README. After that, you should be able to run the example:
 
-### `Compacted tables` storage schema
-
-![](doc/img/storing-dataframes.svg)
-
-
-## Development
-
-### Launching a Clickhouse instance for the examples to work
-
-see the `clickhouse` target in the [justfile](justfile).
+```shell
+cargo run --example helloworld
+```
 
 
 ## Licenses
