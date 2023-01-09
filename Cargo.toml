@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-    "crates/clickhouse_arrow_grpc",
-    "crates/h3cellstore",
-    "crates/h3cellstorepy"
+    "crates/ukis_clickhouse_arrow_grpc",
+    "crates/ukis_h3cellstore",
+    "crates/ukis_h3cellstorepy"
 ]
 
 [profile.release]

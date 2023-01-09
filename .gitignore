@@ -19,4 +19,4 @@ venv
 .pytest_cache
 /bamboo_h3/.benchmarks/
 .benchmarks
-/crates/clickhouse_arrow_grpc/src/api.rs
+/crates/ukis_clickhouse_arrow_grpc/src/api.rs

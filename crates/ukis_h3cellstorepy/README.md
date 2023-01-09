@@ -1,38 +1,37 @@
-![logo](doc/img/logo.jpg)
+# ukis_h3cellstorepy - python library
 
-# ukis_h3cellstore
-
-Python bindings to integrate clickhouse H3 databases with the python data-science world.
+High-level Python library to store H3 cells in ClickHouse databases
 
 Schematic of the read-workflow:
 
-![](doc/img/h3cellstorepy-read.svg)
+![](../../doc/img/h3cellstorepy-read.svg)
 
-## Contents
+## Run the python unittests
 
-- [ukis_clickhouse_arrow_grpc](crates/ukis_clickhouse_arrow_grpc/README.md): GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format
-- [ukis_h3cellstore](crates/ukis_h3cellstore/README.md): High-level rust crate to store H3 cells in ClickHouse databases
-- [ukis_h3cellstorepy](crates/ukis_h3cellstorepy/README.md): High-level Python library to store H3 cells in ClickHouse databases
+To include the database tests, launch a ClickHouse server as described in the main README.
 
-See `crates` subdirectory.
+After that, you should be able to run the tests using:
 
-## Inner workings
-
-### `Compacted tables` storage schema
-
-![](doc/img/storing-dataframes.svg)
-
-
-## Development
-
-### Launching a Clickhouse instance for the examples to work
-
-see the `clickhouse` target in the [justfile](justfile).
+```shell
+export CLICKHOUSE_GRPC_TESTING_ENDPOINT="http://127.0.0.1:9100"
+export RUST_LOG=debug
+export PYTHONUNBUFFERED=1
+pytest -s
+```
 
 
-<sup>
-The logo has been created with <a href="https://www.craiyon.com/">Craiyon</a> and the term "illustration of happy unicorn with rainbow-tail standing on a shipping container framed within hexagon".
-</sup>
+## Run the rust unittests
+
+```shell
+cargo test --no-default-features
+```
+
+## Production build
+
+```shell
+just build-prod
+ls -lah ../../target/wheels/
+```
 
 
 ## Licenses
