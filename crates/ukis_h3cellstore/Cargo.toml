@@ -1,6 +1,6 @@
 [package]
 name = "ukis_h3cellstore"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "High-level rust crate to store H3 cells in ClickHouse databases"
