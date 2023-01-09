@@ -71,6 +71,11 @@ list the tablesets found it the current database
 
 #### query_tableset_cells()
 
+#### tableset_stats()
+get stats about the number of cells and compacted cells in all the
+resolutions of the tableset
+
+
 #### traverse_tableset_area_of_interest()
 Traversal using multiple GRPC connections with pre-loading in the background without blocking
 the python interpreter.
@@ -117,7 +122,7 @@ alias of `PyTraverser`
 ## h3cellstorepy.frame module
 
 
-### _class_ h3cellstorepy.frame.DataFrameWrapper(df: Union[PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.frame.DataFrame, pandas.core.frame.DataFrame])
+### _class_ h3cellstorepy.frame.DataFrameWrapper(df: Union[PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.dataframe.frame.DataFrame, pandas.core.frame.DataFrame])
 Bases: `object`
 
 implements most of the arrow/dataframe conversion fun
@@ -143,8 +148,19 @@ In most cases this should be a zero-copy operation
 Requires having polars installed.
 
 
-### h3cellstorepy.frame.ensure_wrapped(framelike: Union[h3cellstorepy.frame.DataFrameWrapper, PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.frame.DataFrame, pandas.core.frame.DataFrame])
+### h3cellstorepy.frame.ensure_wrapped(framelike: Union[h3cellstorepy.frame.DataFrameWrapper, PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.dataframe.frame.DataFrame, pandas.core.frame.DataFrame])
 Create a DataFrameWrapper instance from the given input object
+
+## h3cellstorepy.geom module
+
+
+### h3cellstorepy.geom.border_cells()
+find the cells located directly within the exterior ring of the given polygon
+
+The border cells are not guaranteed to be exactly one cell wide. Due to grid orientation
+the line may be two cells wide at some places.
+
+width: Width of the border in (approx.) number of cells. Default: 1
 
 ## h3cellstorepy.h3cellstorepy module
 
