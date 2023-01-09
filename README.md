@@ -1,5 +1,3 @@
-![logo](doc/img/logo.jpg)
-
 # ukis_h3cellstore
 
 Python bindings to integrate clickhouse H3 databases with the python data-science world.
@@ -28,11 +26,6 @@ See `crates` subdirectory.
 ### Launching a Clickhouse instance for the examples to work
 
 see the `clickhouse` target in the [justfile](justfile).
-
-
-<sup>
-The logo has been created with <a href="https://www.craiyon.com/">Craiyon</a> and the term "illustration of happy unicorn with rainbow-tail standing on a shipping container framed within hexagon".
-</sup>
 
 
 ## Licenses
