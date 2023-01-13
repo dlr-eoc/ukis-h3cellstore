@@ -1,5 +1,7 @@
 # [![UKIS](https://raw.githubusercontent.com/dlr-eoc/ukis-csmask/main/img/ukis-logo.png)](https://www.dlr.de/eoc/en/desktopdefault.aspx/tabid-5413/10560_read-21914/) ukis_h3cellstore
 
+[![DOI](https://zenodo.org/badge/587299179.svg)](https://zenodo.org/badge/latestdoi/587299179)
+
 Python bindings to integrate ClickHouse H3 databases with the Python data science world.
 
 Schematic of the read workflow:
