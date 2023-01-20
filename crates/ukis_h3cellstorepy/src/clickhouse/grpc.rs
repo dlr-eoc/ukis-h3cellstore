@@ -32,7 +32,7 @@ pub struct GRPCRuntime {
 #[pymethods]
 impl GRPCRuntime {
     #[new]
-    #[args(num_worker_threads = "None")]
+    #[pyo3(signature = (num_worker_threads = None))]
     pub fn new(num_worker_threads: Option<usize>) -> PyResult<Self> {
         let span = debug_span!(
             "Creating tokio runtime",
@@ -89,8 +89,8 @@ impl GRPCConnection {
     }
 
     /// Establish a new connection
-    #[args(create_db = "false", runtime = "None")]
     #[new]
+    #[pyo3(signature = (grpc_endpoint, database_name, create_db = false, runtime = None))]
     pub fn new(
         grpc_endpoint: &str,
         database_name: &str,
@@ -283,7 +283,7 @@ impl GRPCConnection {
         }
     }
 
-    #[args(do_uncompact = "true")]
+    #[pyo3(signature = (tableset_name, query, cells, h3_resolution, do_uncompact = true))]
     pub fn query_tableset_cells(
         &mut self,
         tableset_name: String,
@@ -321,7 +321,7 @@ impl GRPCConnection {
     /// - `max_fetch_count`: The maximum number of cells to fetch in one DB query.
     /// - `num_connections`: Number of parallel DB connections to use in the background. Default is 3. Depending with the number of connections used the amount of memory used increases as well as the load put onto the DB-Server. The benefit is getting data faster as it is pre-loaded in the background.
     /// - `filter_query`: This query will be applied to the tables in the reduced `traversal_h3_resolution` and only cells found by this query will be loaded from the tables in the requested full resolution
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (tableset_name, query, area_of_interest, h3_resolution, **kwargs))]
     pub fn traverse_tableset_area_of_interest(
         &mut self,
         tableset_name: String,

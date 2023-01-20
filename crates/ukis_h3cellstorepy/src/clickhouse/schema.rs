@@ -60,7 +60,7 @@ pub struct PyCompressionMethod {
 #[pymethods]
 impl PyCompressionMethod {
     #[new]
-    #[args(method_param = "None")]
+    #[pyo3(signature = (method_name, method_param = None))]
     pub fn new(method_name: String, method_param: Option<u8>) -> PyResult<Self> {
         let compression_method = match method_name.to_lowercase().as_str() {
             "lz4hc" => CompressionMethod::LZ4HC(method_param.unwrap_or(9)),
@@ -116,7 +116,7 @@ impl PyCompactedTableSchemaBuilder {
         }
     }
 
-    #[args(column_names = "None")]
+    #[pyo3(signature = (engine_name, column_names = None))]
     fn table_engine(
         &mut self,
         engine_name: String,
@@ -142,7 +142,6 @@ impl PyCompactedTableSchemaBuilder {
         Ok(())
     }
 
-    #[args(level = "None")]
     fn compression_method(&mut self, compression_method: &PyCompressionMethod) {
         self.compression_method = Some(compression_method.compression_method.clone());
     }
@@ -151,12 +150,11 @@ impl PyCompactedTableSchemaBuilder {
         self.use_compaction = use_compaction;
     }
 
-    #[args(compacted = "false")]
     fn h3_base_resolutions(&mut self, res: Vec<u8>) {
         self.h3_base_resolutions = Some(res)
     }
 
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (column_name, datatype_str, **kwargs))]
     fn add_column(
         &mut self,
         column_name: String,
@@ -184,7 +182,7 @@ impl PyCompactedTableSchemaBuilder {
     ///
     /// The `min`, `max` and `avg` aggregations only work on the cells included in the data. Are
     ///  not all child-cells included, the missing ones are simply omitted and not assumed to be `0`.
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (column_name, datatype_str, agg_method_str, **kwargs))]
     fn add_aggregated_column(
         &mut self,
         column_name: String,
@@ -280,7 +278,7 @@ impl PyCompactedTableSchemaBuilder {
         Ok(())
     }
 
-    #[args(kwargs = "**")]
+    #[pyo3(signature = (name, **kwargs))]
     fn h3_partitioning(&mut self, name: String, kwargs: Option<&PyDict>) -> PyResult<()> {
         self.h3_partitioning = match name.to_lowercase().as_str() {
             "basecell" => Some(H3Partitioning::BaseCell),

@@ -1,6 +1,6 @@
 [package]
 name = "ukis_h3cellstore"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "High-level rust crate to store H3 cells in ClickHouse databases"
@@ -25,12 +25,12 @@ ukis_clickhouse_arrow_grpc = { path = "../ukis_clickhouse_arrow_grpc" }
 futures = "0.3"
 geo = "0.23"
 geo-types = "0.7"
-h3ron = "0.16"
-h3ron-polars = "0.2"
+h3ron = "0.17"
+h3ron-polars = "0.3"
 itertools = "0.10"
 once_cell = "1"
 ordered-float = { version = "3", optional = true}
-polars = { version = "0.25", features = ["lazy", "timezones"] }
+polars = { version = "0.26", features = ["lazy", "timezones"] }
 postage = "0.5"
 rand = "0.8"
 regex = "1.5"

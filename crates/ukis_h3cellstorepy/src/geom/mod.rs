@@ -14,7 +14,8 @@ use ukis_h3cellstore::export::h3ron::Index;
 /// the line may be two cells wide at some places.
 ///
 /// `width`: Width of the border in (approx.) number of cells. Default: 1
-#[pyfunction(width = "1")]
+#[pyfunction]
+#[pyo3(signature = (geometry, h3_resolution, width=1))]
 fn border_cells(
     py: Python,
     geometry: GiGeometry,
