@@ -535,16 +535,16 @@
      pagecolor="#ffffff"
      bordercolor="#666666"
      borderopacity="1.0"
-     inkscape:pageopacity="0.0"
+     inkscape:pageopacity="1"
      inkscape:pageshadow="2"
      inkscape:zoom="1.75"
-     inkscape:cx="200.43273"
+     inkscape:cx="94.147016"
      inkscape:cy="367.72085"
      inkscape:document-units="mm"
      inkscape:current-layer="g15665"
      showgrid="false"
-     inkscape:window-width="3801"
-     inkscape:window-height="2132"
+     inkscape:window-width="1881"
+     inkscape:window-height="1172"
      inkscape:window-x="1959"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
@@ -2943,7 +2943,7 @@
              height="729.14288"
              x="-1621.1428"
              y="-65.086761" /></flowRegion><flowPara
-           id="flowPara2363"></flowPara></flowRoot>    </g>
+           id="flowPara2363" /></flowRoot>    </g>
     <path
        sodipodi:nodetypes="cc"
        inkscape:connector-curvature="0"
@@ -3565,5 +3565,5 @@
            height="17.714285"
            x="147.42857"
            y="447.54172" /></flowRegion><flowPara
-         id="flowPara2322"></flowPara></flowRoot>  </g>
+         id="flowPara2322" /></flowRoot>  </g>
 </svg>
