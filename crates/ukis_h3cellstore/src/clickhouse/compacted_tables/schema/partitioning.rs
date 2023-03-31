@@ -13,6 +13,7 @@ pub enum TemporalResolution {
     Day,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for TemporalResolution {
     fn default() -> Self {
         TemporalResolution::Second

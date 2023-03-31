@@ -9,7 +9,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use tracing::log::debug;
+use tracing::debug;
 use ukis_h3cellstore::clickhouse::compacted_tables::traversal::{
     traverse, TraversalArea, TraversalOptions, Traverser,
 };

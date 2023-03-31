@@ -311,7 +311,8 @@ async fn traverse_inner(
             } else {
                 dispatch_traversal_cells(&mut trav_cells_send, Ok(traversal_cells)).await;
             }
-        });
+        })
+        .await;
     });
 
     // end of this scope closes the local copy of the dataframe_send channel to allow the

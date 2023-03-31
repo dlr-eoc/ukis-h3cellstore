@@ -14,6 +14,7 @@ pub enum TableEngine {
     AggregatingMergeTree,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for TableEngine {
     fn default() -> Self {
         TableEngine::ReplacingMergeTree

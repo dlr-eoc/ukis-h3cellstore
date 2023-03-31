@@ -17,7 +17,7 @@ use arrow2::io::ipc::write::FileWriter;
 use polars_core::prelude::DataFrame;
 use polars_core::series::Series;
 use polars_core::utils::accumulate_dataframes_vertical;
-use tracing::log::debug;
+use tracing::debug;
 
 use crate::Error;
 
@@ -223,7 +223,7 @@ pub fn serialize_for_clickhouse(df: &mut DataFrame) -> Result<Vec<u8>, Error> {
     let new_schema = Schema::from(new_fields);
     let mut out_buf = Vec::with_capacity(2 << 15);
 
-    let mut ipc_writer = FileWriter::try_new(&mut out_buf, &new_schema, None, Default::default())?;
+    let mut ipc_writer = FileWriter::try_new(&mut out_buf, new_schema, None, Default::default())?;
     df.rechunk();
 
     for chunk in df.iter_chunks() {
