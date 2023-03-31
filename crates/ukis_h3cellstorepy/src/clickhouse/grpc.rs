@@ -15,7 +15,7 @@ use std::time::Duration;
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::oneshot::error::TryRecvError;
 use tracing::debug_span;
-use tracing::log::warn;
+use tracing::warn;
 use ukis_h3cellstore::clickhouse::compacted_tables::{
     CompactedTablesStore, InsertOptions, QueryOptions, TableSetQuery,
 };
