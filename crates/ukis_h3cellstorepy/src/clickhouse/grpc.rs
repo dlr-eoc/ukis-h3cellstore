@@ -21,7 +21,9 @@ use ukis_h3cellstore::clickhouse::compacted_tables::{
 };
 use ukis_h3cellstore::clickhouse::H3CellStore;
 use ukis_h3cellstore::export::h3ron_polars::frame::H3DataFrame;
-use ukis_h3cellstore::export::ukis_clickhouse_arrow_grpc::{ArrowInterface, Client, QueryInfo};
+use ukis_h3cellstore::export::ukis_clickhouse_arrow_grpc::{
+    ArrowInterface, Client, QueryInfo, DEFAULT_MAX_MESSAGE_SIZE,
+};
 
 #[derive(Clone)]
 #[pyclass]
@@ -90,12 +92,13 @@ impl GRPCConnection {
 
     /// Establish a new connection
     #[new]
-    #[pyo3(signature = (grpc_endpoint, database_name, create_db = false, runtime = None))]
+    #[pyo3(signature = (grpc_endpoint, database_name, create_db = false, runtime = None, max_message_size = None))]
     pub fn new(
         grpc_endpoint: &str,
         database_name: &str,
         create_db: bool,
         runtime: Option<GRPCRuntime>,
+        max_message_size: Option<usize>,
     ) -> PyResult<Self> {
         let runtime = match runtime {
             None => obtain_runtime()?,
@@ -103,8 +106,9 @@ impl GRPCConnection {
         };
         let grpc_endpoint_str = grpc_endpoint.to_string();
         let db_name_str = database_name.to_string();
-        let client =
-            runtime.block_on(async { connect(grpc_endpoint_str, db_name_str, create_db).await })?;
+        let client = runtime.block_on(async {
+            connect(grpc_endpoint_str, db_name_str, create_db, max_message_size).await
+        })?;
 
         Ok(Self {
             database_name: database_name.to_string(),
@@ -359,8 +363,14 @@ async fn connect(
     grpc_endpoint: String,
     database_name: String,
     create_db: bool,
+    max_message_size: Option<usize>,
 ) -> PyResult<Client> {
-    let mut client = Client::connect(grpc_endpoint).await.into_pyresult()?;
+    let mut client = Client::connect_with_max_message_size(
+        grpc_endpoint,
+        max_message_size.unwrap_or(DEFAULT_MAX_MESSAGE_SIZE),
+    )
+    .await
+    .into_pyresult()?;
 
     if create_db {
         client

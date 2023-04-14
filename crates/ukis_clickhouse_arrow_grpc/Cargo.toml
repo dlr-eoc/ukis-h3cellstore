@@ -1,6 +1,6 @@
 [package]
 name = "ukis_clickhouse_arrow_grpc"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "GRPC-based interface library for ClickHouse using Arrow-IPC as data exchange format"
@@ -22,11 +22,11 @@ polars = { version = "0.28", features = ["timezones", "dtype-u8", "dtype-date", 
 prost = "0.11"
 thiserror = "1"
 tokio = "1"
-tonic = { version = "0.8", features = ["gzip"] }
+tonic = { version = "0.9", features = ["gzip"] }
 tracing = "0.1"
 
 [build-dependencies]
-tonic-build = { version = "0.8", features = [] }
+tonic-build = { version = "0.9", features = [] }
 
 [dev-dependencies]
 anyhow = { version = "1", features = ["backtrace"] }

@@ -1,6 +1,7 @@
+use std::ops::{Deref, DerefMut};
+
 use async_trait::async_trait;
 use polars_core::frame::DataFrame;
-use std::ops::{Deref, DerefMut};
 use tokio::task::spawn_blocking;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Channel;
@@ -19,6 +20,8 @@ mod arrow_integration;
 mod error;
 pub mod export;
 
+pub const DEFAULT_MAX_MESSAGE_SIZE: usize = 100 * 1024 * 1024;
+
 /// Client.
 ///
 /// Pre-configures the underlying gprc service to use transport compression
@@ -31,8 +34,21 @@ impl Client {
         D: TryInto<tonic::transport::Endpoint>,
         D::Error: Into<tonic::codegen::StdError>,
     {
+        Self::connect_with_max_message_size(dst, DEFAULT_MAX_MESSAGE_SIZE).await
+    }
+
+    pub async fn connect_with_max_message_size<D>(
+        dst: D,
+        max_message_size: usize,
+    ) -> Result<Self, tonic::transport::Error>
+    where
+        D: TryInto<tonic::transport::Endpoint>,
+        D::Error: Into<tonic::codegen::StdError>,
+    {
         let channel = tonic::transport::Endpoint::new(dst)?.connect().await?;
-        let cc = ClickHouseClient::new(channel);
+        let cc = ClickHouseClient::new(channel)
+            .max_decoding_message_size(max_message_size)
+            .max_encoding_message_size(max_message_size);
         Ok(cc.into())
     }
 
