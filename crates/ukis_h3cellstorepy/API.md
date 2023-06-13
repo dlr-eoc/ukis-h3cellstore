@@ -1,23 +1,23 @@
-# h3cellstorepy package
+# ukis_h3cellstorepy package
 
 ## Submodules
 
-## h3cellstorepy.clickhouse module
+## ukis_h3cellstorepy.clickhouse module
 
 
-### h3cellstorepy.clickhouse.CompactedTableSchema()
+### ukis_h3cellstorepy.clickhouse.CompactedTableSchema()
 alias of `PyCompactedTableSchema`
 
 
-### h3cellstorepy.clickhouse.CompactedTableSchemaBuilder()
+### ukis_h3cellstorepy.clickhouse.CompactedTableSchemaBuilder()
 alias of `PyCompactedTableSchemaBuilder`
 
 
-### h3cellstorepy.clickhouse.CompressionMethod()
+### ukis_h3cellstorepy.clickhouse.CompressionMethod()
 alias of `PyCompressionMethod`
 
 
-### _class_ h3cellstorepy.clickhouse.GRPCConnection()
+### _class_ ukis_h3cellstorepy.clickhouse.GRPCConnection(grpc_endpoint, database_name, create_db=False, runtime=None, max_message_size=None)
 Bases: `object`
 
 GPRC connection to the Clickhouse DB server.
@@ -25,11 +25,11 @@ GPRC connection to the Clickhouse DB server.
 Uses async communication using a internal tokio runtime.
 
 
-#### create_tableset()
+#### create_tableset(schema)
 create the schema based on the schema definition in the database
 
 
-#### database_exists()
+#### database_exists(database_name)
 Check if the given DB exists
 
 
@@ -37,31 +37,31 @@ Check if the given DB exists
 Name of the DB the connection connects to
 
 
-#### deduplicate_schema()
+#### deduplicate_schema(schema)
 deduplicate the contents of the given database schema
 
 
-#### drop_tableset()
+#### drop_tableset(tableset_name)
 drop the tableset with the given name
 
 
-#### execute()
+#### execute(query)
 execute the given query in the database without returning any result
 
 
-#### execute_into_dataframe()
+#### execute_into_dataframe(query)
 execute the given query and return a non-H3 dataframe of it
 
 
-#### execute_into_h3dataframe()
+#### execute_into_h3dataframe(query, h3index_column_name)
 execute the given query and return a H3 dataframe of it
 
 
-#### insert_dataframe()
+#### insert_dataframe(table_name, dataframe)
 insert a dataframe into a table
 
 
-#### insert_h3dataframe_into_tableset()
+#### insert_h3dataframe_into_tableset(schema, dataframe, options=None)
 insert a dataframe into a tableset
 
 
@@ -69,14 +69,14 @@ insert a dataframe into a tableset
 list the tablesets found it the current database
 
 
-#### query_tableset_cells()
+#### query_tableset_cells(tableset_name, query, cells, h3_resolution, do_uncompact=True)
 
-#### tableset_stats()
+#### tableset_stats(tableset_name)
 get stats about the number of cells and compacted cells in all the
 resolutions of the tableset
 
 
-#### traverse_tableset_area_of_interest()
+#### traverse_tableset_area_of_interest(tableset_name, query, area_of_interest, h3_resolution, \*\*kwargs)
 Traversal using multiple GRPC connections with pre-loading in the background without blocking
 the python interpreter.
 
@@ -100,29 +100,29 @@ Options (provided as keyword arguments):
 * filter_query: This query will be applied to the tables in the reduced traversal_h3_resolution and only cells found by this query will be loaded from the tables in the requested full resolution
 
 
-### _class_ h3cellstorepy.clickhouse.GRPCRuntime()
+### _class_ ukis_h3cellstorepy.clickhouse.GRPCRuntime(num_worker_threads=None)
 Bases: `object`
 
 
-### h3cellstorepy.clickhouse.InsertOptions()
+### ukis_h3cellstorepy.clickhouse.InsertOptions()
 alias of `PyInsertOptions`
 
 
-### h3cellstorepy.clickhouse.TableSet()
+### ukis_h3cellstorepy.clickhouse.TableSet()
 alias of `PyTableSet`
 
 
-### h3cellstorepy.clickhouse.TableSetQuery()
+### ukis_h3cellstorepy.clickhouse.TableSetQuery()
 alias of `PyTableSetQuery`
 
 
-### h3cellstorepy.clickhouse.Traverser()
+### ukis_h3cellstorepy.clickhouse.Traverser()
 alias of `PyTraverser`
 
-## h3cellstorepy.frame module
+## ukis_h3cellstorepy.frame module
 
 
-### _class_ h3cellstorepy.frame.DataFrameWrapper(df: Union[PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.dataframe.frame.DataFrame, pandas.core.frame.DataFrame])
+### _class_ ukis_h3cellstorepy.frame.DataFrameWrapper(df: PyDataFrame | PyH3DataFrame | Table | DataFrame | DataFrame)
 Bases: `object`
 
 implements most of the arrow/dataframe conversion fun
@@ -148,13 +148,13 @@ In most cases this should be a zero-copy operation
 Requires having polars installed.
 
 
-### h3cellstorepy.frame.ensure_wrapped(framelike: Union[h3cellstorepy.frame.DataFrameWrapper, PyDataFrame, PyH3DataFrame, pyarrow.lib.Table, polars.internals.dataframe.frame.DataFrame, pandas.core.frame.DataFrame])
+### ukis_h3cellstorepy.frame.ensure_wrapped(framelike: DataFrameWrapper | PyDataFrame | PyH3DataFrame | Table | DataFrame | DataFrame)
 Create a DataFrameWrapper instance from the given input object
 
-## h3cellstorepy.geom module
+## ukis_h3cellstorepy.geom module
 
 
-### h3cellstorepy.geom.border_cells()
+### ukis_h3cellstorepy.geom.border_cells(geometry, h3_resolution, width=1)
 find the cells located directly within the exterior ring of the given polygon
 
 The border cells are not guaranteed to be exactly one cell wide. Due to grid orientation
@@ -162,10 +162,10 @@ the line may be two cells wide at some places.
 
 width: Width of the border in (approx.) number of cells. Default: 1
 
-## h3cellstorepy.h3cellstorepy module
+## ukis_h3cellstorepy.ukis_h3cellstorepy module
 
 
-### _class_ h3cellstorepy.h3cellstorepy.PyDataFrame()
+### _class_ ukis_h3cellstorepy.ukis_h3cellstorepy.PyDataFrame()
 Bases: `object`
 
 A wrapper for internal dataframe.
@@ -179,7 +179,7 @@ This class should not be used directly in python, it is used within DataFrameWra
 
 #### to_arrow()
 
-### _class_ h3cellstorepy.h3cellstorepy.PyH3DataFrame()
+### _class_ ukis_h3cellstorepy.ukis_h3cellstorepy.PyH3DataFrame()
 Bases: `object`
 
 A wrapper for internal dataframe with an associated name for the column containing H3 cells.
@@ -195,14 +195,14 @@ This class should not be used directly in python, it is used within DataFrameWra
 
 #### to_arrow()
 
-### h3cellstorepy.h3cellstorepy.is_release_build()
+### ukis_h3cellstorepy.ukis_h3cellstorepy.is_release_build()
 Check if this module has been compiled in release mode.
 
 
-### h3cellstorepy.h3cellstorepy.version()
+### ukis_h3cellstorepy.ukis_h3cellstorepy.version()
 version of the module
 
 ## Module contents
 
 
-### h3cellstorepy.is_release_build()
+### ukis_h3cellstorepy.is_release_build()
