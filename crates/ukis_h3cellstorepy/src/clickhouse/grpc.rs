@@ -276,9 +276,7 @@ impl GRPCConnection {
 
             match oneshot_recv.try_recv() {
                 Ok(res) => {
-                    self.runtime
-                        .block_on(async { joinhandle.await })
-                        .into_pyresult()?;
+                    self.runtime.block_on(joinhandle).into_pyresult()?;
                     return res;
                 }
                 Err(TryRecvError::Empty) => std::thread::sleep(Duration::from_millis(100)),

@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "maturin==0.14",
+    "maturin==1.1",
     "patchelf>=0.17",
     "pytest==7.1",
     "polars", # unittests

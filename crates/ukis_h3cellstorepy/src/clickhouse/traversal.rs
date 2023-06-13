@@ -176,7 +176,7 @@ impl PyTraverser {
 
         let area: TraversalArea = if let Ok(gigeometry) = GiGeometry::extract(area_of_interest) {
             gigeometry.0.into()
-        } else if area_of_interest.is_instance_of::<PyArray1<u64>>()? {
+        } else if area_of_interest.is_instance_of::<PyArray1<u64>>() {
             let validated_cells: Vec<H3Cell> =
                 indexes_from_numpy(area_of_interest.extract::<PyReadonlyArray1<u64>>()?)?;
             validated_cells.into()
