@@ -45,12 +45,17 @@ def test_schema_create_and_fill(clickhouse_grpc_endpoint, clickhouse_testdb_name
                                                   ctx.schema.max_h3_resolution).to_polars()
         assert queried_df.shape == ctx.df.shape
 
+        assert queried_df["some_category"].is_not_null().all(), "setnull-aggregation should not have modified the high-resolution data"
+
         # it is also possible to load the data on a lower resolution. the cells in `disk` get automatically transformed
         # to the requested h3 resolution
         queried_lower_df = ctx.con.query_tableset_cells(ctx.schema.name, TableSetQuery(), ctx.disk,
                                                         ctx.schema.max_h3_resolution - 2).to_polars()
         assert ctx.df.shape[0] > queried_lower_df.shape[0]
         assert ctx.df.shape[1] == queried_lower_df.shape[1]
+
+        # aggregations are only applied during aggregation, not compaction
+        assert queried_lower_df["some_category"].is_null().any(), "setnull-aggregation should have set some the aggregated values to NULL"
 
 
 def test_schema_create_and_fill_templatedquery(clickhouse_grpc_endpoint, clickhouse_testdb_name, pl):

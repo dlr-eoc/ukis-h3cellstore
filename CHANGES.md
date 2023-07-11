@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+**This changelog only tracke the `ukis_h3cellstorepy` python extension.**
+
+
+## Unreleased
+
+* Nullable columns and "SetNull" aggregation method on columns
+
 ## 0.12.0
 
 * Rename all subprojects by prefixing the names with "ukis_"

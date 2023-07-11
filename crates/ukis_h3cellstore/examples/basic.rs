@@ -24,7 +24,7 @@ fn okavango_delta_schema() -> anyhow::Result<CompactedTableSchema> {
         .add_column(
             "elephant_count",
             ColumnDefinition::WithAggregation(
-                SimpleColumn::new(ClickhouseDataType::UInt32, None, None),
+                SimpleColumn::new(ClickhouseDataType::UInt32, None, None, false),
                 AggregationMethod::Sum,
             ),
         )
@@ -34,6 +34,7 @@ fn okavango_delta_schema() -> anyhow::Result<CompactedTableSchema> {
                 ClickhouseDataType::DateTime64,
                 Some(0),
                 None,
+                false,
             )),
         )
         .build()?;

@@ -168,6 +168,7 @@ impl PyCompactedTableSchemaBuilder {
             column_kwargs
                 .compression_method
                 .map(|pcm| pcm.compression_method.clone()),
+            column_kwargs.nullable,
         );
         self.columns
             .push((column_name, ColumnDefinition::Simple(sc)));
@@ -197,6 +198,7 @@ impl PyCompactedTableSchemaBuilder {
             column_kwargs
                 .compression_method
                 .map(|pcm| pcm.compression_method.clone()),
+            column_kwargs.nullable,
         );
         let agg = match agg_method_str.to_lowercase().as_str() {
             "sum" => AggregationMethod::Sum,
@@ -204,6 +206,7 @@ impl PyCompactedTableSchemaBuilder {
             "max" => AggregationMethod::Max,
             "avg" | "average" => AggregationMethod::Average,
             "relativetoarea" | "relativetocellarea" => AggregationMethod::RelativeToCellArea,
+            "setnull" => AggregationMethod::SetNull,
             _ => {
                 return Err(PyValueError::new_err(format!(
                     "Unsupported aggregation method: {}",
@@ -351,14 +354,17 @@ fn datatype_from_string(datatype_string: String) -> PyResult<ClickhouseDataType>
 struct ColumnKwargs<'a> {
     order_key_position: Option<u8>,
     compression_method: Option<PyRef<'a, PyCompressionMethod>>,
+    nullable: bool,
 }
 
 impl<'a> ColumnKwargs<'a> {
     fn extract(dict: Option<&'a PyDict>) -> PyResult<Self> {
         let mut kwargs = Self::default();
         if let Some(dict) = dict {
+            let nullable: Option<bool> = extract_dict_item_option(dict, "nullable")?;
             kwargs.order_key_position = extract_dict_item_option(dict, "order_key_position")?;
             kwargs.compression_method = extract_dict_item_option(dict, "compression_method")?;
+            kwargs.nullable = nullable.unwrap_or(false);
         }
         Ok(kwargs)
     }

@@ -415,6 +415,7 @@ where
                                         ALIAS_SOURCE_TABLE, col_name, col_name
                                     )
                                 }
+                                AggregationMethod::SetNull => format!("NULL as {}", col_name),
                             }
                         } else {
                             format!("{}.{}", ALIAS_SOURCE_TABLE, col_name)

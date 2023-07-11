@@ -325,10 +325,15 @@ impl CompactedTableSchema {
             .sorted_by(|a, b| Ord::cmp(a.0, b.0)) // order to make the SQL comparable
             .map(|(col_name, def)| {
                 let col_codec = def.compression_method().map(codec_string);
+                let col_dtype = if def.nullable() {
+                    format!("Nullable({})", def.datatype().sql_type_name())
+                } else {
+                    def.datatype().sql_type_name().to_string()
+                };
                 format!(
                     " {} {} CODEC({})",
                     col_name,
-                    def.datatype().sql_type_name(),
+                    col_dtype,
                     col_codec.unwrap_or_else(|| default_codec.clone())
                 )
             })
@@ -513,6 +518,7 @@ mod tests {
                         ClickhouseDataType::Float32,
                         None,
                         Some(CompressionMethod::Delta(1)),
+                        false,
                     ),
                     AggregationMethod::Average,
                 ),
@@ -523,6 +529,7 @@ mod tests {
                     ClickhouseDataType::DateTime,
                     Some(0),
                     None,
+                    false,
                 )),
             )
             .build()

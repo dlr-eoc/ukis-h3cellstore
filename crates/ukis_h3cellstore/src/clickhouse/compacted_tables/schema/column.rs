@@ -56,17 +56,32 @@ impl ColumnDefinition {
             ColumnDefinition::WithAggregation(sc, _) => sc.compression_method.as_ref(),
         }
     }
+
+    pub fn nullable(&self) -> bool {
+        match self {
+            ColumnDefinition::Simple(sc) => sc.nullable,
+            ColumnDefinition::H3Index => false,
+            ColumnDefinition::WithAggregation(sc, _) => sc.nullable,
+        }
+    }
 }
 
 impl ValidateSchema for ColumnDefinition {
     fn validate(&self) -> Result<(), Error> {
         if let Self::WithAggregation(simple_column, aggregation_method) = self {
-            if !(aggregation_method.is_applicable_to_datatype(&simple_column.datatype)) {
+            if !(aggregation_method
+                .is_applicable_to_datatype(&simple_column.datatype, simple_column.nullable))
+            {
                 return Err(Error::SchemaValidationError(
                     type_name::<Self>(),
                     format!(
-                        "aggregation {} can not be applied to datatype {}",
+                        "aggregation {} can not be applied to {} datatype {}",
                         aggregation_method.name(),
+                        if simple_column.nullable {
+                            "nullable"
+                        } else {
+                            "non-nullable"
+                        },
                         simple_column.datatype.name()
                     ),
                 ));
@@ -74,6 +89,11 @@ impl ValidateSchema for ColumnDefinition {
         }
         Ok(())
     }
+}
+
+#[cfg(feature = "use_serde")]
+const fn default_nullable() -> bool {
+    false
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -87,6 +107,9 @@ pub struct SimpleColumn {
     order_key_position: Option<u8>,
 
     compression_method: Option<CompressionMethod>,
+
+    #[cfg_attr(feature = "use_serde", serde(default = "default_nullable"))]
+    nullable: bool,
 }
 
 impl SimpleColumn {
@@ -94,11 +117,13 @@ impl SimpleColumn {
         datatype: ClickhouseDataType,
         order_key_position: Option<u8>,
         compression_method: Option<CompressionMethod>,
+        nullable: bool,
     ) -> Self {
         Self {
             datatype,
             order_key_position,
             compression_method,
+            nullable,
         }
     }
 }
