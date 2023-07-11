@@ -206,7 +206,7 @@ impl PyCompactedTableSchemaBuilder {
             "max" => AggregationMethod::Max,
             "avg" | "average" => AggregationMethod::Average,
             "relativetoarea" | "relativetocellarea" => AggregationMethod::RelativeToCellArea,
-            "setnull" => AggregationMethod::SetNull,
+            "setnullonconflict" => AggregationMethod::SetNullOnConflict,
             _ => {
                 return Err(PyValueError::new_err(format!(
                     "Unsupported aggregation method: {}",

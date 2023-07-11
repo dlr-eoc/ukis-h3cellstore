@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-* Nullable columns and "SetNull" aggregation method on columns
+* Nullable columns and "SetNullOnConflict" aggregation method on columns to ease handling categorical values within aggregations
 * Workaround bug of the sum aggregation by disabling compaction when sum is used
 * Dependency updates
 

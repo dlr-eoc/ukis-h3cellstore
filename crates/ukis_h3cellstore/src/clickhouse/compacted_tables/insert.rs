@@ -426,7 +426,14 @@ where
                                         ALIAS_SOURCE_TABLE, col_name, col_name
                                     )
                                 }
-                                AggregationMethod::SetNull => format!("NULL as {}", col_name),
+                                AggregationMethod::SetNullOnConflict => {
+                                    format!(
+                                        "if(length(groupUniqArray({}.{}))=1,first_value({}.{}), null) as {}",
+                                        ALIAS_SOURCE_TABLE, col_name,
+                                        ALIAS_SOURCE_TABLE, col_name,
+                                        col_name
+                                    )
+                                }
                             }
                         } else {
                             format!("{}.{}", ALIAS_SOURCE_TABLE, col_name)

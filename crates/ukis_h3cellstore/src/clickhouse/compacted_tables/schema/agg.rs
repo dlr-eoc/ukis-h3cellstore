@@ -13,7 +13,8 @@ pub enum AggregationMethod {
     Max,
     Min,
     Average,
-    SetNull,
+    /// set to Null in case different values are to be aggregated. Useful for categorical values
+    SetNullOnConflict,
     // TODO: aggregation method to generate parent resolution for other h3index column
 }
 
@@ -25,7 +26,7 @@ impl AggregationMethod {
             Self::Max => datatype.is_number(),
             Self::Min => datatype.is_number(),
             Self::Average => datatype.is_number(),
-            Self::SetNull => nullable,
+            Self::SetNullOnConflict => nullable,
         }
     }
 
@@ -49,7 +50,7 @@ impl Named for AggregationMethod {
             Self::Min => "min",
             Self::Sum => "sum",
             Self::Average => "average",
-            Self::SetNull => "setnull",
+            Self::SetNullOnConflict => "setnullonconflict",
         }
     }
 }
