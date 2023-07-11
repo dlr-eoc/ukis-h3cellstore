@@ -28,6 +28,17 @@ impl AggregationMethod {
             Self::SetNull => nullable,
         }
     }
+
+    pub fn disables_compaction(&self) -> bool {
+        if matches!(self, Self::Sum) {
+            // using sum disables compaction as reading previously compacted-stored will lead
+            // to other values.
+            // TODO: find a better solution for this
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Named for AggregationMethod {

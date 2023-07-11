@@ -90,9 +90,20 @@ where
         let frames_by_resolution = if h3df.dataframe().is_empty() {
             Default::default()
         } else {
+            let disables_compaction = self
+                .schema
+                .columns
+                .iter()
+                .any(|(_, cdef)| cdef.disables_compaction());
+
             let frames_by_resolution = spawn_blocking(move || {
-                h3df.h3_compact_dataframe(true)
-                    .and_then(|compacted| compacted.h3_partition_by_resolution())
+                // usage of sum aggregation
+                if disables_compaction {
+                    Ok(h3df)
+                } else {
+                    h3df.h3_compact_dataframe(true)
+                }
+                .and_then(|compacted| compacted.h3_partition_by_resolution())
             })
             .await??;
 

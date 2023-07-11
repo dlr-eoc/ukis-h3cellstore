@@ -64,6 +64,13 @@ impl ColumnDefinition {
             ColumnDefinition::WithAggregation(sc, _) => sc.nullable,
         }
     }
+
+    pub fn disables_compaction(&self) -> bool {
+        match self {
+            ColumnDefinition::WithAggregation(_, am) => am.disables_compaction(),
+            _ => false,
+        }
+    }
 }
 
 impl ValidateSchema for ColumnDefinition {
