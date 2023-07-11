@@ -71,7 +71,7 @@ impl From<DataFrame> for PyDataFrame {
 
 fn dataframe_to_arrow(df: &mut DataFrame) -> PyResult<Vec<PyObject>> {
     // mostly from https://github.com/pola-rs/polars/blob/8b2db30ac18d219f4c3d02e2d501d2966cf58930/py-polars/src/dataframe.rs#L557
-    df.rechunk();
+    df.align_chunks();
 
     Python::with_gil(|py| {
         let pyarrow = py.import("pyarrow")?;

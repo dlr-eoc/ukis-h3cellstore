@@ -185,7 +185,7 @@ impl TryInto<DataFrame> for super::api::Result {
             Ok(DataFrame::new(empty_cols)?)
         } else {
             let mut df = accumulate_dataframes_vertical(dfs)?;
-            df.rechunk();
+            df.align_chunks();
             Ok(df)
         }
     }
@@ -224,7 +224,7 @@ pub fn serialize_for_clickhouse(df: &mut DataFrame) -> Result<Vec<u8>, Error> {
     let mut out_buf = Vec::with_capacity(2 << 15);
 
     let mut ipc_writer = FileWriter::try_new(&mut out_buf, new_schema, None, Default::default())?;
-    df.rechunk();
+    df.align_chunks();
 
     for chunk in df.iter_chunks() {
         let new_chunk = apply_casts_to_chunk(&chunk, &casts_to_perform)?;

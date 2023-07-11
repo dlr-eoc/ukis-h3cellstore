@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 * Nullable columns and "SetNull" aggregation method on columns
+* Workaround bug of the sum aggregation by disabling compaction when sum is used
+* Dependency updates
 
 ## 0.12.0
 
